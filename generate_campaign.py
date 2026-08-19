@@ -1,125 +1,67 @@
-import os
-import json
-import random
-from dotenv import load_dotenv
-from google import genai
+import streamlit as st
 
-load_dotenv()
+st.set_page_config(page_title="Sneakerness Engine", layout="wide")
 
-api_key = os.getenv("GEMINI_API_KEY")
-if not api_key:
-    raise ValueError("GEMINI_API_KEY not found in .env file!")
+# 1. Initialization & Clear Callback Function
+def clear_all_inputs():
+    st.session_state["brand_input"] = ""
+    st.session_state["model_input"] = ""
+    st.session_state["colorway_input"] = ""
+    st.session_state["uploaded_file_key"] += 1  # Resets the file uploader widget
 
-client = genai.Client(api_key=api_key)
+if "uploaded_file_key" not in st.session_state:
+    st.session_state["uploaded_file_key"] = 0
 
-def load_weekly_insights():
-    path = os.path.join("data", "weekly_insights.json")
-    if not os.path.exists(path):
-        raise FileNotFoundError("weekly_insights.json not found. Run Stage 1 first.")
-    with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)
+# Top Bar with Title and Clear Button
+col_title, col_clear = st.columns([4, 1])
+with col_title:
+    st.title("👟 Sneakerness Engine")
 
-def generate_dynamic_campaign():
-    data = load_weekly_insights()
-    insights = data.get("consumer_search_intent", [])
-    
-    if not insights:
-        raise ValueError("No consumer insights found in weekly_insights.json")
-        
-    selected_insight = random.choice(insights)
-    
-    # Αυστηρό Prompt με περιορισμούς χαρακτήρων, κανόνες στίξης & SINGLE-INSTANCE OVERLAY BADGES
-    # Αυστηρό Prompt με περιορισμούς χαρακτήρων & κανόνες στίξης
-    prompt = f"""
-    You are the Global Content Engine for Sneakerness.
-    Generate marketing copy based on this consumer insight:
-    - Query: {selected_insight['query']}
-    - Intent: {selected_insight['intent']}
-    - Issue: {selected_insight['core_issue']}
+with col_clear:
+    st.button("🧹 Νέο Παπούτσι / Clear", on_click=clear_all_inputs, use_container_width=True)
 
-    STRICT COPYWRITING RULES FOR POMELLI BRIEF:
-    1. Language: Perfect, native American/British English.
-    2. TITLE: Max 5 words. NO commas. Use a period at the end of thoughts (e.g., "REFINED WIDTH. ZERO BULK.").
-    3. DESCRIPTION: Exactly 2 short, complete, grammatically perfect sentences. Max 25 words total.
-    4. SUBMITTED PROMPT RULES (CRITICAL):
-       - Generated prompt MUST describe a CLEAN vertical 9:16 layout without any duplicate graphics.
-       - Include strict negative conditions in the prompt: "single frame composition, no split screen, no duplicate badges, no repeated trust seals on the bottom section, clean overall composition".
+st.markdown("---")
 
-    OUTPUT FORMAT:
-    Return ONLY a valid JSON object matching this schema (no markdown formatting, no code blocks):
-    {{
-        "target_query": "{selected_insight['query']}",
-        "tiktok_script": {{
-            "hook": "...",
-            "body": "...",
-            "cta": "..."
-        }},
-        "social_caption": "...",
-        "pomelli_brief": {{
-            "submitted_prompt": "Photorealistic lifestyle photography of a sneaker, single continuous frame, 9:16 aspect ratio, natural daylight, detailed texture, neutral tones, no split screen, no repeated overlays, clean lower composition",
-            "title": "...",
-            "description": "...",
-            "goal": "Promote a new product"
-        }}
-    }}
-    """
-    print("[*] Generating strict, validated English Campaign...")
-    
-    response = client.models.generate_content(
-        model="gemini-2.5-flash",
-        contents=prompt
+# 2. File Uploader
+uploaded_file = st.file_uploader(
+    "📷 Ανέβασε φωτογραφία παπουτσιού (Προαιρετικό)",
+    type=["jpg", "png", "webp", "jpeg"],
+    key=f"uploader_{st.session_state['uploaded_file_key']}"
+)
+
+# Preview Section
+if uploaded_file is not None:
+    st.subheader("Προεπισκόπηση")
+    st.image(uploaded_file, width=300)
+
+# 3. Detection Action Button
+if st.button("🔍 Αυτόματη Ανίχνευση (Specs, Χρώμα, Περιβάλλον & Σενάριο)"):
+    if uploaded_file is None:
+        st.warning("Παρακαλώ ανέβασε πρώτα μια εικόνα για ανίχνευση.")
+    else:
+        # Εδώ μπαίνει η λογική του Vision API ανάλυσης
+        st.info("Εκτέλεση ανίχνευσης...")
+
+# 4. Form Inputs linked with Session State
+col1, col2, col3 = st.columns(3)
+
+with col1:
+    brand = st.text_input(
+        "Brand / Μάρκα", 
+        key="brand_input", 
+        value=st.session_state.get("brand_input", "")
     )
 
-    clean_text = response.text.strip()
-    if clean_text.startswith("```json"):
-        clean_text = clean_text[7:]
-    if clean_text.endswith("```"):
-        clean_text = clean_text[:-3]
-    clean_text = clean_text.strip()
+with col2:
+    model = st.text_input(
+        "Model Name / Μοντέλο", 
+        key="model_input", 
+        value=st.session_state.get("model_input", "")
+    )
 
-    campaign_data = json.loads(clean_text)
-
-    # Sanitize Title & Description
-    brief = campaign_data["pomelli_brief"]
-    brief["title"] = brief["title"].replace(",", ".").upper()
-
-    # Save JSON for Pomelli
-    os.makedirs("output", exist_ok=True)
-    json_path = os.path.join("output", "pomelli_brief.json")
-    with open(json_path, "w", encoding="utf-8") as f:
-        json.dump(brief, f, ensure_ascii=False, indent=4)
-
-    # Save Markdown
-    md_content = f"""# 👟 Sneakerness Global Campaign
-**Target Insight:** {campaign_data['target_query']}
-
----
-
-## 🎨 POMELLI CAMPAIGN BRIEF
-* **Prompt:** `{brief['submitted_prompt']}`
-* **Title:** `{brief['title']}`
-* **Description:** `{brief['description']}`
-* **Goal:** `{brief['goal']}`
-
----
-
-## 🎬 TIKTOK / REELS SCRIPT (15s)
-* **Hook:** {campaign_data['tiktok_script']['hook']}
-* **Body:** {campaign_data['tiktok_script']['body']}
-* **CTA:** {campaign_data['tiktok_script']['cta']}
-
----
-
-## 📝 SOCIAL CAPTION
-{campaign_data['social_caption']}
-"""
-
-    md_path = os.path.join("output", "campaign_latest.md")
-    with open(md_path, "w", encoding="utf-8") as f:
-        f.write(md_content)
-
-    print(f"[SUCCESS] Clean & Validated Campaign Generated!")
-    print(f" -> Pomelli Brief: {json_path}")
-
-if __name__ == "__main__":
-    generate_dynamic_campaign()
+with col3:
+    colorway = st.text_input(
+        "Colorway / Χρώμα", 
+        key="colorway_input", 
+        value=st.session_state.get("colorway_input", "")
+    )
