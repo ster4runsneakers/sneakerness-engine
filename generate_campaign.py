@@ -1,4 +1,3 @@
-# generate_campaign.py
 import os
 import json
 import random
@@ -29,10 +28,10 @@ def generate_dynamic_campaign():
         
     selected_insight = random.choice(insights)
     
-    # Αυστηρό Prompt με περιορισμούς χαρακτήρων & κανόνες στίξης
+    # Αυστηρό Prompt με περιορισμούς χαρακτήρων, κανόνες στίξης & SINGLE-INSTANCE OVERLAY BADGES
     prompt = f"""
     You are the Global Content Engine for Sneakerness.
-    Generate marketing copy based on this consumer insight:
+    Generate marketing copy and visual prompt based on this consumer insight:
     - Query: {selected_insight['query']}
     - Intent: {selected_insight['intent']}
     - Issue: {selected_insight['core_issue']}
@@ -41,7 +40,11 @@ def generate_dynamic_campaign():
     1. Language: Perfect, native American/British English.
     2. TITLE: Max 5 words. NO commas. Use a period at the end of thoughts (e.g., "REFINED WIDTH. ZERO BULK.").
     3. DESCRIPTION: Exactly 2 short, complete, grammatically perfect sentences. Max 25 words total.
-    4. SUBMITTED PROMPT: Pure image generation prompt, no text instructions inside it.
+    4. SUBMITTED PROMPT / VISUAL OVERLAY RULES:
+       - Must include clear instructions for single-instance badges.
+       - Place '100% AUTHENTIC GUARANTEED' badge ONLY ONCE at the absolute top-left corner of the overall canvas.
+       - Place 'REVIEWED ★★★★★' badge ONLY ONCE at the absolute top-right corner of the overall canvas.
+       - ABSOLUTE CONSTRAINT: NO DUPLICATE BADGES. Do NOT mirror, repeat, or recreate badges on the bottom panel or lower half.
 
     OUTPUT FORMAT:
     Return ONLY a valid JSON object matching this schema (no markdown formatting, no code blocks):
@@ -54,7 +57,7 @@ def generate_dynamic_campaign():
         }},
         "social_caption": "...",
         "pomelli_brief": {{
-            "submitted_prompt": "Photorealistic lifestyle photography of a sneaker placed on urban pavement, natural daylight, side profile, detailed texture, neutral tones, 9:16 aspect ratio",
+            "submitted_prompt": "Photorealistic vertical ad composition, top-left badge '100% AUTHENTIC GUARANTEED' (ONCE ONLY), top-right badge 'REVIEWED ★★★★★' (ONCE ONLY), no duplicate badges on bottom section, high detail sneaker product shot, neutral tones, 9:16 aspect ratio",
             "title": "...",
             "description": "...",
             "goal": "Promote a new product"
@@ -78,9 +81,9 @@ def generate_dynamic_campaign():
 
     campaign_data = json.loads(clean_text)
 
-    # Sanitize Title & Description (Επιπλέον έλεγχος στον κώδικα)
+    # Sanitize Title & Description
     brief = campaign_data["pomelli_brief"]
-    brief["title"] = brief["title"].replace(",", ".").upper()  # Αφαιρεί τα κόμματα από τον τίτλο
+    brief["title"] = brief["title"].replace(",", ".").upper()
 
     # Save JSON for Pomelli
     os.makedirs("output", exist_ok=True)
