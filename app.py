@@ -1,0 +1,359 @@
+# app.py - Multimodal Auto-Matching Sneakerness Engine (English Soft Discovery)
+import os
+import json
+import time
+from datetime import datetime
+from dotenv import load_dotenv
+
+# 1. SETUP
+load_dotenv()
+
+import streamlit as st
+from google import genai
+from google.genai import types
+
+st.set_page_config(page_title="Sneakerness Studio Engine", page_icon="👟", layout="centered")
+
+st.title("👟 Sneakerness Ad, Carousel & Copy Studio")
+st.subheader("Multimodal Auto-Matching Engine (English Content Edition)")
+
+api_key = os.getenv("GEMINI_API_KEY")
+if not api_key:
+    st.error("❌ Δεν βρέθηκε το GEMINI_API_KEY στο αρχείο .env!")
+    st.stop()
+
+client = genai.Client(api_key=api_key)
+
+# 2. DEFINITIONS
+ENVIRONMENTS_MAP = {
+    "🏢 Αστικός δρόμος μινιμαλιστικού μπετόν (Φυσικό φως)": "minimalist concrete urban street with natural daylight",
+    "☕ Εσωτερικό ζεστής καφετέριας (Απαλός φωτισμός)": "warm coffee shop interior with soft ambient lighting",
+    "🏭 Βιομηχανική αποθήκη από γυαλί & ατσάλι (Neon)": "industrial glass-and-steel warehouse with neon reflections",
+    "🪵 Πολυτελές εκθεσιακό showroom (Δρυς & πέτρα)": "luxury editorial showroom with warm oak and stone",
+    "🏛️ Ευρωπαϊκό πλακόστρωτο σοκάκι (Ηλιόλουστο)": "European city cobblestone pavement with warm sunlight",
+    "🌿 Σύγχρονο αστικό πάρκο (Ξύλινος πάγκος & πράσινο)": "modern urban park with wooden bench and soft greenery background",
+    "🏙️ Rooftop με θέα την πόλη (Απογευματινό ηλιοβασίλεμα)": "modern city rooftop lounge with warm sunset golden hour light",
+    "🎨 Creative studio με λευκούς τοίχους & industrial floor": "bright creative design studio with polished concrete and white walls"
+}
+
+EDC_PROPS_MAP = {
+    "📖 Περιοδικό Kinfolk, καπουτσίνο, μπρούτζινα κλειδιά, παχύφυτο": "an open Kinfolk magazine, a ceramic cup of cappuccino, brass keys, succulent",
+    "📓 Μπλε δερμάτινο σημειωματάριο, γυαλιά ηλίου aviator, ρολόι, κρίκος": "a navy leather notebook, aviator sunglasses, a luxury watch, carabiner",
+    "🖋️ Μπρούτζινο στυλό, δερμάτινο πορτοφόλι, ακουστικά, cold brew": "a minimalist brass pen, a folded leather wallet, wireless earbuds case, cold brew",
+    "🧴 Παγούρι αλουμινίου, μηχανικό ρολόι, σκούρα γυαλιά ηλίου, κλειδιά": "a stainless steel water bottle, a mechanical watch, dark sunglasses, key ring",
+    "🎧 Ασύρματα overhead ακουστικά, espresso, vintage φωτογραφική": "sleek wireless overhead headphones, double espresso cup, vintage film camera",
+    "💻 Minimalist tablet, δερμάτινο λουράκι, μπλε γυαλιά, matcha latte": "a minimalist tablet with leather sleeve, tortoise sunglasses, matcha latte cup"
+}
+
+PROBLEM_SCENES_MAP = {
+    "👷 Κουρασμένος εργάτης στις σκάλες (Μπότες δίπλα, πιάνει πέλματα)": "a tired worker sitting on stairs touching sore feet with work boots beside them",
+    "💼 Υπάλληλος γραφείου στο γραφείο (Τρίβει φτέρνες από σφιχτά παπούτσια)": "an office worker at a desk rubbing sore heels after hours in uncomfortable formal shoes",
+    "🏃 Κουρασμένος δρομέας στο πεζοδρόμιο (Πιάσιμο σε αστράγαλο/καμάρα)": "a tired runner sitting on a curb holding an aching foot arch and ankle after a long run",
+    "🛍️ Εργαζόμενος λιανικής/εστίασης (Μασάζ στις γάμπες από 8ωρη ορθοστασία)": "a retail service worker leaning against a counter massaging fatigued calves from standing 8h",
+    "🚛 Οδηγός/Μεταφορέας (Διατάσεις σε αρθρώσεις μετά από πολύωρο ταξίδι)": "a driver resting beside a vehicle stretching stiff joints and feet after a long haul",
+    "🏥 Νοσηλευτής/Γιατρός σε διάδρομο (Ξεκούραση ποδιών μετά από βάρδια)": "a medical healthcare worker sitting on a bench in hallway unlacing shoes to relieve pressure",
+    "🧳 Ταξιδιώτης σε αεροδρόμιο (Κουρασμένα πέλματα δίπλα σε βαλίτσα)": "a traveler sitting on airport lounge chair massaging tired feet next to a carry-on suitcase"
+}
+
+ENV_KEYS = list(ENVIRONMENTS_MAP.keys())
+PROPS_KEYS = list(EDC_PROPS_MAP.keys())
+PROBLEM_KEYS = list(PROBLEM_SCENES_MAP.keys())
+
+CATEGORY_BADGES = [
+    "REVIEWED ★★★★★", 
+    "DAILY APPROVED ★★★★★", 
+    "CUSHIONING APPROVED", 
+    "RUNNING TECH", 
+    "HERITAGE DROP", 
+    "STREET CLASSIC",
+    "ULTRA COMFORT ★★★★★",
+    "BESTSELLER SELECTION"
+]
+
+AUTHENTICITY_TAGS = [
+    "100% AUTHENTIC GUARANTEED",
+    "LIMITED EDITION DROP",
+    "PREMIUM COMFORT EDITION",
+    "OFFICIAL SNEAKERNESS SELECTION",
+    "ORIGINAL HERITAGE DROP",
+    "VERIFIED AUTHENTIC"
+]
+
+AVAILABLE_MODELS = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"]
+
+# 3. HELPER FUNCTIONS
+def auto_analyze_shoe(brand_name, model_name, image_bytes=None, mime_type="image/jpeg"):
+    if image_bytes:
+        prompt_search = f"""Inspect the attached shoe image carefully and identify it.
+
+CRITICAL INSTRUCTIONS:
+1. "brand": State the exact footwear brand name. DO NOT leave empty.
+2. "model": State the exact shoe model name. DO NOT leave empty.
+3. "colorway": Exact colors observed in the image (e.g. "Wheat Tan Suede").
+4. "specs": Realistic technical specs for this specific shoe model.
+5. "env_index": Integer (0-{len(ENV_KEYS)-1}) matching ENVIRONMENTS.
+6. "props_index": Integer (0-{len(PROPS_KEYS)-1}) matching EDC_PROPS.
+7. "problem_index": Integer (0-{len(PROBLEM_KEYS)-1}) matching PROBLEM_SCENES.
+
+Return strict JSON:
+{{
+  "brand": "Detected Brand",
+  "model": "Detected Model",
+  "specs": "Technical specs...",
+  "colorway": "Detected colorway...",
+  "env_index": 0,
+  "props_index": 0,
+  "problem_index": 0
+}}"""
+    else:
+        prompt_search = f"""Analyze the shoe (Brand: '{brand_name}', Model: '{model_name}').
+Choose the best matching integer index for ENVIRONMENTS (0-{len(ENV_KEYS)-1}), EDC_PROPS (0-{len(PROPS_KEYS)-1}), and PROBLEM_SCENES (0-{len(PROBLEM_KEYS)-1}).
+
+Return strict JSON:
+{{
+  "brand": "{brand_name if brand_name else 'Unknown'}",
+  "model": "{model_name if model_name else 'Sneaker'}",
+  "specs": "Engineered mesh upper, performance cushioning, durable outsole",
+  "colorway": "Standard Colorway",
+  "env_index": 0,
+  "props_index": 0,
+  "problem_index": 0
+}}"""
+
+    contents = []
+    if image_bytes:
+        contents.append(types.Part.from_bytes(data=image_bytes, mime_type=mime_type))
+    contents.append(prompt_search)
+
+    for model_item in AVAILABLE_MODELS:
+        try:
+            res = client.models.generate_content(
+                model=model_item, 
+                contents=contents, 
+                config=types.GenerateContentConfig(response_mime_type="application/json")
+            )
+            if res and res.text: 
+                parsed = json.loads(res.text.strip())
+                parsed["env_index"] = min(max(int(parsed.get("env_index", 0)), 0), len(ENV_KEYS) - 1)
+                parsed["props_index"] = min(max(int(parsed.get("props_index", 0)), 0), len(PROPS_KEYS) - 1)
+                parsed["problem_index"] = min(max(int(parsed.get("problem_index", 0)), 0), len(PROBLEM_KEYS) - 1)
+                return parsed
+        except Exception: 
+            time.sleep(1)
+            
+    return {
+        "brand": brand_name if brand_name else "Puma",
+        "model": model_name if model_name else "Suede XL",
+        "specs": "Suede upper, padded collar, durable rubber outsole.",
+        "colorway": "Wheat / Tan Suede",
+        "env_index": 0,
+        "props_index": 0,
+        "problem_index": 0
+    }
+
+def safe_generate_ad_copy(brand_name, model_name, colorway_text, materials, watermark):
+    sys_instruction = "You are an expert e-commerce copywriter specializing in soft-sell, educational, and discovery-focused footwear ad copy and engaging social media posts in English."
+    
+    script_prompt = f"""Write ALL ad assets and copy in ENGLISH for {brand_name} {model_name} in {colorway_text} ({materials}) for website {watermark}.
+
+CRITICAL CONSTRAINTS:
+1. ALL OUTPUT MUST BE IN ENGLISH.
+2. DO NOT use hard-sell verbs like "buy", "shop", "order", "purchase", or "find your pair today".
+3. Use soft discovery CTAs like "Discover more at {watermark}", "Explore the full specs at {watermark}", or "Learn more at {watermark}".
+
+Return strict JSON with keys:
+1. "hook": Image top text, max 10 words (English).
+2. "body": Image mid text, max 10 words (English).
+3. "cta": Image bottom soft CTA including '{watermark}', max 8 words (English).
+4. "meta_caption": A captivating English Facebook/Instagram caption focusing on foot fatigue relief, daily comfort, and timeless style. End with an educational/soft CTA to explore {watermark}. NO HARD SELL.
+5. "tiktok_caption": A short, engaging English TikTok caption + 4 FYP hashtags focused on discovery. NO HARD SELL.
+6. "hashtags_meta": 8-10 trending English hashtags (e.g. #Sneakerness #FootwearTech #DailyComfort).
+7. "slide1_text": Text overlay for Slide 1 (Hook).
+8. "slide2_text": Text overlay for Slide 2 (Solution/Specs).
+9. "slide3_text": Soft CTA text overlay for Slide 3 (Discovery/Explore).
+"""
+    
+    for model_item in AVAILABLE_MODELS:
+        try:
+            response = client.models.generate_content(
+                model=model_item, 
+                contents=script_prompt, 
+                config=types.GenerateContentConfig(
+                    system_instruction=sys_instruction,
+                    response_mime_type="application/json"
+                )
+            )
+            if response and response.text: 
+                return json.loads(response.text.strip())
+        except Exception: 
+            time.sleep(1)
+            
+    # English Soft Fallback Copy
+    return {
+        "hook": f"Tired of foot fatigue after long hours? Discover {brand_name} {model_name}.",
+        "body": "Engineered to absorb impact and support posture all day.",
+        "cta": f"Discover more at {watermark}.",
+        "meta_caption": f"Long shifts and daily standing don't have to take a toll on your feet. Explore how the cushioning technology of the {brand_name} {model_name} delivers essential posture support and comfort throughout the day. Learn more at {watermark}.",
+        "tiktok_caption": f"How do you deal with foot fatigue on long days? Check out the tech behind the {brand_name} {model_name} at {watermark}! 👟👇 #Sneakerness #{brand_name} #ComfortTech #FYP",
+        "hashtags_meta": f"#Sneakerness #{brand_name} #SneakerCommunity #DailyComfort #FootwearTech #StyleAndComfort",
+        "slide1_text": "Tired of Foot Fatigue After Long Hours?",
+        "slide2_text": f"Discover {brand_name} {model_name}. Engineered for All-Day Comfort.",
+        "slide3_text": f"Explore the Full Specs at {watermark}"
+    }
+
+# 4. RESET FUNCTION
+def clear_all_fields():
+    st.session_state["brand_val"] = ""
+    st.session_state["model_val"] = ""
+    st.session_state["colorway_val"] = ""
+    st.session_state["specs_val"] = ""
+    st.session_state["env_idx"] = 0
+    st.session_state["props_idx"] = 0
+    st.session_state["prob_idx"] = 0
+    st.session_state["uploader_key"] = st.session_state.get("uploader_key", 0) + 1
+
+# 5. INITIALIZE SESSION STATE
+if "brand_val" not in st.session_state: st.session_state["brand_val"] = "HOKA"
+if "model_val" not in st.session_state: st.session_state["model_val"] = "Clifton 11"
+if "colorway_val" not in st.session_state: st.session_state["colorway_val"] = "Sand Beige with Orange accents"
+if "specs_val" not in st.session_state: st.session_state["specs_val"] = "Engineered mesh upper, responsive cushioning, durable outsole"
+if "env_idx" not in st.session_state: st.session_state["env_idx"] = 0
+if "props_idx" not in st.session_state: st.session_state["props_idx"] = 0
+if "prob_idx" not in st.session_state: st.session_state["prob_idx"] = 0
+if "uploader_key" not in st.session_state: st.session_state["uploader_key"] = 0
+
+# 6. UI & ACTIONS
+col_header, col_reset = st.columns([3, 1])
+with col_reset:
+    st.write("")
+    if st.button("🧹 Νέο Παπούτσι / Clear"):
+        clear_all_fields()
+        st.rerun()
+
+col_up, col_preview = st.columns([2, 1])
+with col_up:
+    uploaded_file = st.file_uploader(
+        "📷 Ανέβασε φωτογραφία παπουτσιού (Προαιρετικό)", 
+        type=["jpg", "jpeg", "png", "webp"],
+        key=f"uploader_{st.session_state['uploader_key']}"
+    )
+with col_preview:
+    if uploaded_file is not None:
+        st.image(uploaded_file, caption="Προεπισκόπηση", use_container_width=True)
+
+# ΚΟΥΜΠΙ ΑΝΙΧΝΕΥΣΗΣ
+if st.button("🔍 Αυτόματη Ανίχνευση (Specs, Χρώμα, Περιβάλλον & Σενάριο)"):
+    with st.spinner("Ανάλυση νέας εικόνας και ενημέρωση πεδίων..."):
+        img_bytes = uploaded_file.getvalue() if uploaded_file else None
+        
+        mime = "image/jpeg"
+        if uploaded_file:
+            if uploaded_file.name.lower().endswith(".webp"): mime = "image/webp"
+            elif uploaded_file.name.lower().endswith(".png"): mime = "image/png"
+
+        data = auto_analyze_shoe("", "", img_bytes, mime)
+        
+        st.session_state["brand_val"] = data.get("brand", "Puma")
+        st.session_state["model_val"] = data.get("model", "Suede XL")
+        st.session_state["colorway_val"] = data.get("colorway", "Wheat / Tan Suede")
+        st.session_state["specs_val"] = data.get("specs", "Suede upper, padded collar, rubber outsole")
+        st.session_state["env_idx"] = data.get("env_index", 0)
+        st.session_state["props_idx"] = data.get("props_index", 0)
+        st.session_state["prob_idx"] = data.get("problem_index", 0)
+        st.rerun()
+
+# 7. INPUT FIELDS
+col1, col2, col3 = st.columns(3)
+with col1: 
+    brand = st.text_input("Brand / Μάρκα", value=st.session_state["brand_val"])
+    st.session_state["brand_val"] = brand
+
+with col2: 
+    model_name = st.text_input("Model Name / Μοντέλο", value=st.session_state["model_val"])
+    st.session_state["model_val"] = model_name
+
+with col3: 
+    colorway = st.text_input("Colorway / Χρώμα", value=st.session_state["colorway_val"])
+    st.session_state["colorway_val"] = colorway
+
+custom_watermark = st.text_input("Watermark / Domain", value="SNEAKERNESS.EU")
+
+key_materials = st.text_area("Specs / Τεχνικά Χαρακτηριστικά", value=st.session_state["specs_val"], height=80)
+st.session_state["specs_val"] = key_materials
+
+col_tag, col_badge = st.columns(2)
+with col_tag: selected_tag = st.selectbox("Tag (Πάνω Αριστερά)", AUTHENTICITY_TAGS)
+with col_badge: selected_badge = st.selectbox("Badge (Πάνω Δεξιά)", CATEGORY_BADGES)
+
+env_label = st.selectbox("Περιβάλλον Φόντου (Environment)", ENV_KEYS, index=st.session_state["env_idx"])
+selected_env = ENVIRONMENTS_MAP[env_label]
+
+props_label = st.selectbox("Αξεσουάρ Τραπεζιού (EDC Props)", PROPS_KEYS, index=st.session_state["props_idx"])
+selected_props = EDC_PROPS_MAP[props_label]
+
+prob_label = st.selectbox("Σενάριο Προβλήματος (Πάνω Εικόνα)", PROBLEM_KEYS, index=st.session_state["prob_idx"])
+selected_problem = PROBLEM_SCENES_MAP[prob_label]
+
+col_fmt, col_ar = st.columns(2)
+with col_fmt:
+    ad_format = st.selectbox("Τύπος Διαφήμισης (Format)", ["Single Layout Ad (1 Εικόνα)", "3-Slide Carousel Pack (3 Εικόνες)"])
+with col_ar:
+    aspect_ratio = st.radio("Αναλογία Εικόνας (Aspect Ratio)", ["9:16 (Story/TikTok)", "1:1 (Square)"], index=1)
+
+ar_flag = "--ar 1:1" if "1:1" in aspect_ratio else "--ar 9:16"
+
+st.markdown("---")
+
+# 8. GENERATION
+if st.button("🚀 Δημιουργία Content Pack", type="primary"):
+    with st.spinner("Δημιουργία Prompts, Social Captions & Copy (English)..."):
+        ad_texts = safe_generate_ad_copy(brand, model_name, colorway, key_materials, custom_watermark)
+
+    if ad_format == "Single Layout Ad (1 Εικόνα)":
+        visual_prompt = f"""E-commerce 3-part vertical storytelling ad layout.
+
+TOP SECTION (PROBLEM): {selected_problem}. Overlay text: '{ad_texts['hook']}'.
+
+MIDDLE SECTION (HERO PRODUCT): Studio product photo of {brand} {model_name} in {colorway} colorway ({key_materials}) placed on a concrete surface in {selected_env}. EDC props: {selected_props}. Top-right badge '{selected_badge}', top-left tag '{selected_tag}'. Body text: '{ad_texts['body']}'.
+
+BOTTOM SECTION (FOOTER): Seamless continuation of the same concrete surface. Floating bold text '{custom_watermark}' and soft CTA: '{ad_texts['cta']}'.
+
+DESIGN REQUIREMENTS: Soft gradient feathered transition between all sections. ABSOLUTELY NO dark footer bars, NO black background blocks, NO sharp cutting edges. Photorealistic 8k, commercial studio lighting {ar_flag}"""
+
+        st.markdown("#### 🍌 Nano Banana Prompt (Single Image)")
+        st.code(visual_prompt, language="text")
+
+    else: # 3-Slide Carousel Pack
+        slide1_prompt = f"""Slide 1 of 3 Carousel: Cinematic portrait of {selected_problem}. Natural dramatic studio lighting. High emotion. Bold top text overlay: '{ad_texts.get('slide1_text', ad_texts['hook'])}'. Photorealistic 8k {ar_flag}"""
+        
+        slide2_prompt = f"""Slide 2 of 3 Carousel: Studio product photography of {brand} {model_name} in {colorway} colorway ({key_materials}) placed on a surface in {selected_env}. EDC props: {selected_props}. Top-right badge '{selected_badge}', top-left tag '{selected_tag}'. Clean text overlay: '{ad_texts.get('slide2_text', ad_texts['body'])}'. Commercial studio lighting {ar_flag}"""
+        
+        slide3_prompt = f"""Slide 3 of 3 Carousel: Sleek macro detail close-up photo of the sole and cushioning of {brand} {model_name} on {selected_env} background. Floating bold text '{custom_watermark}' and soft CTA: '{ad_texts.get('slide3_text', ad_texts['cta'])}'. Commercial studio lighting {ar_flag}"""
+
+        st.markdown("#### 🍌 Nano Banana Prompts (3-Slide Carousel Pack)")
+        st.write("**Slide 1 (The Hook / Problem):**")
+        st.code(slide1_prompt, language="text")
+        st.write("**Slide 2 (The Solution / Product):**")
+        st.code(slide2_prompt, language="text")
+        st.write("**Slide 3 (Soft Discovery CTA):**")
+        st.code(slide3_prompt, language="text")
+
+    st.markdown("---")
+    st.markdown("### 📲 English Social Media Captions (Soft Discovery)")
+
+    tab1, tab2 = st.tabs(["📘 Facebook & Instagram (English)", "🎵 TikTok / Carousel (English)"])
+    
+    with tab1:
+        meta_post = f"{ad_texts.get('meta_caption', '')}\n\n{ad_texts.get('hashtags_meta', '')}"
+        st.text_area("FB / IG Caption (English):", value=meta_post, height=180)
+        
+    with tab2:
+        tiktok_post = ad_texts.get('tiktok_caption', '')
+        st.text_area("TikTok Caption (English):", value=tiktok_post, height=120)
+        st.info("💡 **TikTok Tip:** Upload the 3 Slides as a Photo Mode Carousel with a calm ambient background track.")
+
+    os.makedirs("output", exist_ok=True)
+    file_path = f"output/{brand}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+    with open(file_path, "w", encoding="utf-8") as f:
+        f.write(f"FB/IG POST (EN):\n{meta_post}\n\nTIKTOK POST (EN):\n{tiktok_post}\n\nDATA:\n{json.dumps(ad_texts, ensure_ascii=False, indent=2)}")
+    st.info(f"💾 Αποθηκεύτηκε στο `{file_path}`")

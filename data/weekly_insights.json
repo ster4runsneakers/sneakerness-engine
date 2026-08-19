@@ -1,0 +1,40 @@
+{
+    "status": "Success",
+    "stage": "Stage 1 - Data-Driven Market Research",
+    "ecom_monitoring": [
+        {
+            "category": "High Cushioning / EVA Midsole",
+            "demand_trend": "High (+35% search intent)",
+            "stock_status": "Low stock in standard sizes (42-44)",
+            "key_benefit": "Shock absorption for 8+ hours standing work"
+        },
+        {
+            "category": "Suede / Breathable Mesh Hybrids",
+            "demand_trend": "Rising",
+            "stock_status": "Stable",
+            "key_benefit": "Autumn transition wear & ease of cleaning"
+        }
+    ],
+    "consumer_search_intent": [
+        {
+            "query": "Best sneakers for 10 hour standing shifts",
+            "intent": "Comfort & Fatigue Reduction",
+            "core_issue": "Lower back pain and foot soreness by end of day"
+        },
+        {
+            "query": "Sneakers for wide feet that don't look orthopedic",
+            "intent": "Sizing & Fit",
+            "core_issue": "Toe compression in standard trendy silhouettes"
+        },
+        {
+            "query": "How to protect suede sneakers from rain without darkening material",
+            "intent": "Maintenance & Care",
+            "core_issue": "Fear of ruining suede texture in daily use"
+        }
+    ],
+    "top_3_actionable_insights": [
+        "1. Focus content on 8-10 hour standing comfort (High demand, size stockouts).",
+        "2. Address wide-toe box fit needs without sacrificing streetwear aesthetic.",
+        "3. Provide practical autumn suede maintenance/care guides."
+    ]
+}

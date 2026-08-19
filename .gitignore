@@ -1,0 +1,18 @@
+# Virtual Environment
+.venv/
+venv/
+
+# Secrets & API Keys
+.env
+
+# Generated Output
+output/
+
+# Python Cache & temporary files
+__pycache__/
+*.pyc
+
+# IDE settings & zip backups
+.vscode/
+.idea/
+*.zip
