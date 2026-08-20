@@ -281,18 +281,21 @@ if st.button("🚀 Δημιουργία Content Pack", type="primary"):
         with st.spinner("Δημιουργία Prompts, Social Captions & Copy (English)..."):
             ad_texts = safe_generate_ad_copy(brand, model_name, colorway, key_materials, custom_watermark)
 
+        # Κοινό negative constraint για όλα τα prompts
+        negative_constraint = " STRICTLY NO text like 'Slide X of Y', NO carousel numbering, NO UI elements, NO page numbers. ONLY the requested overlay text."
+
         if ad_format == "Single Layout Ad (1 Εικόνα)":
-            visual_prompt = f"""Create an image: Photorealistic vertical photograph of {brand} {model_name} in {colorway} colorway ({key_materials}) placed on a smooth surface in the foreground, accompanied by {selected_props}. In the soft-focus upper background, {selected_problem}. Natural depth of field and continuous studio lighting. Render a top-left fabric tag reading '{selected_tag}' and a top-right badge reading '{selected_badge}'. Display headline text overlay '{ad_texts['hook']}', body text overlay '{ad_texts['body']}', and bottom watermark '{custom_watermark}' with soft CTA '{ad_texts['cta']}'. Do not print shoe specifications, colorway names, or technical text on the image. Photorealistic 8k, seamless single canvas {ar_flag}"""
+            visual_prompt = f"""Create an image: Photorealistic vertical photograph of {brand} {model_name} in {colorway} colorway ({key_materials}) placed on a smooth surface in the foreground, accompanied by {selected_props}. In the soft-focus upper background, {selected_problem}. Natural depth of field and continuous studio lighting. Render a top-left fabric tag reading '{selected_tag}' and a top-right badge reading '{selected_badge}'. Display headline text overlay '{ad_texts['hook']}', body text overlay '{ad_texts['body']}', and bottom watermark '{custom_watermark}' with soft CTA '{ad_texts['cta']}'. {negative_constraint} Photorealistic 8k, seamless single canvas {ar_flag}"""
 
             st.markdown("#### 🍌 Nano Banana Prompt (Single Image)")
             st.code(visual_prompt, language="text")
 
         else:
-            slide1_prompt = f"""Create an image: Slide 1 of 3 Carousel: Cinematic portrait of {selected_problem}. Natural dramatic studio lighting. High emotion. Bold top text overlay: '{ad_texts.get('slide1_text', ad_texts['hook'])}'. Photorealistic 8k {ar_flag}"""
+            slide1_prompt = f"""Create an image: Cinematic portrait of {selected_problem}. Natural dramatic studio lighting. High emotion. Bold top text overlay: '{ad_texts.get('slide1_text', ad_texts['hook'])}'. {negative_constraint} Photorealistic 8k {ar_flag}"""
             
-            slide2_prompt = f"""Create an image: Slide 2 of 3 Carousel: Studio product photography of {brand} {model_name} in {colorway} colorway ({key_materials}) placed on a surface in {selected_env}. EDC props: {selected_props}. Top-left tag '{selected_tag}', top-right badge '{selected_badge}'. Clean text overlay: '{ad_texts.get('slide2_text', ad_texts['body'])}'. Commercial studio lighting {ar_flag}"""
+            slide2_prompt = f"""Create an image: Studio product photography of {brand} {model_name} in {colorway} colorway ({key_materials}) placed on a surface in {selected_env}. EDC props: {selected_props}. Top-left tag '{selected_tag}', top-right badge '{selected_badge}'. Clean text overlay: '{ad_texts.get('slide2_text', ad_texts['body'])}'. {negative_constraint} Commercial studio lighting {ar_flag}"""
             
-            slide3_prompt = f"""Create an image: Slide 3 of 3 Carousel: Sleek macro detail close-up photo of the sole and cushioning of {brand} {model_name} on {selected_env} background. Floating bold text '{custom_watermark}' and soft CTA: '{ad_texts.get('slide3_text', ad_texts['cta'])}'. Commercial studio lighting {ar_flag}"""
+            slide3_prompt = f"""Create an image: Sleek macro detail close-up photo of the sole and cushioning of {brand} {model_name} on {selected_env} background. Floating bold text '{custom_watermark}' and soft CTA: '{ad_texts.get('slide3_text', ad_texts['cta'])}'. {negative_constraint} Commercial studio lighting {ar_flag}"""
 
             st.markdown("#### 🍌 Nano Banana Prompts (3-Slide Carousel Pack)")
             st.write("**Slide 1 (The Hook / Problem):**")
