@@ -91,16 +91,25 @@ def auto_analyze_shoe(brand_name, model_name, image_bytes=None, mime_type="image
             "problem_index": 0
         }
 
+    env_list_str = "\n".join([f"{i}: {k}" for i, k in enumerate(ENV_KEYS)])
+    props_list_str = "\n".join([f"{i}: {k}" for i, k in enumerate(PROPS_KEYS)])
+    prob_list_str = "\n".join([f"{i}: {k}" for i, k in enumerate(PROBLEM_KEYS)])
+
     prompt_search = f"""Examine the provided sneaker image with extreme precision.
 
 CRITICAL IDENTIFICATION RULES:
 1. "brand": Identify the EXACT footwear brand name visible on the shoe or tongue (e.g., HOKA, Puma, Nike, Adidas, New Balance, Brooks).
-2. "model": Identify the EXACT shoe model name based on visible text (e.g., "Mafate Speed 2", "Clifton", "Bondi"). Check the tongue, lateral side, or heel label carefully.
+2. "model": Identify the EXACT shoe model name based on visible text. Check tongue, lateral side, or heel label carefully.
 3. "colorway": Describe the exact observed colors in the image (e.g., "Cream / Red / Navy Blue").
 4. "specs": Technical specifications specific to this exact model (e.g., Vibram Megagrip outsole, dual-density EVA midsole, breathable mesh upper).
-5. "env_index": Integer (0-{len(ENV_KEYS)-1}) matching ENVIRONMENTS.
-6. "props_index": Integer (0-{len(PROPS_KEYS)-1}) matching EDC_PROPS.
-7. "problem_index": Integer (0-{len(PROBLEM_KEYS)-1}) matching PROBLEM_SCENES.
+5. "env_index": Select the BEST matching environment index (0 to {len(ENV_KEYS)-1}) based on shoe style from this list:
+{env_list_str}
+
+6. "props_index": Select the BEST matching EDC props index (0 to {len(PROPS_KEYS)-1}) based on shoe style from this list:
+{props_list_str}
+
+7. "problem_index": Select the BEST matching problem scenario index (0 to {len(PROBLEM_KEYS)-1}) based on shoe style/use case from this list:
+{prob_list_str}
 
 Return ONLY a valid, raw JSON object matching this schema:
 {{
@@ -358,6 +367,36 @@ if st.button("🚀 Δημιουργία Content Pack", type="primary"):
 
         os.makedirs("output", exist_ok=True)
         file_path = f"output/{brand}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+        
+        txt_content = f"""========================================
+NANO BANANA VISUAL PROMPT
+========================================
+{visual_prompt if ad_format == 'Single Layout Ad (1 Εικόνα)' else f'Slide 1:\n{slide1_prompt}\n\nSlide 2:\n{slide2_prompt}\n\nSlide 3:\n{slide3_prompt}'}
+
+========================================
+FACEBOOK & INSTAGRAM POST (EN)
+========================================
+{meta_post}
+
+========================================
+TIKTOK / CAROUSEL POST (EN)
+========================================
+{tiktok_post}
+
+========================================
+RAW DATA (JSON)
+========================================
+{json.dumps(ad_texts, ensure_ascii=False, indent=2)}
+"""
+
         with open(file_path, "w", encoding="utf-8") as f:
-            f.write(f"FB/IG POST (EN):\n{meta_post}\n\nTIKTOK POST (EN):\n{tiktok_post}\n\nDATA:\n{json.dumps(ad_texts, ensure_ascii=False, indent=2)}")
+            f.write(txt_content)
+            
         st.info(f"💾 Αποθηκεύτηκε στο `{file_path}`")
+        
+        st.download_button(
+            label="📥 Download Content Pack (.txt)",
+            data=txt_content,
+            file_name=f"{brand}_{model_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+            mime="text/plain"
+        )
