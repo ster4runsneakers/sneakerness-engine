@@ -119,14 +119,22 @@ Return ONLY a valid, raw JSON object matching this schema:
     }
 
 def safe_generate_ad_copy(brand_name, model_name, colorway_text, materials, watermark):
-    sys_instruction = "You are an expert e-commerce copywriter specializing in soft-sell, educational, and discovery-focused footwear ad copy and engaging social media posts in English."
+    # 🛡️ Ασπίδα αφαίρεσης ευαίσθητων λέξεων
+    unsafe_keywords = ["kobe", "jordan", "lebron", "messi", "ronaldo", "curry"]
+    clean_model_name = model_name
+    for word in unsafe_keywords:
+        if word in clean_model_name.lower():
+            clean_model_name = clean_model_name.lower().replace(word, "signature pro")
+
+    sys_instruction = "You are an expert e-commerce copywriter specializing in soft-sell, educational, and discovery-focused footwear ad copy and engaging social media posts in English. NEVER use celebrity athlete names in your text overlays."
     
-    script_prompt = f"""Write ALL ad assets and copy in ENGLISH for {brand_name} {model_name} in {colorway_text} ({materials}) for website {watermark}.
+    script_prompt = f"""Write ALL ad assets and copy in ENGLISH for {brand_name} {clean_model_name} in {colorway_text} ({materials}) for website {watermark}.
 
 CRITICAL CONSTRAINTS:
 1. ALL OUTPUT MUST BE IN ENGLISH.
 2. DO NOT use hard-sell verbs like "buy", "shop", "order", "purchase".
 3. Use soft discovery CTAs like "Discover more at {watermark}", "Explore the full specs at {watermark}".
+4. STRICTLY DO NOT include celebrity names or restricted player names in any text or overlay.
 
 Return strict JSON with keys:
 1. "hook": Image top text, max 10 words.
@@ -157,14 +165,14 @@ Return strict JSON with keys:
             time.sleep(1)
             
     return {
-        "hook": f"Tired of foot fatigue after long hours? Discover {brand_name} {model_name}.",
+        "hook": f"Tired of foot fatigue after long hours? Discover {brand_name} {clean_model_name}.",
         "body": "Engineered to absorb impact and support posture all day.",
         "cta": f"Discover more at {watermark}.",
-        "meta_caption": f"Long shifts and daily standing don't have to take a toll on your feet. Explore how {brand_name} {model_name} delivers posture support. Learn more at {watermark}.",
-        "tiktok_caption": f"How do you deal with foot fatigue? Check out the tech behind {brand_name} {model_name} at {watermark}! 👟 #Sneakerness #{brand_name}",
+        "meta_caption": f"Long shifts and daily standing don't have to take a toll on your feet. Explore how {brand_name} {clean_model_name} delivers posture support. Learn more at {watermark}.",
+        "tiktok_caption": f"How do you deal with foot fatigue? Check out the tech behind {brand_name} {clean_model_name} at {watermark}! 👟 #Sneakerness #{brand_name}",
         "hashtags_meta": f"#Sneakerness #{brand_name} #DailyComfort #FootwearTech",
         "slide1_text": "Tired of Foot Fatigue After Long Hours?",
-        "slide2_text": f"Discover {brand_name} {model_name}.",
+        "slide2_text": f"Discover {brand_name} {clean_model_name}.",
         "slide3_text": f"Explore the Full Specs at {watermark}"
     }
 
@@ -281,14 +289,20 @@ if st.button("🚀 Δημιουργία Content Pack", type="primary"):
         with st.spinner("Δημιουργία Prompts, Social Captions & Copy (English)..."):
             ad_texts = safe_generate_ad_copy(brand, model_name, colorway, key_materials, custom_watermark)
 
-        # 🛡️ Ασπίδα προστασίας από φίλτρα ασφαλείας (Αφαίρεση ονομάτων διασημοτήτων/αθλητών από τα image prompts)
+        # 🛡️ Ασπίδα προστασίας από φίλτρα ασφαλείας
         unsafe_keywords = ["kobe", "jordan", "lebron", "messi", "ronaldo", "curry"]
         safe_model_name = model_name
         for word in unsafe_keywords:
             if word in safe_model_name.lower():
-                safe_model_name = safe_model_name.lower().replace(word, "signature pro series")
+                safe_model_name = safe_model_name.lower().replace(word, "signature pro")
 
-        # Κοινό negative constraint για όλα τα prompts
+        # Καθαρισμός και στα κείμενα των ad_texts για ασφάλεια
+        for key in ad_texts:
+            if isinstance(ad_texts[key], str):
+                for word in unsafe_keywords:
+                    if word in ad_texts[key].lower():
+                        ad_texts[key] = ad_texts[key].lower().replace(word, "signature pro")
+
         negative_constraint = " STRICTLY NO text like 'Slide X of Y', NO carousel numbering, NO UI elements, NO page numbers. ONLY the requested overlay text."
 
         if ad_format == "Single Layout Ad (1 Εικόνα)":
