@@ -316,4 +316,37 @@ if st.button("🚀 Δημιουργία Content Pack", type="primary"):
             st.text_area("TikTok Caption (English):", value=tiktok_post, height=120)
 
         os.makedirs("output", exist_ok=True)
-        file_path = f"output
+        file_path = f"output/{brand}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+        
+        txt_content = f"""========================================
+NANO BANANA VISUAL PROMPT
+========================================
+{visual_prompt if ad_format == 'Single Layout Ad (1 Εικόνα)' else f'Slide 1:\n{slide1_prompt}\n\nSlide 2:\n{slide2_prompt}\n\nSlide 3:\n{slide3_prompt}'}
+
+========================================
+FACEBOOK & INSTAGRAM POST (EN)
+========================================
+{meta_post}
+
+========================================
+TIKTOK / CAROUSEL POST (EN)
+========================================
+{tiktok_post}
+
+========================================
+RAW DATA (JSON)
+========================================
+{json.dumps(ad_texts, ensure_ascii=False, indent=2)}
+"""
+
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(txt_content)
+            
+        st.info(f"💾 Αποθηκεύτηκε στο `{file_path}`")
+        
+        st.download_button(
+            label="📥 Download Content Pack (.txt)",
+            data=txt_content,
+            file_name=f"{brand}_{model_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+            mime="text/plain"
+        )
