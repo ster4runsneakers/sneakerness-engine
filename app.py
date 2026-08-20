@@ -83,28 +83,86 @@ AVAILABLE_MODELS = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"]
 
 # 3. HELPER FUNCTIONS
 def auto_analyze_shoe(brand_name, model_name, image_bytes=None, mime_type="image/jpeg"):
-    if image_bytes:
-        prompt_search = f"""Examine the provided sneaker image with extreme precision.
+    if not image_bytes:
+        return {
+            "brand": brand_name if brand_name else "",
+            "model": model_name if model_name else "",
+            "specs": "",
+            "colorway": "",
+            "env_index": 0,
+            "props_index": 0,
+            "problem_index": 0
+        }
+
+    prompt_search = f"""Examine the provided sneaker image with extreme precision.
 
 CRITICAL IDENTIFICATION RULES:
-1. "brand": Identify the EXACT footwear brand name (e.g. HOKA, Puma, Nike, Adidas, New Balance).
-2. "model": Identify the EXACT shoe model name based on visible text, side profile, midsole geometry, and upper mesh (e.g., if it is "Mafate", "Speedgoat", "Clifton", "Suede XL", state it accurately). NEVER default to popular models like "Clifton" unless clearly identified.
-3. "colorway": Describe the exact observed colors in the image (e.g., "Sand Beige / Orange / White").
-4. "specs": Technical specifications specific to this exact model structure (e.g., Vibram outsole, thick cushioning, engineered mesh).
+1. "brand": Identify the EXACT footwear brand name visible on the shoe or tongue (e.g., HOKA, Puma, Nike, Adidas, New Balance, Brooks).
+2. "model": Identify the EXACT shoe model name based on visible text (e.g., "Mafate Speed 2", "Clifton", "Bondi"). Check the tongue, lateral side, or heel label carefully.
+3. "colorway": Describe the exact observed colors in the image (e.g., "Cream / Red / Navy Blue").
+4. "specs": Technical specifications specific to this exact model (e.g., Vibram Megagrip outsole, dual-density EVA midsole, breathable mesh upper).
 5. "env_index": Integer (0-{len(ENV_KEYS)-1}) matching ENVIRONMENTS.
 6. "props_index": Integer (0-{len(PROPS_KEYS)-1}) matching EDC_PROPS.
 7. "problem_index": Integer (0-{len(PROBLEM_KEYS)-1}) matching PROBLEM_SCENES.
 
-Return strict JSON format ONLY:
+Return ONLY a valid, raw JSON object matching this schema:
 {{
-  "brand": "Exact Detected Brand",
-  "model": "Exact Detected Model Name",
-  "specs": "Accurate technical features...",
-  "colorway": "Exact observed colors...",
+  "brand": "Detected Brand",
+  "model": "Detected Model",
+  "specs": "Technical features...",
+  "colorway": "Detected colorway...",
   "env_index": 0,
   "props_index": 0,
   "problem_index": 0
 }}"""
+
+    contents = [
+        types.Part.from_bytes(data=image_bytes, mime_type=mime_type),
+        prompt_search
+    ]
+
+    # Δοκιμή με τα πλέον σταθερά μοντέλα Vision
+    models_to_try = ["gemini-1.5-flash", "gemini-1.5-pro"]
+    
+    for model_item in models_to_try:
+        try:
+            res = client.models.generate_content(
+                model=model_item, 
+                contents=contents
+            )
+            
+            if res and res.text:
+                clean_txt = res.text.strip()
+                if clean_txt.startswith("```json"):
+                    clean_txt = clean_txt[7:]
+                if clean_txt.startswith("```"):
+                    clean_txt = clean_txt[3:]
+                if clean_txt.endswith("```"):
+                    clean_txt = clean_txt[:-3]
+                clean_txt = clean_txt.strip()
+
+                parsed = json.loads(clean_txt)
+                parsed["env_index"] = min(max(int(parsed.get("env_index", 0)), 0), len(ENV_KEYS) - 1)
+                parsed["props_index"] = min(max(int(parsed.get("props_index", 0)), 0), len(PROPS_KEYS) - 1)
+                parsed["problem_index"] = min(max(int(parsed.get("problem_index", 0)), 0), len(PROBLEM_KEYS) - 1)
+                return parsed
+        except Exception as e:
+            # Εκτύπωση του πραγματικού σφάλματος στο Streamlit UI για debugging
+            st.warning(f"⚠️ Μοντέλο {model_item} απέτυχε: {str(e)}")
+            time.sleep(1)
+
+    # Αν αποτύχουν όλα, επιστρέφει κενά πεδία αντί για Generic
+    return {
+        "brand": "",
+        "model": "",
+        "specs": "",
+        "colorway": "",
+        "env_index": 0,
+        "props_index": 0,
+        "problem_index": 0
+    }
+
+
     else:
         prompt_search = f"""Analyze the shoe (Brand: '{brand_name}', Model: '{model_name}').
 Choose the best matching integer index for ENVIRONMENTS (0-{len(ENV_KEYS)-1}), EDC_PROPS (0-{len(PROPS_KEYS)-1}), and PROBLEM_SCENES (0-{len(PROBLEM_KEYS)-1}).
