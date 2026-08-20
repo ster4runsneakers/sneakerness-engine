@@ -1,11 +1,10 @@
-# app.py - Multimodal Auto-Matching Sneakerness Engine (English Soft Discovery)
+# app.py - Multimodal Auto-Matching Sneakerness Engine
 import os
 import json
 import time
 from datetime import datetime
 from dotenv import load_dotenv
 
-# 1. SETUP
 load_dotenv()
 
 import streamlit as st
@@ -19,12 +18,12 @@ st.subheader("Multimodal Auto-Matching Engine (English Content Edition)")
 
 api_key = os.getenv("GEMINI_API_KEY")
 if not api_key:
-    st.error("❌ Δεν βρέθηκε το GEMINI_API_KEY στο αρχείο .env!")
+    st.error("❌ Δεν βρέθηκε το GEMINI_API_KEY στα Secrets / .env!")
     st.stop()
 
 client = genai.Client(api_key=api_key)
 
-# 2. DEFINITIONS
+# 1. DEFINITIONS
 ENVIRONMENTS_MAP = {
     "🏢 Αστικός δρόμος μινιμαλιστικού μπετόν (Φυσικό φως)": "minimalist concrete urban street with natural daylight",
     "☕ Εσωτερικό ζεστής καφετέριας (Απαλός φωτισμός)": "warm coffee shop interior with soft ambient lighting",
@@ -79,9 +78,7 @@ AUTHENTICITY_TAGS = [
     "VERIFIED AUTHENTIC"
 ]
 
-AVAILABLE_MODELS = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"]
-
-# 3. HELPER FUNCTIONS
+# 2. HELPER FUNCTIONS
 def auto_analyze_shoe(brand_name, model_name, image_bytes=None, mime_type="image/jpeg"):
     if not image_bytes:
         return {
@@ -121,7 +118,6 @@ Return ONLY a valid, raw JSON object matching this schema:
         prompt_search
     ]
 
-    # Δοκιμή με τα πλέον σταθερά μοντέλα Vision
     models_to_try = ["gemini-1.5-flash", "gemini-1.5-pro"]
     
     for model_item in models_to_try:
@@ -147,63 +143,14 @@ Return ONLY a valid, raw JSON object matching this schema:
                 parsed["problem_index"] = min(max(int(parsed.get("problem_index", 0)), 0), len(PROBLEM_KEYS) - 1)
                 return parsed
         except Exception as e:
-            # Εκτύπωση του πραγματικού σφάλματος στο Streamlit UI για debugging
             st.warning(f"⚠️ Μοντέλο {model_item} απέτυχε: {str(e)}")
             time.sleep(1)
 
-    # Αν αποτύχουν όλα, επιστρέφει κενά πεδία αντί για Generic
     return {
         "brand": "",
         "model": "",
         "specs": "",
         "colorway": "",
-        "env_index": 0,
-        "props_index": 0,
-        "problem_index": 0
-    }
-
-
-    else:
-        prompt_search = f"""Analyze the shoe (Brand: '{brand_name}', Model: '{model_name}').
-Choose the best matching integer index for ENVIRONMENTS (0-{len(ENV_KEYS)-1}), EDC_PROPS (0-{len(PROPS_KEYS)-1}), and PROBLEM_SCENES (0-{len(PROBLEM_KEYS)-1}).
-
-Return strict JSON:
-{{
-  "brand": "{brand_name if brand_name else 'Unknown'}",
-  "model": "{model_name if model_name else 'Sneaker'}",
-  "specs": "Performance upper, responsive cushioning, durable outsole",
-  "colorway": "Standard Colorway",
-  "env_index": 0,
-  "props_index": 0,
-  "problem_index": 0
-}}"""
-
-    contents = []
-    if image_bytes:
-        contents.append(types.Part.from_bytes(data=image_bytes, mime_type=mime_type))
-    contents.append(prompt_search)
-
-    for model_item in AVAILABLE_MODELS:
-        try:
-            res = client.models.generate_content(
-                model=model_item, 
-                contents=contents, 
-                config=types.GenerateContentConfig(response_mime_type="application/json")
-            )
-            if res and res.text: 
-                parsed = json.loads(res.text.strip())
-                parsed["env_index"] = min(max(int(parsed.get("env_index", 0)), 0), len(ENV_KEYS) - 1)
-                parsed["props_index"] = min(max(int(parsed.get("props_index", 0)), 0), len(PROPS_KEYS) - 1)
-                parsed["problem_index"] = min(max(int(parsed.get("problem_index", 0)), 0), len(PROBLEM_KEYS) - 1)
-                return parsed
-        except Exception: 
-            time.sleep(1)
-            
-    return {
-        "brand": brand_name if brand_name else "Generic Brand",
-        "model": model_name if model_name else "Sneaker Model",
-        "specs": "Comfort upper, cushioned midsole, durable outsole.",
-        "colorway": "Observed Colorway",
         "env_index": 0,
         "props_index": 0,
         "problem_index": 0
@@ -216,23 +163,23 @@ def safe_generate_ad_copy(brand_name, model_name, colorway_text, materials, wate
 
 CRITICAL CONSTRAINTS:
 1. ALL OUTPUT MUST BE IN ENGLISH.
-2. Ensure the model name '{model_name}' is used accurately throughout all generated text.
-3. DO NOT use hard-sell verbs like "buy", "shop", "order", "purchase", or "find your pair today".
-4. Use soft discovery CTAs like "Discover more at {watermark}", "Explore the full specs at {watermark}", or "Learn more at {watermark}".
+2. DO NOT use hard-sell verbs like "buy", "shop", "order", "purchase".
+3. Use soft discovery CTAs like "Discover more at {watermark}", "Explore the full specs at {watermark}".
 
 Return strict JSON with keys:
-1. "hook": Image top text, max 10 words (English).
-2. "body": Image mid text, max 10 words (English).
-3. "cta": Image bottom soft CTA including '{watermark}', max 8 words (English).
-4. "meta_caption": A captivating English Facebook/Instagram caption focusing on foot fatigue relief, daily comfort, and timeless style. End with an educational/soft CTA to explore {watermark}. NO HARD SELL.
-5. "tiktok_caption": A short, engaging English TikTok caption + 4 FYP hashtags focused on discovery. NO HARD SELL.
-6. "hashtags_meta": 8-10 trending English hashtags (e.g. #Sneakerness #FootwearTech #DailyComfort).
-7. "slide1_text": Text overlay for Slide 1 (Hook).
-8. "slide2_text": Text overlay for Slide 2 (Solution/Specs).
-9. "slide3_text": Soft CTA text overlay for Slide 3 (Discovery/Explore).
+1. "hook": Image top text, max 10 words.
+2. "body": Image mid text, max 10 words.
+3. "cta": Image bottom soft CTA including '{watermark}', max 8 words.
+4. "meta_caption": English Facebook/Instagram caption.
+5. "tiktok_caption": Short English TikTok caption + 4 FYP hashtags.
+6. "hashtags_meta": 8-10 trending English hashtags.
+7. "slide1_text": Text overlay for Slide 1.
+8. "slide2_text": Text overlay for Slide 2.
+9. "slide3_text": Soft CTA text overlay for Slide 3.
 """
     
-    for model_item in AVAILABLE_MODELS:
+    models_to_try = ["gemini-1.5-flash", "gemini-1.5-pro"]
+    for model_item in models_to_try:
         try:
             response = client.models.generate_content(
                 model=model_item, 
@@ -247,20 +194,19 @@ Return strict JSON with keys:
         except Exception: 
             time.sleep(1)
             
-    # English Soft Fallback Copy
     return {
         "hook": f"Tired of foot fatigue after long hours? Discover {brand_name} {model_name}.",
         "body": "Engineered to absorb impact and support posture all day.",
         "cta": f"Discover more at {watermark}.",
-        "meta_caption": f"Long shifts and daily standing don't have to take a toll on your feet. Explore how the cushioning technology of the {brand_name} {model_name} delivers essential posture support and comfort throughout the day. Learn more at {watermark}.",
-        "tiktok_caption": f"How do you deal with foot fatigue on long days? Check out the tech behind the {brand_name} {model_name} at {watermark}! 👟👇 #Sneakerness #{brand_name} #ComfortTech #FYP",
-        "hashtags_meta": f"#Sneakerness #{brand_name} #SneakerCommunity #DailyComfort #FootwearTech #StyleAndComfort",
+        "meta_caption": f"Long shifts and daily standing don't have to take a toll on your feet. Explore how {brand_name} {model_name} delivers posture support. Learn more at {watermark}.",
+        "tiktok_caption": f"How do you deal with foot fatigue? Check out the tech behind {brand_name} {model_name} at {watermark}! 👟 #Sneakerness #{brand_name}",
+        "hashtags_meta": f"#Sneakerness #{brand_name} #DailyComfort #FootwearTech",
         "slide1_text": "Tired of Foot Fatigue After Long Hours?",
-        "slide2_text": f"Discover {brand_name} {model_name}. Engineered for All-Day Comfort.",
+        "slide2_text": f"Discover {brand_name} {model_name}.",
         "slide3_text": f"Explore the Full Specs at {watermark}"
     }
 
-# 4. RESET FUNCTION
+# 3. RESET & INITIALIZE SESSION STATE
 def clear_all_fields():
     st.session_state["brand_val"] = ""
     st.session_state["model_val"] = ""
@@ -271,7 +217,6 @@ def clear_all_fields():
     st.session_state["prob_idx"] = 0
     st.session_state["uploader_key"] = st.session_state.get("uploader_key", 0) + 1
 
-# 5. INITIALIZE SESSION STATE (Neutral Defaults)
 if "brand_val" not in st.session_state: st.session_state["brand_val"] = ""
 if "model_val" not in st.session_state: st.session_state["model_val"] = ""
 if "colorway_val" not in st.session_state: st.session_state["colorway_val"] = ""
@@ -281,7 +226,7 @@ if "props_idx" not in st.session_state: st.session_state["props_idx"] = 0
 if "prob_idx" not in st.session_state: st.session_state["prob_idx"] = 0
 if "uploader_key" not in st.session_state: st.session_state["uploader_key"] = 0
 
-# 6. UI & ACTIONS
+# 4. UI & ACTIONS
 col_header, col_reset = st.columns([3, 1])
 with col_reset:
     st.write("")
@@ -300,12 +245,11 @@ with col_preview:
     if uploaded_file is not None:
         st.image(uploaded_file, caption="Προεπισκόπηση", use_container_width=True)
 
-# ΚΟΥΜΠΙ ΑΝΙΧΝΕΥΣΗΣ
 if st.button("🔍 Αυτόματη Ανίχνευση (Specs, Χρώμα, Περιβάλλον & Σενάριο)"):
     if not uploaded_file:
         st.warning("⚠️ Παρακαλώ ανέβασε πρώτα μια φωτογραφία παπουτσιού!")
     else:
-        with st.spinner("Ακκριβής ανάλυση νέας εικόνας και ταυτοποίηση μοντέλου..."):
+        with st.spinner("Ακριβής ανάλυση εικόνας και ταυτοποίηση μοντέλου..."):
             img_bytes = uploaded_file.getvalue()
             
             mime = "image/jpeg"
@@ -323,18 +267,18 @@ if st.button("🔍 Αυτόματη Ανίχνευση (Specs, Χρώμα, Πε�
             st.session_state["prob_idx"] = data.get("problem_index", 0)
             st.rerun()
 
-# 7. INPUT FIELDS
+# 5. INPUT FIELDS
 col1, col2, col3 = st.columns(3)
 with col1: 
     brand = st.text_input("Brand / Μάρκα", value=st.session_state["brand_val"], placeholder="π.χ. HOKA")
     st.session_state["brand_val"] = brand
 
 with col2: 
-    model_name = st.text_input("Model Name / Μοντέλο", value=st.session_state["model_val"], placeholder="π.χ. Mafate Speed 4")
+    model_name = st.text_input("Model Name / Μοντέλο", value=st.session_state["model_val"], placeholder="π.χ. Mafate Speed 2")
     st.session_state["model_val"] = model_name
 
 with col3: 
-    colorway = st.text_input("Colorway / Χρώμα", value=st.session_state["colorway_val"], placeholder="π.χ. Sand / Orange")
+    colorway = st.text_input("Colorway / Χρώμα", value=st.session_state["colorway_val"], placeholder="π.χ. Cream / Red")
     st.session_state["colorway_val"] = colorway
 
 custom_watermark = st.text_input("Watermark / Domain", value="SNEAKERNESS.EU")
@@ -343,8 +287,8 @@ key_materials = st.text_area("Specs / Τεχνικά Χαρακτηριστικ�
 st.session_state["specs_val"] = key_materials
 
 col_tag, col_badge = st.columns(2)
-with col_tag: selected_tag = st.selectbox("Tag (Πάνω Αριστερά - ΜΟΝΟ ΜΙΑ ΦΟΡΑ)", AUTHENTICITY_TAGS)
-with col_badge: selected_badge = st.selectbox("Badge (Πάνω Δεξιά - ΜΟΝΟ ΜΙΑ ΦΟΡΑ)", CATEGORY_BADGES)
+with col_tag: selected_tag = st.selectbox("Tag (Πάνω Αριστερά)", AUTHENTICITY_TAGS)
+with col_badge: selected_badge = st.selectbox("Badge (Πάνω Δεξιά)", CATEGORY_BADGES)
 
 env_label = st.selectbox("Περιβάλλον Φόντου (Environment)", ENV_KEYS, index=st.session_state["env_idx"])
 selected_env = ENVIRONMENTS_MAP[env_label]
@@ -365,7 +309,7 @@ ar_flag = "--ar 1:1" if "1:1" in aspect_ratio else "--ar 9:16"
 
 st.markdown("---")
 
-# 8. GENERATION
+# 6. GENERATION
 if st.button("🚀 Δημιουργία Content Pack", type="primary"):
     if not brand or not model_name:
         st.error("⚠️ Συμπλήρωσε ή ανίχνευσε πρώτα τη Μάρκα και το Μοντέλο!")
@@ -379,7 +323,7 @@ if st.button("🚀 Δημιουργία Content Pack", type="primary"):
 TOP OVERLAY BADGES (STRICTLY ONCE AT THE VERY TOP):
 - Top-Left Badge: '{selected_tag}' (Render ONCE at absolute top-left corner).
 - Top-Right Badge: '{selected_badge}' (Render ONCE at absolute top-right corner).
-- NEGATIVE RULE: DO NOT repeat, mirror, or recreate badges or trust stamps anywhere on the middle or lower panels.
+- NEGATIVE RULE: DO NOT repeat, mirror, or recreate badges or trust seals on the middle or lower panels.
 
 TOP SECTION (PROBLEM SCENE): {selected_problem}. Overlay headline text: '{ad_texts['hook']}'.
 
@@ -392,7 +336,7 @@ DESIGN REQUIREMENTS: Soft gradient feathered transition between all sections. Cl
             st.markdown("#### 🍌 Nano Banana Prompt (Single Image)")
             st.code(visual_prompt, language="text")
 
-        else: # 3-Slide Carousel Pack
+        else:
             slide1_prompt = f"""Slide 1 of 3 Carousel: Cinematic portrait of {selected_problem}. Natural dramatic studio lighting. High emotion. Bold top text overlay: '{ad_texts.get('slide1_text', ad_texts['hook'])}'. Photorealistic 8k {ar_flag}"""
             
             slide2_prompt = f"""Slide 2 of 3 Carousel: Studio product photography of {brand} {model_name} in {colorway} colorway ({key_materials}) placed on a surface in {selected_env}. EDC props: {selected_props}. Top-left tag '{selected_tag}', top-right badge '{selected_badge}'. Clean text overlay: '{ad_texts.get('slide2_text', ad_texts['body'])}'. Commercial studio lighting {ar_flag}"""
@@ -419,7 +363,6 @@ DESIGN REQUIREMENTS: Soft gradient feathered transition between all sections. Cl
         with tab2:
             tiktok_post = ad_texts.get('tiktok_caption', '')
             st.text_area("TikTok Caption (English):", value=tiktok_post, height=120)
-            st.info("💡 **TikTok Tip:** Upload the 3 Slides as a Photo Mode Carousel with a calm ambient background track.")
 
         os.makedirs("output", exist_ok=True)
         file_path = f"output/{brand}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
