@@ -317,8 +317,6 @@ if st.button("🚀 Δημιουργία Content Pack", type="primary"):
         with st.spinner("Δημιουργία Prompts, Social Captions & Copy (English)..."):
             ad_texts = safe_generate_ad_copy(brand, model_name, colorway, key_materials, custom_watermark)
 
-        prompts_to_generate = []
-
         if ad_format == "Single Layout Ad (1 Εικόνα)":
             visual_prompt = f"""E-commerce 3-part vertical storytelling ad layout. SINGLE CANVAS COMPOSITION.
 
@@ -337,7 +335,6 @@ DESIGN REQUIREMENTS: Soft gradient feathered transition between all sections. Cl
 
             st.markdown("#### 🍌 Nano Banana Prompt (Single Image)")
             st.code(visual_prompt, language="text")
-            prompts_to_generate.append(("Single Ad", visual_prompt))
 
         else:
             slide1_prompt = f"""Slide 1 of 3 Carousel: Cinematic portrait of {selected_problem}. Natural dramatic studio lighting. High emotion. Bold top text overlay: '{ad_texts.get('slide1_text', ad_texts['hook'])}'. Photorealistic 8k {ar_flag}"""
@@ -353,33 +350,6 @@ DESIGN REQUIREMENTS: Soft gradient feathered transition between all sections. Cl
             st.code(slide2_prompt, language="text")
             st.write("**Slide 3 (Soft Discovery CTA):**")
             st.code(slide3_prompt, language="text")
-            
-            prompts_to_generate.append(("Slide 1", slide1_prompt))
-            prompts_to_generate.append(("Slide 2", slide2_prompt))
-            prompts_to_generate.append(("Slide 3", slide3_prompt))
-
-        # 7. AUTOMATIC IMAGE GENERATION VIA IMAGEN 3
-        st.markdown("---")
-        st.markdown("### 🖼️ Απευθείας Παραγωγή Εικόνων (Imagen 3)")
-        
-        target_ar = "1:1" if "1:1" in aspect_ratio else "9:16"
-        
-        for label, p_text in prompts_to_generate:
-            with st.spinner(f"🎨 Δημιουργία εικόνας για [{label}]..."):
-                try:
-                    img_result = client.models.generate_images(
-                        model='imagen-3.0-generate-002',
-                        prompt=p_text,
-                        config=types.GenerateImagesConfig(
-                            number_of_images=1,
-                            aspect_ratio=target_ar
-                        )
-                    )
-                    if img_result and img_result.generated_images:
-                        for g_img in img_result.generated_images:
-                            st.image(g_img.image.image_bytes, caption=f"Εικαστικό: {label}", use_container_width=True)
-                except Exception as e:
-                    st.error(f"❌ Σφάλμα Imagen 3 για {label}: {str(e)}")
 
         st.markdown("---")
         st.markdown("### 📲 English Social Media Captions (Soft Discovery)")
