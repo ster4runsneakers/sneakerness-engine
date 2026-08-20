@@ -212,18 +212,18 @@ def clear_all_fields():
     st.session_state["model_val"] = ""
     st.session_state["colorway_val"] = ""
     st.session_state["specs_val"] = ""
-    st.session_state["env_idx"] = 0
-    st.session_state["props_idx"] = 0
-    st.session_state["prob_idx"] = 0
+    st.session_state["env_idx"] = ENV_KEYS[0]
+    st.session_state["props_idx"] = PROPS_KEYS[0]
+    st.session_state["prob_idx"] = PROBLEM_KEYS[0]
     st.session_state["uploader_key"] = st.session_state.get("uploader_key", 0) + 1
 
 if "brand_val" not in st.session_state: st.session_state["brand_val"] = ""
 if "model_val" not in st.session_state: st.session_state["model_val"] = ""
 if "colorway_val" not in st.session_state: st.session_state["colorway_val"] = ""
 if "specs_val" not in st.session_state: st.session_state["specs_val"] = ""
-if "env_idx" not in st.session_state: st.session_state["env_idx"] = 0
-if "props_idx" not in st.session_state: st.session_state["props_idx"] = 0
-if "prob_idx" not in st.session_state: st.session_state["prob_idx"] = 0
+if "env_idx" not in st.session_state: st.session_state["env_idx"] = ENV_KEYS[0]
+if "props_idx" not in st.session_state: st.session_state["props_idx"] = PROPS_KEYS[0]
+if "prob_idx" not in st.session_state: st.session_state["prob_idx"] = PROBLEM_KEYS[0]
 if "uploader_key" not in st.session_state: st.session_state["uploader_key"] = 0
 
 # 4. UI & ACTIONS
@@ -262,9 +262,14 @@ if st.button("🔍 Αυτόματη Ανίχνευση (Specs, Χρώμα, Πε�
             st.session_state["model_val"] = data.get("model", "")
             st.session_state["colorway_val"] = data.get("colorway", "")
             st.session_state["specs_val"] = data.get("specs", "")
-            st.session_state["env_idx"] = data.get("env_index", 0)
-            st.session_state["props_idx"] = data.get("props_index", 0)
-            st.session_state["prob_idx"] = data.get("problem_index", 0)
+            
+            env_i = data.get("env_index", 0)
+            props_i = data.get("props_index", 0)
+            prob_i = data.get("problem_index", 0)
+            
+            st.session_state["env_idx"] = ENV_KEYS[env_i]
+            st.session_state["props_idx"] = PROPS_KEYS[props_i]
+            st.session_state["prob_idx"] = PROBLEM_KEYS[prob_i]
             st.rerun()
 
 # 5. INPUT FIELDS
@@ -290,13 +295,13 @@ col_tag, col_badge = st.columns(2)
 with col_tag: selected_tag = st.selectbox("Tag (Πάνω Αριστερά)", AUTHENTICITY_TAGS)
 with col_badge: selected_badge = st.selectbox("Badge (Πάνω Δεξιά)", CATEGORY_BADGES)
 
-env_label = st.selectbox("Περιβάλλον Φόντου (Environment)", ENV_KEYS, index=st.session_state["env_idx"])
+env_label = st.selectbox("Περιβάλλον Φόντου (Environment)", ENV_KEYS, key="env_idx")
 selected_env = ENVIRONMENTS_MAP[env_label]
 
-props_label = st.selectbox("Αξεσουάρ Τραπεζιού (EDC Props)", PROPS_KEYS, index=st.session_state["props_idx"])
+props_label = st.selectbox("Αξεσουάρ Τραπεζιού (EDC Props)", PROPS_KEYS, key="props_idx")
 selected_props = EDC_PROPS_MAP[props_label]
 
-prob_label = st.selectbox("Σενάριο Προβλήματος (Πάνω Εικόνα)", PROBLEM_KEYS, index=st.session_state["prob_idx"])
+prob_label = st.selectbox("Σενάριο Προβλήματος (Πάνω Εικόνα)", PROBLEM_KEYS, key="prob_idx")
 selected_problem = PROBLEM_SCENES_MAP[prob_label]
 
 col_fmt, col_ar = st.columns(2)
