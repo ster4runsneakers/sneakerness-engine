@@ -118,7 +118,7 @@ Return ONLY a valid, raw JSON object matching this schema:
         prompt_search
     ]
 
-    models_to_try = ["gemini-1.5-flash", "gemini-1.5-pro"]
+    models_to_try = ["gemini-2.5-flash", "gemini-2.0-flash"]
     
     for model_item in models_to_try:
         try:
@@ -178,7 +178,7 @@ Return strict JSON with keys:
 9. "slide3_text": Soft CTA text overlay for Slide 3.
 """
     
-    models_to_try = ["gemini-1.5-flash", "gemini-1.5-pro"]
+    models_to_try = ["gemini-2.5-flash", "gemini-2.0-flash"]
     for model_item in models_to_try:
         try:
             response = client.models.generate_content(
