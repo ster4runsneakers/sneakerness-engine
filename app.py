@@ -282,17 +282,17 @@ if st.button("🚀 Δημιουργία Content Pack", type="primary"):
             ad_texts = safe_generate_ad_copy(brand, model_name, colorway, key_materials, custom_watermark)
 
         if ad_format == "Single Layout Ad (1 Εικόνα)":
-            visual_prompt = f"""Generate an image: A single continuous vertical photograph with a unified depth of field and natural perspective transition. In the upper background of the scene, {selected_problem}. Flowing seamlessly into the lower foreground, a continuous smooth surface displaying the hero product: {brand} {model_name} in {colorway} colorway ({key_materials}), styled with {selected_props}. Top-Left Corner Badge: '{selected_tag}' (render once at top left). Top-Right Corner Badge: '{selected_badge}' (render once at top right). Overlay headline text in the upper third: '{ad_texts['hook']}'. Overlay body text in the middle third: '{ad_texts['body']}'. At the absolute bottom edge, floating bold brand watermark '{custom_watermark}' and soft CTA: '{ad_texts['cta']}'. NEGATIVE TEXT RULE: Do NOT render model names, colorway strings, or technical specs as text overlays on the image. Render ONLY the specified headline, body, badges, and watermark. Photorealistic 8k, commercial studio lighting, smooth continuous environment with zero split frames, zero frames, zero borders {ar_flag}"""
+            visual_prompt = f"""Create an image: Photorealistic vertical photograph of {brand} {model_name} in {colorway} colorway ({key_materials}) placed on a smooth surface in the foreground, accompanied by {selected_props}. In the soft-focus upper background, {selected_problem}. Natural depth of field and continuous studio lighting. Render a top-left fabric tag reading '{selected_tag}' and a top-right badge reading '{selected_badge}'. Display headline text overlay '{ad_texts['hook']}', body text overlay '{ad_texts['body']}', and bottom watermark '{custom_watermark}' with soft CTA '{ad_texts['cta']}'. Do not print shoe specifications, colorway names, or technical text on the image. Photorealistic 8k, seamless single canvas {ar_flag}"""
 
             st.markdown("#### 🍌 Nano Banana Prompt (Single Image)")
             st.code(visual_prompt, language="text")
 
         else:
-            slide1_prompt = f"""Generate an image: Slide 1 of 3 Carousel: Cinematic portrait of {selected_problem}. Natural dramatic studio lighting. High emotion. Bold top text overlay: '{ad_texts.get('slide1_text', ad_texts['hook'])}'. Photorealistic 8k {ar_flag}"""
+            slide1_prompt = f"""Create an image: Slide 1 of 3 Carousel: Cinematic portrait of {selected_problem}. Natural dramatic studio lighting. High emotion. Bold top text overlay: '{ad_texts.get('slide1_text', ad_texts['hook'])}'. Photorealistic 8k {ar_flag}"""
             
-            slide2_prompt = f"""Generate an image: Slide 2 of 3 Carousel: Studio product photography of {brand} {model_name} in {colorway} colorway ({key_materials}) placed on a surface in {selected_env}. EDC props: {selected_props}. Top-left tag '{selected_tag}', top-right badge '{selected_badge}'. Clean text overlay: '{ad_texts.get('slide2_text', ad_texts['body'])}'. Commercial studio lighting {ar_flag}"""
+            slide2_prompt = f"""Create an image: Slide 2 of 3 Carousel: Studio product photography of {brand} {model_name} in {colorway} colorway ({key_materials}) placed on a surface in {selected_env}. EDC props: {selected_props}. Top-left tag '{selected_tag}', top-right badge '{selected_badge}'. Clean text overlay: '{ad_texts.get('slide2_text', ad_texts['body'])}'. Commercial studio lighting {ar_flag}"""
             
-            slide3_prompt = f"""Generate an image: Slide 3 of 3 Carousel: Sleek macro detail close-up photo of the sole and cushioning of {brand} {model_name} on {selected_env} background. Floating bold text '{custom_watermark}' and soft CTA: '{ad_texts.get('slide3_text', ad_texts['cta'])}'. Commercial studio lighting {ar_flag}"""
+            slide3_prompt = f"""Create an image: Slide 3 of 3 Carousel: Sleek macro detail close-up photo of the sole and cushioning of {brand} {model_name} on {selected_env} background. Floating bold text '{custom_watermark}' and soft CTA: '{ad_texts.get('slide3_text', ad_texts['cta'])}'. Commercial studio lighting {ar_flag}"""
 
             st.markdown("#### 🍌 Nano Banana Prompts (3-Slide Carousel Pack)")
             st.write("**Slide 1 (The Hook / Problem):**")
@@ -316,37 +316,4 @@ if st.button("🚀 Δημιουργία Content Pack", type="primary"):
             st.text_area("TikTok Caption (English):", value=tiktok_post, height=120)
 
         os.makedirs("output", exist_ok=True)
-        file_path = f"output/{brand}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
-        
-        txt_content = f"""========================================
-NANO BANANA VISUAL PROMPT
-========================================
-{visual_prompt if ad_format == 'Single Layout Ad (1 Εικόνα)' else f'Slide 1:\n{slide1_prompt}\n\nSlide 2:\n{slide2_prompt}\n\nSlide 3:\n{slide3_prompt}'}
-
-========================================
-FACEBOOK & INSTAGRAM POST (EN)
-========================================
-{meta_post}
-
-========================================
-TIKTOK / CAROUSEL POST (EN)
-========================================
-{tiktok_post}
-
-========================================
-RAW DATA (JSON)
-========================================
-{json.dumps(ad_texts, ensure_ascii=False, indent=2)}
-"""
-
-        with open(file_path, "w", encoding="utf-8") as f:
-            f.write(txt_content)
-            
-        st.info(f"💾 Αποθηκεύτηκε στο `{file_path}`")
-        
-        st.download_button(
-            label="📥 Download Content Pack (.txt)",
-            data=txt_content,
-            file_name=f"{brand}_{model_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
-            mime="text/plain"
-        )
+        file_path = f"output
