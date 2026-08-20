@@ -318,20 +318,7 @@ if st.button("🚀 Δημιουργία Content Pack", type="primary"):
             ad_texts = safe_generate_ad_copy(brand, model_name, colorway, key_materials, custom_watermark)
 
         if ad_format == "Single Layout Ad (1 Εικόνα)":
-            visual_prompt = f"""E-commerce 3-part vertical storytelling ad layout. SINGLE CANVAS COMPOSITION.
-
-TOP OVERLAY BADGES (STRICTLY ONCE AT THE VERY TOP):
-- Top-Left Badge: '{selected_tag}' (Render ONCE at absolute top-left corner).
-- Top-Right Badge: '{selected_badge}' (Render ONCE at absolute top-right corner).
-- NEGATIVE RULE: DO NOT repeat, mirror, or recreate badges or trust seals on the middle or lower panels.
-
-TOP SECTION (PROBLEM SCENE): {selected_problem}. Overlay headline text: '{ad_texts['hook']}'.
-
-MIDDLE SECTION (HERO PRODUCT): Studio product photo of {brand} {model_name} in {colorway} colorway ({key_materials}) placed on a surface in {selected_env}. EDC props: {selected_props}. Overlay body text: '{ad_texts['body']}'.
-
-BOTTOM SECTION (FOOTER): Seamless continuation of the same surface background. Floating bold brand watermark '{custom_watermark}' and soft CTA text: '{ad_texts['cta']}'.
-
-DESIGN REQUIREMENTS: Soft gradient feathered transition between all sections. Clean layout, photorealistic 8k, commercial studio lighting {ar_flag}"""
+            visual_prompt = f"""Single continuous vertical photograph with a unified depth of field and natural perspective transition. In the upper background of the scene, {selected_problem}. Flowing seamlessly into the lower foreground, a continuous smooth surface displaying the hero product: {brand} {model_name} in {colorway} colorway ({key_materials}), styled with {selected_props}. Top-Left Corner Badge: '{selected_tag}' (render once at top left). Top-Right Corner Badge: '{selected_badge}' (render once at top right). Overlay headline text in the upper third: '{ad_texts['hook']}'. Overlay body text in the middle third: '{ad_texts['body']}'. At the absolute bottom edge, floating bold brand watermark '{custom_watermark}' and soft CTA: '{ad_texts['cta']}'. Photorealistic 8k, commercial studio lighting, smooth continuous environment with zero split frames, zero frames, zero borders {ar_flag}"""
 
             st.markdown("#### 🍌 Nano Banana Prompt (Single Image)")
             st.code(visual_prompt, language="text")
