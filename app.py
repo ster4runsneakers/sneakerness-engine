@@ -84,23 +84,23 @@ AVAILABLE_MODELS = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"]
 # 3. HELPER FUNCTIONS
 def auto_analyze_shoe(brand_name, model_name, image_bytes=None, mime_type="image/jpeg"):
     if image_bytes:
-        prompt_search = f"""Inspect the attached shoe image carefully and identify it.
+        prompt_search = f"""Examine the provided sneaker image with extreme precision.
 
-CRITICAL INSTRUCTIONS:
-1. "brand": State the exact footwear brand name. DO NOT leave empty.
-2. "model": State the exact shoe model name. DO NOT leave empty.
-3. "colorway": Exact colors observed in the image (e.g. "Wheat Tan Suede").
-4. "specs": Realistic technical specs for this specific shoe model.
+CRITICAL IDENTIFICATION RULES:
+1. "brand": Identify the EXACT footwear brand name (e.g. HOKA, Puma, Nike, Adidas, New Balance).
+2. "model": Identify the EXACT shoe model name based on visible text, side profile, midsole geometry, and upper mesh (e.g., if it is "Mafate", "Speedgoat", "Clifton", "Suede XL", state it accurately). NEVER default to popular models like "Clifton" unless clearly identified.
+3. "colorway": Describe the exact observed colors in the image (e.g., "Sand Beige / Orange / White").
+4. "specs": Technical specifications specific to this exact model structure (e.g., Vibram outsole, thick cushioning, engineered mesh).
 5. "env_index": Integer (0-{len(ENV_KEYS)-1}) matching ENVIRONMENTS.
 6. "props_index": Integer (0-{len(PROPS_KEYS)-1}) matching EDC_PROPS.
 7. "problem_index": Integer (0-{len(PROBLEM_KEYS)-1}) matching PROBLEM_SCENES.
 
-Return strict JSON:
+Return strict JSON format ONLY:
 {{
-  "brand": "Detected Brand",
-  "model": "Detected Model",
-  "specs": "Technical specs...",
-  "colorway": "Detected colorway...",
+  "brand": "Exact Detected Brand",
+  "model": "Exact Detected Model Name",
+  "specs": "Accurate technical features...",
+  "colorway": "Exact observed colors...",
   "env_index": 0,
   "props_index": 0,
   "problem_index": 0
@@ -113,7 +113,7 @@ Return strict JSON:
 {{
   "brand": "{brand_name if brand_name else 'Unknown'}",
   "model": "{model_name if model_name else 'Sneaker'}",
-  "specs": "Engineered mesh upper, performance cushioning, durable outsole",
+  "specs": "Performance upper, responsive cushioning, durable outsole",
   "colorway": "Standard Colorway",
   "env_index": 0,
   "props_index": 0,
@@ -142,10 +142,10 @@ Return strict JSON:
             time.sleep(1)
             
     return {
-        "brand": brand_name if brand_name else "Puma",
-        "model": model_name if model_name else "Suede XL",
-        "specs": "Suede upper, padded collar, durable rubber outsole.",
-        "colorway": "Wheat / Tan Suede",
+        "brand": brand_name if brand_name else "Generic Brand",
+        "model": model_name if model_name else "Sneaker Model",
+        "specs": "Comfort upper, cushioned midsole, durable outsole.",
+        "colorway": "Observed Colorway",
         "env_index": 0,
         "props_index": 0,
         "problem_index": 0
@@ -158,8 +158,9 @@ def safe_generate_ad_copy(brand_name, model_name, colorway_text, materials, wate
 
 CRITICAL CONSTRAINTS:
 1. ALL OUTPUT MUST BE IN ENGLISH.
-2. DO NOT use hard-sell verbs like "buy", "shop", "order", "purchase", or "find your pair today".
-3. Use soft discovery CTAs like "Discover more at {watermark}", "Explore the full specs at {watermark}", or "Learn more at {watermark}".
+2. Ensure the model name '{model_name}' is used accurately throughout all generated text.
+3. DO NOT use hard-sell verbs like "buy", "shop", "order", "purchase", or "find your pair today".
+4. Use soft discovery CTAs like "Discover more at {watermark}", "Explore the full specs at {watermark}", or "Learn more at {watermark}".
 
 Return strict JSON with keys:
 1. "hook": Image top text, max 10 words (English).
@@ -212,11 +213,11 @@ def clear_all_fields():
     st.session_state["prob_idx"] = 0
     st.session_state["uploader_key"] = st.session_state.get("uploader_key", 0) + 1
 
-# 5. INITIALIZE SESSION STATE
-if "brand_val" not in st.session_state: st.session_state["brand_val"] = "HOKA"
-if "model_val" not in st.session_state: st.session_state["model_val"] = "Clifton 11"
-if "colorway_val" not in st.session_state: st.session_state["colorway_val"] = "Sand Beige with Orange accents"
-if "specs_val" not in st.session_state: st.session_state["specs_val"] = "Engineered mesh upper, responsive cushioning, durable outsole"
+# 5. INITIALIZE SESSION STATE (Neutral Defaults)
+if "brand_val" not in st.session_state: st.session_state["brand_val"] = ""
+if "model_val" not in st.session_state: st.session_state["model_val"] = ""
+if "colorway_val" not in st.session_state: st.session_state["colorway_val"] = ""
+if "specs_val" not in st.session_state: st.session_state["specs_val"] = ""
 if "env_idx" not in st.session_state: st.session_state["env_idx"] = 0
 if "props_idx" not in st.session_state: st.session_state["props_idx"] = 0
 if "prob_idx" not in st.session_state: st.session_state["prob_idx"] = 0
@@ -233,7 +234,7 @@ with col_reset:
 col_up, col_preview = st.columns([2, 1])
 with col_up:
     uploaded_file = st.file_uploader(
-        "📷 Ανέβασε φωτογραφία παπουτσιού (Προαιρετικό)", 
+        "📷 Ανέβασε φωτογραφία παπουτσιού", 
         type=["jpg", "jpeg", "png", "webp"],
         key=f"uploader_{st.session_state['uploader_key']}"
     )
@@ -243,47 +244,49 @@ with col_preview:
 
 # ΚΟΥΜΠΙ ΑΝΙΧΝΕΥΣΗΣ
 if st.button("🔍 Αυτόματη Ανίχνευση (Specs, Χρώμα, Περιβάλλον & Σενάριο)"):
-    with st.spinner("Ανάλυση νέας εικόνας και ενημέρωση πεδίων..."):
-        img_bytes = uploaded_file.getvalue() if uploaded_file else None
-        
-        mime = "image/jpeg"
-        if uploaded_file:
+    if not uploaded_file:
+        st.warning("⚠️ Παρακαλώ ανέβασε πρώτα μια φωτογραφία παπουτσιού!")
+    else:
+        with st.spinner("Ακκριβής ανάλυση νέας εικόνας και ταυτοποίηση μοντέλου..."):
+            img_bytes = uploaded_file.getvalue()
+            
+            mime = "image/jpeg"
             if uploaded_file.name.lower().endswith(".webp"): mime = "image/webp"
             elif uploaded_file.name.lower().endswith(".png"): mime = "image/png"
 
-        data = auto_analyze_shoe("", "", img_bytes, mime)
-        
-        st.session_state["brand_val"] = data.get("brand", "Puma")
-        st.session_state["model_val"] = data.get("model", "Suede XL")
-        st.session_state["colorway_val"] = data.get("colorway", "Wheat / Tan Suede")
-        st.session_state["specs_val"] = data.get("specs", "Suede upper, padded collar, rubber outsole")
-        st.session_state["env_idx"] = data.get("env_index", 0)
-        st.session_state["props_idx"] = data.get("props_index", 0)
-        st.session_state["prob_idx"] = data.get("problem_index", 0)
-        st.rerun()
+            data = auto_analyze_shoe("", "", img_bytes, mime)
+            
+            st.session_state["brand_val"] = data.get("brand", "")
+            st.session_state["model_val"] = data.get("model", "")
+            st.session_state["colorway_val"] = data.get("colorway", "")
+            st.session_state["specs_val"] = data.get("specs", "")
+            st.session_state["env_idx"] = data.get("env_index", 0)
+            st.session_state["props_idx"] = data.get("props_index", 0)
+            st.session_state["prob_idx"] = data.get("problem_index", 0)
+            st.rerun()
 
 # 7. INPUT FIELDS
 col1, col2, col3 = st.columns(3)
 with col1: 
-    brand = st.text_input("Brand / Μάρκα", value=st.session_state["brand_val"])
+    brand = st.text_input("Brand / Μάρκα", value=st.session_state["brand_val"], placeholder="π.χ. HOKA")
     st.session_state["brand_val"] = brand
 
 with col2: 
-    model_name = st.text_input("Model Name / Μοντέλο", value=st.session_state["model_val"])
+    model_name = st.text_input("Model Name / Μοντέλο", value=st.session_state["model_val"], placeholder="π.χ. Mafate Speed 4")
     st.session_state["model_val"] = model_name
 
 with col3: 
-    colorway = st.text_input("Colorway / Χρώμα", value=st.session_state["colorway_val"])
+    colorway = st.text_input("Colorway / Χρώμα", value=st.session_state["colorway_val"], placeholder="π.χ. Sand / Orange")
     st.session_state["colorway_val"] = colorway
 
 custom_watermark = st.text_input("Watermark / Domain", value="SNEAKERNESS.EU")
 
-key_materials = st.text_area("Specs / Τεχνικά Χαρακτηριστικά", value=st.session_state["specs_val"], height=80)
+key_materials = st.text_area("Specs / Τεχνικά Χαρακτηριστικά", value=st.session_state["specs_val"], placeholder="Τεχνικά χαρακτηριστικά...", height=80)
 st.session_state["specs_val"] = key_materials
 
 col_tag, col_badge = st.columns(2)
-with col_tag: selected_tag = st.selectbox("Tag (Πάνω Αριστερά)", AUTHENTICITY_TAGS)
-with col_badge: selected_badge = st.selectbox("Badge (Πάνω Δεξιά)", CATEGORY_BADGES)
+with col_tag: selected_tag = st.selectbox("Tag (Πάνω Αριστερά - ΜΟΝΟ ΜΙΑ ΦΟΡΑ)", AUTHENTICITY_TAGS)
+with col_badge: selected_badge = st.selectbox("Badge (Πάνω Δεξιά - ΜΟΝΟ ΜΙΑ ΦΟΡΑ)", CATEGORY_BADGES)
 
 env_label = st.selectbox("Περιβάλλον Φόντου (Environment)", ENV_KEYS, index=st.session_state["env_idx"])
 selected_env = ENVIRONMENTS_MAP[env_label]
@@ -306,54 +309,62 @@ st.markdown("---")
 
 # 8. GENERATION
 if st.button("🚀 Δημιουργία Content Pack", type="primary"):
-    with st.spinner("Δημιουργία Prompts, Social Captions & Copy (English)..."):
-        ad_texts = safe_generate_ad_copy(brand, model_name, colorway, key_materials, custom_watermark)
+    if not brand or not model_name:
+        st.error("⚠️ Συμπλήρωσε ή ανίχνευσε πρώτα τη Μάρκα και το Μοντέλο!")
+    else:
+        with st.spinner("Δημιουργία Prompts, Social Captions & Copy (English)..."):
+            ad_texts = safe_generate_ad_copy(brand, model_name, colorway, key_materials, custom_watermark)
 
-    if ad_format == "Single Layout Ad (1 Εικόνα)":
-        visual_prompt = f"""E-commerce 3-part vertical storytelling ad layout.
+        if ad_format == "Single Layout Ad (1 Εικόνα)":
+            visual_prompt = f"""E-commerce 3-part vertical storytelling ad layout. SINGLE CANVAS COMPOSITION.
 
-TOP SECTION (PROBLEM): {selected_problem}. Overlay text: '{ad_texts['hook']}'.
+TOP OVERLAY BADGES (STRICTLY ONCE AT THE VERY TOP):
+- Top-Left Badge: '{selected_tag}' (Render ONCE at absolute top-left corner).
+- Top-Right Badge: '{selected_badge}' (Render ONCE at absolute top-right corner).
+- NEGATIVE RULE: DO NOT repeat, mirror, or recreate badges or trust stamps anywhere on the middle or lower panels.
 
-MIDDLE SECTION (HERO PRODUCT): Studio product photo of {brand} {model_name} in {colorway} colorway ({key_materials}) placed on a concrete surface in {selected_env}. EDC props: {selected_props}. Top-right badge '{selected_badge}', top-left tag '{selected_tag}'. Body text: '{ad_texts['body']}'.
+TOP SECTION (PROBLEM SCENE): {selected_problem}. Overlay headline text: '{ad_texts['hook']}'.
 
-BOTTOM SECTION (FOOTER): Seamless continuation of the same concrete surface. Floating bold text '{custom_watermark}' and soft CTA: '{ad_texts['cta']}'.
+MIDDLE SECTION (HERO PRODUCT): Studio product photo of {brand} {model_name} in {colorway} colorway ({key_materials}) placed on a surface in {selected_env}. EDC props: {selected_props}. Overlay body text: '{ad_texts['body']}'.
 
-DESIGN REQUIREMENTS: Soft gradient feathered transition between all sections. ABSOLUTELY NO dark footer bars, NO black background blocks, NO sharp cutting edges. Photorealistic 8k, commercial studio lighting {ar_flag}"""
+BOTTOM SECTION (FOOTER): Seamless continuation of the same surface background. Floating bold brand watermark '{custom_watermark}' and soft CTA text: '{ad_texts['cta']}'.
 
-        st.markdown("#### 🍌 Nano Banana Prompt (Single Image)")
-        st.code(visual_prompt, language="text")
+DESIGN REQUIREMENTS: Soft gradient feathered transition between all sections. Clean layout, photorealistic 8k, commercial studio lighting {ar_flag}"""
 
-    else: # 3-Slide Carousel Pack
-        slide1_prompt = f"""Slide 1 of 3 Carousel: Cinematic portrait of {selected_problem}. Natural dramatic studio lighting. High emotion. Bold top text overlay: '{ad_texts.get('slide1_text', ad_texts['hook'])}'. Photorealistic 8k {ar_flag}"""
+            st.markdown("#### 🍌 Nano Banana Prompt (Single Image)")
+            st.code(visual_prompt, language="text")
+
+        else: # 3-Slide Carousel Pack
+            slide1_prompt = f"""Slide 1 of 3 Carousel: Cinematic portrait of {selected_problem}. Natural dramatic studio lighting. High emotion. Bold top text overlay: '{ad_texts.get('slide1_text', ad_texts['hook'])}'. Photorealistic 8k {ar_flag}"""
+            
+            slide2_prompt = f"""Slide 2 of 3 Carousel: Studio product photography of {brand} {model_name} in {colorway} colorway ({key_materials}) placed on a surface in {selected_env}. EDC props: {selected_props}. Top-left tag '{selected_tag}', top-right badge '{selected_badge}'. Clean text overlay: '{ad_texts.get('slide2_text', ad_texts['body'])}'. Commercial studio lighting {ar_flag}"""
+            
+            slide3_prompt = f"""Slide 3 of 3 Carousel: Sleek macro detail close-up photo of the sole and cushioning of {brand} {model_name} on {selected_env} background. Floating bold text '{custom_watermark}' and soft CTA: '{ad_texts.get('slide3_text', ad_texts['cta'])}'. Commercial studio lighting {ar_flag}"""
+
+            st.markdown("#### 🍌 Nano Banana Prompts (3-Slide Carousel Pack)")
+            st.write("**Slide 1 (The Hook / Problem):**")
+            st.code(slide1_prompt, language="text")
+            st.write("**Slide 2 (The Solution / Product):**")
+            st.code(slide2_prompt, language="text")
+            st.write("**Slide 3 (Soft Discovery CTA):**")
+            st.code(slide3_prompt, language="text")
+
+        st.markdown("---")
+        st.markdown("### 📲 English Social Media Captions (Soft Discovery)")
+
+        tab1, tab2 = st.tabs(["📘 Facebook & Instagram (English)", "🎵 TikTok / Carousel (English)"])
         
-        slide2_prompt = f"""Slide 2 of 3 Carousel: Studio product photography of {brand} {model_name} in {colorway} colorway ({key_materials}) placed on a surface in {selected_env}. EDC props: {selected_props}. Top-right badge '{selected_badge}', top-left tag '{selected_tag}'. Clean text overlay: '{ad_texts.get('slide2_text', ad_texts['body'])}'. Commercial studio lighting {ar_flag}"""
-        
-        slide3_prompt = f"""Slide 3 of 3 Carousel: Sleek macro detail close-up photo of the sole and cushioning of {brand} {model_name} on {selected_env} background. Floating bold text '{custom_watermark}' and soft CTA: '{ad_texts.get('slide3_text', ad_texts['cta'])}'. Commercial studio lighting {ar_flag}"""
+        with tab1:
+            meta_post = f"{ad_texts.get('meta_caption', '')}\n\n{ad_texts.get('hashtags_meta', '')}"
+            st.text_area("FB / IG Caption (English):", value=meta_post, height=180)
+            
+        with tab2:
+            tiktok_post = ad_texts.get('tiktok_caption', '')
+            st.text_area("TikTok Caption (English):", value=tiktok_post, height=120)
+            st.info("💡 **TikTok Tip:** Upload the 3 Slides as a Photo Mode Carousel with a calm ambient background track.")
 
-        st.markdown("#### 🍌 Nano Banana Prompts (3-Slide Carousel Pack)")
-        st.write("**Slide 1 (The Hook / Problem):**")
-        st.code(slide1_prompt, language="text")
-        st.write("**Slide 2 (The Solution / Product):**")
-        st.code(slide2_prompt, language="text")
-        st.write("**Slide 3 (Soft Discovery CTA):**")
-        st.code(slide3_prompt, language="text")
-
-    st.markdown("---")
-    st.markdown("### 📲 English Social Media Captions (Soft Discovery)")
-
-    tab1, tab2 = st.tabs(["📘 Facebook & Instagram (English)", "🎵 TikTok / Carousel (English)"])
-    
-    with tab1:
-        meta_post = f"{ad_texts.get('meta_caption', '')}\n\n{ad_texts.get('hashtags_meta', '')}"
-        st.text_area("FB / IG Caption (English):", value=meta_post, height=180)
-        
-    with tab2:
-        tiktok_post = ad_texts.get('tiktok_caption', '')
-        st.text_area("TikTok Caption (English):", value=tiktok_post, height=120)
-        st.info("💡 **TikTok Tip:** Upload the 3 Slides as a Photo Mode Carousel with a calm ambient background track.")
-
-    os.makedirs("output", exist_ok=True)
-    file_path = f"output/{brand}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
-    with open(file_path, "w", encoding="utf-8") as f:
-        f.write(f"FB/IG POST (EN):\n{meta_post}\n\nTIKTOK POST (EN):\n{tiktok_post}\n\nDATA:\n{json.dumps(ad_texts, ensure_ascii=False, indent=2)}")
-    st.info(f"💾 Αποθηκεύτηκε στο `{file_path}`")
+        os.makedirs("output", exist_ok=True)
+        file_path = f"output/{brand}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(f"FB/IG POST (EN):\n{meta_post}\n\nTIKTOK POST (EN):\n{tiktok_post}\n\nDATA:\n{json.dumps(ad_texts, ensure_ascii=False, indent=2)}")
+        st.info(f"💾 Αποθηκεύτηκε στο `{file_path}`")
