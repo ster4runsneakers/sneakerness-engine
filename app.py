@@ -1,4 +1,4 @@
-# app.py - Multimodal Auto-Matching Sneakerness Engine
+# app.py - Multimodal Auto-Matching Sneakerness Engine (Dynamic Creative Edition)
 import os
 import json
 import time
@@ -14,7 +14,7 @@ from google.genai import types
 st.set_page_config(page_title="Sneakerness Studio Engine", page_icon="👟", layout="centered")
 
 st.title("👟 Sneakerness Ad, Carousel & Copy Studio")
-st.subheader("Multimodal Auto-Matching Engine (English Content Edition)")
+st.subheader("Multimodal Auto-Matching Engine (Dynamic Content Edition)")
 
 api_key = os.getenv("GEMINI_API_KEY")
 if not api_key:
@@ -24,40 +24,6 @@ if not api_key:
 client = genai.Client(api_key=api_key)
 
 # 1. DEFINITIONS
-ENVIRONMENTS_MAP = {
-    "🏢 Αστικός δρόμος μινιμαλιστικού μπετόν (Φυσικό φως)": "minimalist concrete urban street with natural daylight",
-    "☕ Εσωτερικό ζεστής καφετέριας (Απαλός φωτισμός)": "warm coffee shop interior with soft ambient lighting",
-    "🏭 Βιομηχανική αποθήκη από γυαλί & ατσάλι (Neon)": "industrial glass-and-steel warehouse with neon reflections",
-    "🪵 Πολυτελές εκθεσιακό showroom (Δρυς & πέτρα)": "luxury editorial showroom with warm oak and stone",
-    "🏛️ Ευρωπαϊκό πλακόστρωτο σοκάκι (Ηλιόλουστο)": "European city cobblestone pavement with warm sunlight",
-    "🌿 Σύγχρονο αστικό πάρκο (Ξύλινος πάγκος & πράσινο)": "modern urban park with wooden bench and soft greenery background",
-    "🏙️ Rooftop με θέα την πόλη (Απογευματινό ηλιοβασίλεμα)": "modern city rooftop lounge with warm sunset golden hour light",
-    "🎨 Creative studio με λευκούς τοίχους & industrial floor": "bright creative design studio with polished concrete and white walls"
-}
-
-EDC_PROPS_MAP = {
-    "📖 Περιοδικό Kinfolk, καπουτσίνο, μπρούτζινα κλειδιά, παχύφυτο": "an open Kinfolk magazine, a ceramic cup of cappuccino, brass keys, succulent",
-    "📓 Μπλε δερμάτινο σημειωματάριο, γυαλιά ηλίου aviator, ρολόι, κρίκος": "a navy leather notebook, aviator sunglasses, a luxury watch, carabiner",
-    "🖋️ Μπρούτζινο στυλό, δερμάτινο πορτοφόλι, ακουστικά, cold brew": "a minimalist brass pen, a folded leather wallet, wireless earbuds case, cold brew",
-    "🧴 Παγούρι αλουμινίου, μηχανικό ρολόι, σκούρα γυαλιά ηλίου, κλειδιά": "a stainless steel water bottle, a mechanical watch, dark sunglasses, key ring",
-    "🎧 Ασύρματα overhead ακουστικά, espresso, vintage φωτογραφική": "sleek wireless overhead headphones, double espresso cup, vintage film camera",
-    "💻 Minimalist tablet, δερμάτινο λουράκι, μπλε γυαλιά, matcha latte": "a minimalist tablet with leather sleeve, tortoise sunglasses, matcha latte cup"
-}
-
-PROBLEM_SCENES_MAP = {
-    "👷 Κουρασμένος εργάτης στις σκάλες (Μπότες δίπλα, πιάνει πέλματα)": "a tired worker sitting on stairs touching sore feet with work boots beside them",
-    "💼 Υπάλληλος γραφείου στο γραφείο (Τρίβει φτέρνες από σφιχτά παπούτσια)": "an office worker at a desk rubbing sore heels after hours in uncomfortable formal shoes",
-    "🏃 Κουρασμένος δρομέας στο πεζοδρόμιο (Πιάσιμο σε αστράγαλο/καμάρα)": "a tired runner sitting on a curb holding an aching foot arch and ankle after a long run",
-    "🛍️ Εργαζόμενος λιανικής/εστίασης (Μασάζ στις γάμπες από 8ωρη ορθοστασία)": "a retail service worker leaning against a counter massaging fatigued calves from standing 8h",
-    "🚛 Οδηγός/Μεταφορέας (Διατάσεις σε αρθρώσεις μετά από πολύωρο ταξίδι)": "a driver resting beside a vehicle stretching stiff joints and feet after a long haul",
-    "🏥 Νοσηλευτής/Γιατρός σε διάδρομο (Ξεκούραση ποδιών μετά από βάρδια)": "a medical healthcare worker sitting on a bench in hallway unlacing shoes to relieve pressure",
-    "🧳 Ταξιδιώτης σε αεροδρόμιο (Κουρασμένα πέλματα δίπλα σε βαλίτσα)": "a traveler sitting on airport lounge chair massaging tired feet next to a carry-on suitcase"
-}
-
-ENV_KEYS = list(ENVIRONMENTS_MAP.keys())
-PROPS_KEYS = list(EDC_PROPS_MAP.keys())
-PROBLEM_KEYS = list(PROBLEM_SCENES_MAP.keys())
-
 CATEGORY_BADGES = [
     "REVIEWED ★★★★★", 
     "DAILY APPROVED ★★★★★", 
@@ -86,41 +52,32 @@ def auto_analyze_shoe(brand_name, model_name, image_bytes=None, mime_type="image
             "model": model_name if model_name else "",
             "specs": "",
             "colorway": "",
-            "env_index": 0,
-            "props_index": 0,
-            "problem_index": 0
+            "env_desc": "minimalist concrete urban street with natural daylight",
+            "props_desc": "an open Kinfolk magazine, a ceramic cup of cappuccino, brass keys, succulent",
+            "problem_desc": "a tired worker sitting on stairs touching sore feet with work boots beside them"
         }
 
-    env_list_str = "\n".join([f"{i}: {k}" for i, k in enumerate(ENV_KEYS)])
-    props_list_str = "\n".join([f"{i}: {k}" for i, k in enumerate(PROPS_KEYS)])
-    prob_list_str = "\n".join([f"{i}: {k}" for i, k in enumerate(PROBLEM_KEYS)])
+    prompt_search = """Examine the provided sneaker image with extreme precision.
 
-    prompt_search = f"""Examine the provided sneaker image with extreme precision.
-
-CRITICAL IDENTIFICATION RULES:
+CRITICAL IDENTIFICATION & DYNAMIC SCENE CREATION RULES:
 1. "brand": Identify the EXACT footwear brand name visible on the shoe or tongue (e.g., HOKA, Puma, Nike, Adidas, New Balance, Brooks).
 2. "model": Identify the EXACT shoe model name based on visible text. Check tongue, lateral side, or heel label carefully.
 3. "colorway": Describe the exact observed colors in the image (e.g., "Cream / Red / Navy Blue").
 4. "specs": Technical specifications specific to this exact model (e.g., Vibram Megagrip outsole, dual-density EVA midsole, breathable mesh upper).
-5. "env_index": Select the BEST matching environment index (0 to {len(ENV_KEYS)-1}) based on shoe style from this list:
-{env_list_str}
-
-6. "props_index": Select the BEST matching EDC props index (0 to {len(PROPS_KEYS)-1}) based on shoe style from this list:
-{props_list_str}
-
-7. "problem_index": Select the BEST matching problem scenario index (0 to {len(PROBLEM_KEYS)-1}) based on shoe style/use case from this list:
-{prob_list_str}
+5. "env_desc": Write a detailed, hyper-relevant 1-sentence English description of the IDEAL background environment tailored to this shoe's archetype (e.g. basketball court, urban street, trail, luxury lounge).
+6. "props_desc": Write a 1-sentence English list of 3-4 EDC props placed on the surface next to the shoe that match its lifestyle/vibe.
+7. "problem_desc": Write a 1-sentence English description of a realistic human pain-point/problem scene matching this shoe's category (e.g. tired athlete, fatigued retail worker, aching hiker, long shift worker).
 
 Return ONLY a valid, raw JSON object matching this schema:
-{{
+{
   "brand": "Detected Brand",
   "model": "Detected Model",
   "specs": "Technical features...",
   "colorway": "Detected colorway...",
-  "env_index": 0,
-  "props_index": 0,
-  "problem_index": 0
-}}"""
+  "env_desc": "Custom environmental background description...",
+  "props_desc": "Custom EDC props list...",
+  "problem_desc": "Custom human problem/fatigue scene..."
+}"""
 
     contents = [
         types.Part.from_bytes(data=image_bytes, mime_type=mime_type),
@@ -146,11 +103,7 @@ Return ONLY a valid, raw JSON object matching this schema:
                     clean_txt = clean_txt[:-3]
                 clean_txt = clean_txt.strip()
 
-                parsed = json.loads(clean_txt)
-                parsed["env_index"] = min(max(int(parsed.get("env_index", 0)), 0), len(ENV_KEYS) - 1)
-                parsed["props_index"] = min(max(int(parsed.get("props_index", 0)), 0), len(PROPS_KEYS) - 1)
-                parsed["problem_index"] = min(max(int(parsed.get("problem_index", 0)), 0), len(PROBLEM_KEYS) - 1)
-                return parsed
+                return json.loads(clean_txt)
         except Exception as e:
             st.warning(f"⚠️ Μοντέλο {model_item} απέτυχε: {str(e)}")
             time.sleep(1)
@@ -160,9 +113,9 @@ Return ONLY a valid, raw JSON object matching this schema:
         "model": "",
         "specs": "",
         "colorway": "",
-        "env_index": 0,
-        "props_index": 0,
-        "problem_index": 0
+        "env_desc": "minimalist concrete urban street with natural daylight",
+        "props_desc": "an open Kinfolk magazine, a ceramic cup of cappuccino, brass keys, succulent",
+        "problem_desc": "a tired worker sitting on stairs touching sore feet with work boots beside them"
     }
 
 def safe_generate_ad_copy(brand_name, model_name, colorway_text, materials, watermark):
@@ -221,18 +174,18 @@ def clear_all_fields():
     st.session_state["model_val"] = ""
     st.session_state["colorway_val"] = ""
     st.session_state["specs_val"] = ""
-    st.session_state["env_idx"] = ENV_KEYS[0]
-    st.session_state["props_idx"] = PROPS_KEYS[0]
-    st.session_state["prob_idx"] = PROBLEM_KEYS[0]
+    st.session_state["env_desc_val"] = "minimalist concrete urban street with natural daylight"
+    st.session_state["props_desc_val"] = "an open Kinfolk magazine, a ceramic cup of cappuccino, brass keys, succulent"
+    st.session_state["problem_desc_val"] = "a tired worker sitting on stairs touching sore feet with work boots beside them"
     st.session_state["uploader_key"] = st.session_state.get("uploader_key", 0) + 1
 
 if "brand_val" not in st.session_state: st.session_state["brand_val"] = ""
 if "model_val" not in st.session_state: st.session_state["model_val"] = ""
 if "colorway_val" not in st.session_state: st.session_state["colorway_val"] = ""
 if "specs_val" not in st.session_state: st.session_state["specs_val"] = ""
-if "env_idx" not in st.session_state: st.session_state["env_idx"] = ENV_KEYS[0]
-if "props_idx" not in st.session_state: st.session_state["props_idx"] = PROPS_KEYS[0]
-if "prob_idx" not in st.session_state: st.session_state["prob_idx"] = PROBLEM_KEYS[0]
+if "env_desc_val" not in st.session_state: st.session_state["env_desc_val"] = "minimalist concrete urban street with natural daylight"
+if "props_desc_val" not in st.session_state: st.session_state["props_desc_val"] = "an open Kinfolk magazine, a ceramic cup of cappuccino, brass keys, succulent"
+if "problem_desc_val" not in st.session_state: st.session_state["problem_desc_val"] = "a tired worker sitting on stairs touching sore feet with work boots beside them"
 if "uploader_key" not in st.session_state: st.session_state["uploader_key"] = 0
 
 # 4. UI & ACTIONS
@@ -254,11 +207,11 @@ with col_preview:
     if uploaded_file is not None:
         st.image(uploaded_file, caption="Προεπισκόπηση", use_container_width=True)
 
-if st.button("🔍 Αυτόματη Ανίχνευση (Specs, Χρώμα, Περιβάλλον & Σενάριο)"):
+if st.button("🔍 Δυναμική Ανίχνευση & Δημιουργία Σκηνής (Custom Specs & Scene)"):
     if not uploaded_file:
         st.warning("⚠️ Παρακαλώ ανέβασε πρώτα μια φωτογραφία παπουτσιού!")
     else:
-        with st.spinner("Ακριβής ανάλυση εικόνας και ταυτοποίηση μοντέλου..."):
+        with st.spinner("Πλήρης ανάλυση εικόνας, ταυτοποίηση & παραγωγή custom σκηνής..."):
             img_bytes = uploaded_file.getvalue()
             
             mime = "image/jpeg"
@@ -271,14 +224,9 @@ if st.button("🔍 Αυτόματη Ανίχνευση (Specs, Χρώμα, Πε�
             st.session_state["model_val"] = data.get("model", "")
             st.session_state["colorway_val"] = data.get("colorway", "")
             st.session_state["specs_val"] = data.get("specs", "")
-            
-            env_i = data.get("env_index", 0)
-            props_i = data.get("props_index", 0)
-            prob_i = data.get("problem_index", 0)
-            
-            st.session_state["env_idx"] = ENV_KEYS[env_i]
-            st.session_state["props_idx"] = PROPS_KEYS[props_i]
-            st.session_state["prob_idx"] = PROBLEM_KEYS[prob_i]
+            st.session_state["env_desc_val"] = data.get("env_desc", "")
+            st.session_state["props_desc_val"] = data.get("props_desc", "")
+            st.session_state["problem_desc_val"] = data.get("problem_desc", "")
             st.rerun()
 
 # 5. INPUT FIELDS
@@ -304,14 +252,16 @@ col_tag, col_badge = st.columns(2)
 with col_tag: selected_tag = st.selectbox("Tag (Πάνω Αριστερά)", AUTHENTICITY_TAGS)
 with col_badge: selected_badge = st.selectbox("Badge (Πάνω Δεξιά)", CATEGORY_BADGES)
 
-env_label = st.selectbox("Περιβάλλον Φόντου (Environment)", ENV_KEYS, key="env_idx")
-selected_env = ENVIRONMENTS_MAP[env_label]
+st.markdown("#### 🎨 Δυναμικά Στοιχεία Σκηνής (Custom Scene Prompts)")
 
-props_label = st.selectbox("Αξεσουάρ Τραπεζιού (EDC Props)", PROPS_KEYS, key="props_idx")
-selected_props = EDC_PROPS_MAP[props_label]
+selected_env = st.text_area("Περιβάλλον Φόντου (Custom Environment)", value=st.session_state["env_desc_val"], height=70)
+st.session_state["env_desc_val"] = selected_env
 
-prob_label = st.selectbox("Σενάριο Προβλήματος (Πάνω Εικόνα)", PROBLEM_KEYS, key="prob_idx")
-selected_problem = PROBLEM_SCENES_MAP[prob_label]
+selected_props = st.text_area("Αξεσουάρ / EDC Props (Custom Props)", value=st.session_state["props_desc_val"], height=70)
+st.session_state["props_desc_val"] = selected_props
+
+selected_problem = st.text_area("Σενάριο Προβλήματος (Custom Problem Scene)", value=st.session_state["problem_desc_val"], height=70)
+st.session_state["problem_desc_val"] = selected_problem
 
 col_fmt, col_ar = st.columns(2)
 with col_fmt:
