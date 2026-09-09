@@ -386,7 +386,7 @@ def apply_history_entry(entry: dict):
     badge = entry.get("selected_badge") or CATEGORY_BADGES[0]
     st.session_state["selected_tag_val"] = tag if tag in AUTHENTICITY_TAGS else AUTHENTICITY_TAGS[0]
     st.session_state["selected_badge_val"] = badge if badge in CATEGORY_BADGES else CATEGORY_BADGES[0]
-    formats = ["Single Layout Ad (1 Εικόνα)", "3-Slide Carousel Pack (3 Εικόνες)"]
+    formats = ["Single Layout Ad (1 Εικόνα)", "Carousel Pack (multi-slide)"]
     fmt = entry.get("ad_format") or formats[0]
     st.session_state["ad_format_val"] = fmt if fmt in formats else formats[0]
     try:
@@ -564,7 +564,7 @@ st.session_state["problem_desc_val"] = selected_problem
 
 col_fmt, col_ar = st.columns(2)
 with col_fmt:
-    _fmt_options = ["Single Layout Ad (1 Εικόνα)", "3-Slide Carousel Pack (3 Εικόνες)"]
+    _fmt_options = ["Single Layout Ad (1 Εικόνα)", "Carousel Pack (multi-slide)"]
     _fmt_idx = _fmt_options.index(st.session_state["ad_format_val"]) if st.session_state["ad_format_val"] in _fmt_options else 0
     ad_format = st.selectbox(t("format_label", lang), _fmt_options, index=_fmt_idx)
     st.session_state["ad_format_val"] = ad_format
