@@ -289,7 +289,7 @@ def apply_history_entry(entry: dict):
     formats = ["Single Layout Ad (1 Εικόνα)", "3-Slide Carousel Pack (3 Εικόνες)"]
     fmt = entry.get("ad_format") or formats[0]
     st.session_state["ad_format_val"] = fmt if fmt in formats else formats[0]
-    ratios = ["9:16 (Story/TikTok)", "1:1 (Square)"]
+    ratios = ["9:16 (Story/TikTok)", "4:5 (Instagram Feed)", "1:1 (Square)", "2:3 (Portrait)", "16:9 (Landscape/YouTube)"]
     ar = entry.get("aspect_ratio") or "1:1 (Square)"
     st.session_state["aspect_ratio_val"] = ar if ar in ratios else "1:1 (Square)"
     img = entry.get("image_path")
@@ -459,12 +459,21 @@ with col_fmt:
     ad_format = st.selectbox(t("format_label", lang), _fmt_options, index=_fmt_idx)
     st.session_state["ad_format_val"] = ad_format
 with col_ar:
-    _ar_options = ["9:16 (Story/TikTok)", "1:1 (Square)"]
-    _ar_idx = _ar_options.index(st.session_state["aspect_ratio_val"]) if st.session_state["aspect_ratio_val"] in _ar_options else 1
-    aspect_ratio = st.radio(t("aspect_label", lang), _ar_options, index=_ar_idx)
+    _ar_options = ["9:16 (Story/TikTok)", "4:5 (Instagram Feed)", "1:1 (Square)", "2:3 (Portrait)", "16:9 (Landscape/YouTube)"]
+    _ar_idx = _ar_options.index(st.session_state["aspect_ratio_val"]) if st.session_state["aspect_ratio_val"] in _ar_options else _ar_options.index("1:1 (Square)")
+    aspect_ratio = st.selectbox(t("aspect_label", lang), _ar_options, index=_ar_idx)
     st.session_state["aspect_ratio_val"] = aspect_ratio
 
-ar_flag = "--ar 1:1" if "1:1" in aspect_ratio else "--ar 9:16"
+if aspect_ratio.startswith("4:5"):
+    ar_flag = "--ar 4:5"
+elif aspect_ratio.startswith("2:3"):
+    ar_flag = "--ar 2:3"
+elif aspect_ratio.startswith("16:9"):
+    ar_flag = "--ar 16:9"
+elif aspect_ratio.startswith("9:16"):
+    ar_flag = "--ar 9:16"
+else:
+    ar_flag = "--ar 1:1"
 
 st.markdown("---")
 
