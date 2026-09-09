@@ -565,6 +565,9 @@ st.session_state["problem_desc_val"] = selected_problem
 col_fmt, col_ar = st.columns(2)
 with col_fmt:
     _fmt_options = ["Single Layout Ad (1 Εικόνα)", "Carousel Pack (multi-slide)"]
+    # Migrate old label that hard-coded "3-Slide..."
+    if "Carousel" in str(st.session_state.get("ad_format_val", "")) and st.session_state["ad_format_val"] not in _fmt_options:
+        st.session_state["ad_format_val"] = "Carousel Pack (multi-slide)"
     _fmt_idx = _fmt_options.index(st.session_state["ad_format_val"]) if st.session_state["ad_format_val"] in _fmt_options else 0
     ad_format = st.selectbox(t("format_label", lang), _fmt_options, index=_fmt_idx)
     st.session_state["ad_format_val"] = ad_format
