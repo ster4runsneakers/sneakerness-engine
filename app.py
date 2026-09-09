@@ -14,15 +14,36 @@ from google.genai import types
 import product_history  # noqa: F401
 from product_history import load_history, add_entry, delete_entry, get_entry
 from pathlib import Path
+from i18n import t
 
 st.set_page_config(page_title="Sneakerness Studio Engine", page_icon="👟", layout="centered")
 
-st.title("👟 Sneakerness Ad, Carousel & Copy Studio")
-st.subheader("Multimodal Auto-Matching Engine (Dynamic Content Edition)")
+if "lang" not in st.session_state:
+    st.session_state["lang"] = "el"
+
+# Language switcher (sidebar top) — before other UI so lang is ready
+with st.sidebar:
+    _lang_options = ["English", "Ελληνικά"]
+    _lang_codes = {"English": "en", "Ελληνικά": "el"}
+    _code_to_label = {"en": "English", "el": "Ελληνικά"}
+    _cur = st.session_state.get("lang", "el")
+    _cur_label = _code_to_label.get(_cur, "Ελληνικά")
+    _picked = st.selectbox(
+        t("language_label", st.session_state.get("lang", "el")),
+        _lang_options,
+        index=_lang_options.index(_cur_label) if _cur_label in _lang_options else 1,
+        key="lang_select_label",
+    )
+    st.session_state["lang"] = _lang_codes.get(_picked, "el")
+
+lang = st.session_state["lang"]
+
+st.title(t("title", lang))
+st.subheader(t("subheader", lang))
 
 api_key = os.getenv("GEMINI_API_KEY")
 if not api_key:
-    st.error("❌ Δεν βρέθηκε το GEMINI_API_KEY στα Secrets / .env!")
+    st.error(t("api_key_missing", lang))
     st.stop()
 
 client = genai.Client(api_key=api_key)
@@ -109,7 +130,7 @@ Return ONLY a valid, raw JSON object matching this schema:
 
                 return json.loads(clean_txt)
         except Exception as e:
-            st.warning(f"⚠️ Μοντέλο {model_item} απέτυχε: {str(e)}")
+            st.warning(t("model_failed", st.session_state.get("lang", "el"), model=model_item, error=str(e)))
             time.sleep(1)
 
     return {
@@ -122,17 +143,60 @@ Return ONLY a valid, raw JSON object matching this schema:
         "problem_desc": "a tired worker sitting on stairs touching sore feet with work boots beside them"
     }
 
-def safe_generate_ad_copy(brand_name, model_name, colorway_text, materials, watermark):
-    # 🛡️ Ασπίδα αφαίρεσης ευαίσθητων λέξεων
+def safe_generate_ad_copy(brand_name, model_name, colorway_text, materials, watermark, lang="el"):
+    # Ασπίδα αφαίρεσης ευαίσθητων λέξεων
     unsafe_keywords = ["kobe", "jordan", "lebron", "messi", "ronaldo", "curry"]
     clean_model_name = model_name
     for word in unsafe_keywords:
         if word in clean_model_name.lower():
             clean_model_name = clean_model_name.lower().replace(word, "signature pro")
 
-    sys_instruction = "You are an expert e-commerce copywriter specializing in soft-sell, educational, and discovery-focused footwear ad copy and engaging social media posts in English. NEVER use celebrity athlete names in your text overlays."
-    
-    script_prompt = f"""Write ALL ad assets and copy in ENGLISH for {brand_name} {clean_model_name} in {colorway_text} ({materials}) for website {watermark}.
+    if lang == "el":
+        lang_name = "Greek (Ελληνικά)"
+        sys_instruction = (
+            "You are an expert e-commerce copywriter specializing in soft-sell, educational, "
+            "and discovery-focused footwear ad copy and engaging social media posts in Greek (Ελληνικά). "
+            "NEVER use celebrity athlete names in your text overlays. "
+            "Write ALL user-facing copy in natural, fluent Modern Greek."
+        )
+        script_prompt = f"""Write ALL ad assets and copy in GREEK (Ελληνικά) for {brand_name} {clean_model_name} in {colorway_text} ({materials}) for website {watermark}.
+
+CRITICAL CONSTRAINTS:
+1. ALL OUTPUT MUST BE IN GREEK (Ελληνικά). Do not use English for hooks, body, CTA, captions, or slide texts.
+2. DO NOT use hard-sell verbs like "αγόρασε", "αγορά", "παράγγειλε", "buy", "shop", "order", "purchase".
+3. Use soft discovery CTAs like "Ανακάλυψε περισσότερα στο {watermark}", "Εξερεύνησε τα χαρακτηριστικά στο {watermark}".
+4. STRICTLY DO NOT include celebrity names or restricted player names in any text or overlay.
+
+Return strict JSON with keys:
+1. "hook": Image top text in Greek, max 10 words.
+2. "body": Image mid text in Greek, max 10 words.
+3. "cta": Image bottom soft CTA in Greek including '{watermark}', max 8 words.
+4. "meta_caption": Greek Facebook/Instagram caption.
+5. "tiktok_caption": Short Greek TikTok caption + 4 FYP hashtags.
+6. "hashtags_meta": 8-10 trending hashtags (Greek or bilingual OK).
+7. "slide1_text": Text overlay for Slide 1 in Greek.
+8. "slide2_text": Text overlay for Slide 2 in Greek.
+9. "slide3_text": Soft CTA text overlay for Slide 3 in Greek.
+"""
+        fallback = {
+            "hook": f"Κουράστηκες από κούραση στα πόδια; Ανακάλυψε {brand_name} {clean_model_name}.",
+            "body": "Σχεδιασμένο να απορροφά τους κραδασμούς και να στηρίζει τη στάση όλη μέρα.",
+            "cta": f"Ανακάλυψε περισσότερα στο {watermark}.",
+            "meta_caption": f"Οι πολλές ώρες όρθιος δεν χρειάζεται να επιβαρύνουν τα πόδια σου. Εξερεύνησε πώς το {brand_name} {clean_model_name} προσφέρει στήριξη στάσης. Μάθε περισσότερα στο {watermark}.",
+            "tiktok_caption": f"Πώς αντιμετωπίζεις την κούραση στα πόδια; Δες την τεχνολογία πίσω από {brand_name} {clean_model_name} στο {watermark}! 👟 #Sneakerness #{brand_name}",
+            "hashtags_meta": f"#Sneakerness #{brand_name} #DailyComfort #FootwearTech",
+            "slide1_text": "Κουράστηκες από κούραση στα πόδια μετά από πολλές ώρες;",
+            "slide2_text": f"Ανακάλυψε {brand_name} {clean_model_name}.",
+            "slide3_text": f"Εξερεύνησε τα χαρακτηριστικά στο {watermark}",
+        }
+    else:
+        lang_name = "English"
+        sys_instruction = (
+            "You are an expert e-commerce copywriter specializing in soft-sell, educational, "
+            "and discovery-focused footwear ad copy and engaging social media posts in English. "
+            "NEVER use celebrity athlete names in your text overlays."
+        )
+        script_prompt = f"""Write ALL ad assets and copy in ENGLISH for {brand_name} {clean_model_name} in {colorway_text} ({materials}) for website {watermark}.
 
 CRITICAL CONSTRAINTS:
 1. ALL OUTPUT MUST BE IN ENGLISH.
@@ -151,34 +215,36 @@ Return strict JSON with keys:
 8. "slide2_text": Text overlay for Slide 2.
 9. "slide3_text": Soft CTA text overlay for Slide 3.
 """
-    
+        fallback = {
+            "hook": f"Tired of foot fatigue after long hours? Discover {brand_name} {clean_model_name}.",
+            "body": "Engineered to absorb impact and support posture all day.",
+            "cta": f"Discover more at {watermark}.",
+            "meta_caption": f"Long shifts and daily standing don't have to take a toll on your feet. Explore how {brand_name} {clean_model_name} delivers posture support. Learn more at {watermark}.",
+            "tiktok_caption": f"How do you deal with foot fatigue? Check out the tech behind {brand_name} {clean_model_name} at {watermark}! 👟 #Sneakerness #{brand_name}",
+            "hashtags_meta": f"#Sneakerness #{brand_name} #DailyComfort #FootwearTech",
+            "slide1_text": "Tired of Foot Fatigue After Long Hours?",
+            "slide2_text": f"Discover {brand_name} {clean_model_name}.",
+            "slide3_text": f"Explore the Full Specs at {watermark}",
+        }
+
     models_to_try = ["gemini-3.6-flash", "gemini-2.5-flash"]
     for model_item in models_to_try:
         try:
             response = client.models.generate_content(
-                model=model_item, 
-                contents=script_prompt, 
+                model=model_item,
+                contents=script_prompt,
                 config=types.GenerateContentConfig(
                     system_instruction=sys_instruction,
                     response_mime_type="application/json"
                 )
             )
-            if response and response.text: 
+            if response and response.text:
                 return json.loads(response.text.strip())
-        except Exception: 
+        except Exception:
             time.sleep(1)
-            
-    return {
-        "hook": f"Tired of foot fatigue after long hours? Discover {brand_name} {clean_model_name}.",
-        "body": "Engineered to absorb impact and support posture all day.",
-        "cta": f"Discover more at {watermark}.",
-        "meta_caption": f"Long shifts and daily standing don't have to take a toll on your feet. Explore how {brand_name} {clean_model_name} delivers posture support. Learn more at {watermark}.",
-        "tiktok_caption": f"How do you deal with foot fatigue? Check out the tech behind {brand_name} {clean_model_name} at {watermark}! 👟 #Sneakerness #{brand_name}",
-        "hashtags_meta": f"#Sneakerness #{brand_name} #DailyComfort #FootwearTech",
-        "slide1_text": "Tired of Foot Fatigue After Long Hours?",
-        "slide2_text": f"Discover {brand_name} {clean_model_name}.",
-        "slide3_text": f"Explore the Full Specs at {watermark}"
-    }
+
+    return fallback
+
 
 # 3. RESET & INITIALIZE SESSION STATE
 def clear_all_fields():
@@ -262,9 +328,9 @@ if "loaded_slide3_prompt" not in st.session_state: st.session_state["loaded_slid
 if "show_loaded_pack" not in st.session_state: st.session_state["show_loaded_pack"] = False
 
 
-# 3b. HISTORY SIDEBAR
+# 3b. HISTORY SIDEBAR (below language switcher)
 with st.sidebar:
-    st.markdown("### Ιστορικό / History")
+    st.markdown(t("history_title", lang))
     history_entries = load_history()
     history_entries_sorted = sorted(
         history_entries,
@@ -272,7 +338,7 @@ with st.sidebar:
         reverse=True,
     )
     if not history_entries_sorted:
-        st.caption("Δεν υπάρχουν αποθηκευμένα προϊόντα ακόμα.")
+        st.caption(t("history_empty", lang))
     else:
         labels = []
         id_by_label = {}
@@ -287,16 +353,16 @@ with st.sidebar:
             labels.append(label)
             id_by_label[label] = e.get("id")
 
-        selected_label = st.selectbox("Επιλογή προϊόντος", labels, key="history_select_label")
+        selected_label = st.selectbox(t("history_select", lang), labels, key="history_select_label")
         col_load, col_del = st.columns(2)
         with col_load:
-            if st.button("Load", use_container_width=True, key="history_load_btn"):
+            if st.button(t("history_load", lang), use_container_width=True, key="history_load_btn"):
                 entry = get_entry(id_by_label[selected_label])
                 if entry:
                     apply_history_entry(entry)
                     st.rerun()
         with col_del:
-            if st.button("Delete", use_container_width=True, key="history_delete_btn"):
+            if st.button(t("history_delete", lang), use_container_width=True, key="history_delete_btn"):
                 delete_entry(id_by_label[selected_label])
                 st.rerun()
 
@@ -304,30 +370,30 @@ with st.sidebar:
 col_header, col_reset = st.columns([3, 1])
 with col_reset:
     st.write("")
-    if st.button("🧹 Νέο Παπούτσι / Clear"):
+    if st.button(t("clear_button", lang)):
         clear_all_fields()
         st.rerun()
 
 col_up, col_preview = st.columns([2, 1])
 with col_up:
     uploaded_file = st.file_uploader(
-        "📷 Ανέβασε φωτογραφία παπουτσιού", 
+        t("upload_label", lang),
         type=["jpg", "jpeg", "png", "webp"],
         key=f"uploader_{st.session_state['uploader_key']}"
     )
 with col_preview:
     if uploaded_file is not None:
-        st.image(uploaded_file, caption="Προεπισκόπηση", use_container_width=True)
+        st.image(uploaded_file, caption=t("preview_caption", lang), use_container_width=True)
     elif st.session_state.get("history_image_path"):
         hist_img = Path(st.session_state["history_image_path"])
         if hist_img.is_file():
-            st.image(str(hist_img), caption="Από ιστορικό", use_container_width=True)
+            st.image(str(hist_img), caption=t("from_history_caption", lang), use_container_width=True)
 
-if st.button("🔍 Δυναμική Ανίχνευση & Δημιουργία Σκηνής (Custom Specs & Scene)"):
+if st.button(t("analyze_button", lang)):
     if not uploaded_file:
-        st.warning("⚠️ Παρακαλώ ανέβασε πρώτα μια φωτογραφία παπουτσιού!")
+        st.warning(t("analyze_warning", lang))
     else:
-        with st.spinner("Πλήρης ανάλυση εικόνας, ταυτοποίηση & παραγωγή custom σκηνής..."):
+        with st.spinner(t("analyze_spinner", lang)):
             img_bytes = uploaded_file.getvalue()
             
             mime = "image/jpeg"
@@ -348,54 +414,54 @@ if st.button("🔍 Δυναμική Ανίχνευση & Δημιουργία Σ
 # 5. INPUT FIELDS
 col1, col2, col3 = st.columns(3)
 with col1: 
-    brand = st.text_input("Brand / Μάρκα", value=st.session_state["brand_val"], placeholder="π.χ. HOKA")
+    brand = st.text_input(t("brand_label", lang), value=st.session_state["brand_val"], placeholder=t("brand_placeholder", lang))
     st.session_state["brand_val"] = brand
 
 with col2: 
-    model_name = st.text_input("Model Name / Μοντέλο", value=st.session_state["model_val"], placeholder="π.χ. Mafate Speed 2")
+    model_name = st.text_input(t("model_label", lang), value=st.session_state["model_val"], placeholder=t("model_placeholder", lang))
     st.session_state["model_val"] = model_name
 
 with col3: 
-    colorway = st.text_input("Colorway / Χρώμα", value=st.session_state["colorway_val"], placeholder="π.χ. Cream / Red")
+    colorway = st.text_input(t("colorway_label", lang), value=st.session_state["colorway_val"], placeholder=t("colorway_placeholder", lang))
     st.session_state["colorway_val"] = colorway
 
-custom_watermark = st.text_input("Watermark / Domain", value=st.session_state["watermark_val"])
+custom_watermark = st.text_input(t("watermark_label", lang), value=st.session_state["watermark_val"])
 st.session_state["watermark_val"] = custom_watermark
 
-key_materials = st.text_area("Specs / Τεχνικά Χαρακτηριστικά", value=st.session_state["specs_val"], placeholder="Τεχνικά χαρακτηριστικά...", height=80)
+key_materials = st.text_area(t("specs_label", lang), value=st.session_state["specs_val"], placeholder=t("specs_placeholder", lang), height=80)
 st.session_state["specs_val"] = key_materials
 
 col_tag, col_badge = st.columns(2)
 with col_tag:
     _tag_idx = AUTHENTICITY_TAGS.index(st.session_state["selected_tag_val"]) if st.session_state["selected_tag_val"] in AUTHENTICITY_TAGS else 0
-    selected_tag = st.selectbox("Tag (Πάνω Αριστερά)", AUTHENTICITY_TAGS, index=_tag_idx)
+    selected_tag = st.selectbox(t("tag_label", lang), AUTHENTICITY_TAGS, index=_tag_idx)
     st.session_state["selected_tag_val"] = selected_tag
 with col_badge:
     _badge_idx = CATEGORY_BADGES.index(st.session_state["selected_badge_val"]) if st.session_state["selected_badge_val"] in CATEGORY_BADGES else 0
-    selected_badge = st.selectbox("Badge (Πάνω Δεξιά)", CATEGORY_BADGES, index=_badge_idx)
+    selected_badge = st.selectbox(t("badge_label", lang), CATEGORY_BADGES, index=_badge_idx)
     st.session_state["selected_badge_val"] = selected_badge
 
-st.markdown("#### 🎨 Δυναμικά Στοιχεία Σκηνής (Custom Scene Prompts)")
+st.markdown(t("scene_section", lang))
 
-selected_env = st.text_area("Περιβάλλον Φόντου (Custom Environment)", value=st.session_state["env_desc_val"], height=70)
+selected_env = st.text_area(t("env_label", lang), value=st.session_state["env_desc_val"], height=70)
 st.session_state["env_desc_val"] = selected_env
 
-selected_props = st.text_area("Αξεσουάρ / EDC Props (Custom Props)", value=st.session_state["props_desc_val"], height=70)
+selected_props = st.text_area(t("props_label", lang), value=st.session_state["props_desc_val"], height=70)
 st.session_state["props_desc_val"] = selected_props
 
-selected_problem = st.text_area("Σενάριο Προβλήματος (Custom Problem Scene)", value=st.session_state["problem_desc_val"], height=70)
+selected_problem = st.text_area(t("problem_label", lang), value=st.session_state["problem_desc_val"], height=70)
 st.session_state["problem_desc_val"] = selected_problem
 
 col_fmt, col_ar = st.columns(2)
 with col_fmt:
     _fmt_options = ["Single Layout Ad (1 Εικόνα)", "3-Slide Carousel Pack (3 Εικόνες)"]
     _fmt_idx = _fmt_options.index(st.session_state["ad_format_val"]) if st.session_state["ad_format_val"] in _fmt_options else 0
-    ad_format = st.selectbox("Τύπος Διαφήμισης (Format)", _fmt_options, index=_fmt_idx)
+    ad_format = st.selectbox(t("format_label", lang), _fmt_options, index=_fmt_idx)
     st.session_state["ad_format_val"] = ad_format
 with col_ar:
     _ar_options = ["9:16 (Story/TikTok)", "1:1 (Square)"]
     _ar_idx = _ar_options.index(st.session_state["aspect_ratio_val"]) if st.session_state["aspect_ratio_val"] in _ar_options else 1
-    aspect_ratio = st.radio("Αναλογία Εικόνας (Aspect Ratio)", _ar_options, index=_ar_idx)
+    aspect_ratio = st.radio(t("aspect_label", lang), _ar_options, index=_ar_idx)
     st.session_state["aspect_ratio_val"] = aspect_ratio
 
 ar_flag = "--ar 1:1" if "1:1" in aspect_ratio else "--ar 9:16"
@@ -403,12 +469,12 @@ ar_flag = "--ar 1:1" if "1:1" in aspect_ratio else "--ar 9:16"
 st.markdown("---")
 
 # 6. GENERATION
-if st.button("🚀 Δημιουργία Content Pack", type="primary"):
+if st.button(t("generate_button", lang), type="primary"):
     if not brand or not model_name:
-        st.error("⚠️ Συμπλήρωσε ή ανίχνευσε πρώτα τη Μάρκα και το Μοντέλο!")
+        st.error(t("generate_error", lang))
     else:
-        with st.spinner("Δημιουργία Prompts, Social Captions & Copy (English)..."):
-            ad_texts = safe_generate_ad_copy(brand, model_name, colorway, key_materials, custom_watermark)
+        with st.spinner(t("generate_spinner", lang, lang_name=t("lang_name", lang))):
+            ad_texts = safe_generate_ad_copy(brand, model_name, colorway, key_materials, custom_watermark, lang=lang)
 
         # 🛡️ Ασπίδα προστασίας από φίλτρα ασφαλείας
         unsafe_keywords = ["kobe", "jordan", "lebron", "messi", "ronaldo", "curry"]
@@ -429,7 +495,7 @@ if st.button("🚀 Δημιουργία Content Pack", type="primary"):
         if ad_format == "Single Layout Ad (1 Εικόνα)":
             visual_prompt = f"""Create an image: Photorealistic vertical photograph of {brand} {safe_model_name} in {colorway} colorway ({key_materials}) placed on a smooth surface in the foreground, accompanied by {selected_props}. In the soft-focus upper background, {selected_problem}. Natural depth of field and continuous studio lighting. Render a top-left fabric tag reading '{selected_tag}' and a top-right badge reading '{selected_badge}'. Display headline text overlay '{ad_texts['hook']}', body text overlay '{ad_texts['body']}', and bottom watermark '{custom_watermark}' with soft CTA '{ad_texts['cta']}'. {negative_constraint} Photorealistic 8k, seamless single canvas {ar_flag}"""
 
-            st.markdown("#### 🍌 Nano Banana Prompt (Single Image)")
+            st.markdown(t("prompt_single", lang))
             st.code(visual_prompt, language="text")
 
         else:
@@ -439,27 +505,31 @@ if st.button("🚀 Δημιουργία Content Pack", type="primary"):
             
             slide3_prompt = f"""Create an image: Sleek macro detail close-up photo of the sole and cushioning of {brand} {safe_model_name} on {selected_env} background. Floating bold text '{custom_watermark}' and soft CTA: '{ad_texts.get('slide3_text', ad_texts['cta'])}'. {negative_constraint} Commercial studio lighting {ar_flag}"""
 
-            st.markdown("#### 🍌 Nano Banana Prompts (3-Slide Carousel Pack)")
-            st.write("**Slide 1 (The Hook / Problem):**")
+            st.markdown(t("prompt_carousel", lang))
+            st.write(t("slide1_label", lang))
             st.code(slide1_prompt, language="text")
-            st.write("**Slide 2 (The Solution / Product):**")
+            st.write(t("slide2_label", lang))
             st.code(slide2_prompt, language="text")
-            st.write("**Slide 3 (Soft Discovery CTA):**")
+            st.write(t("slide3_label", lang))
             st.code(slide3_prompt, language="text")
 
         st.markdown("---")
-        st.markdown("### 📲 English Social Media Captions (Soft Discovery)")
+        st.markdown(t("captions_section", lang, lang_name=t("lang_name", lang)))
 
-        tab1, tab2 = st.tabs(["📘 Facebook & Instagram (English)", "🎵 TikTok / Carousel (English)"])
+        tab1, tab2 = st.tabs([
+            t("tab_meta", lang, lang_name=t("lang_name", lang)),
+            t("tab_tiktok", lang, lang_name=t("lang_name", lang)),
+        ])
         
         with tab1:
             meta_post = f"{ad_texts.get('meta_caption', '')}\n\n{ad_texts.get('hashtags_meta', '')}"
-            st.text_area("FB / IG Caption (English):", value=meta_post, height=180)
+            st.text_area(t("caption_meta_label", lang, lang_name=t("lang_name", lang)), value=meta_post, height=180)
             
         with tab2:
             tiktok_post = ad_texts.get('tiktok_caption', '')
-            st.text_area("TikTok Caption (English):", value=tiktok_post, height=120)
+            st.text_area(t("caption_tiktok_label", lang, lang_name=t("lang_name", lang)), value=tiktok_post, height=120)
 
+        lang_tag = "EL" if lang == "el" else "EN"
         os.makedirs("output", exist_ok=True)
         file_path = f"output/{brand}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
         
@@ -469,12 +539,12 @@ NANO BANANA VISUAL PROMPT
 {visual_prompt if ad_format == 'Single Layout Ad (1 Εικόνα)' else f'Slide 1:\n{slide1_prompt}\n\nSlide 2:\n{slide2_prompt}\n\nSlide 3:\n{slide3_prompt}'}
 
 ========================================
-FACEBOOK & INSTAGRAM POST (EN)
+FACEBOOK & INSTAGRAM POST ({lang_tag})
 ========================================
 {meta_post}
 
 ========================================
-TIKTOK / CAROUSEL POST (EN)
+TIKTOK / CAROUSEL POST ({lang_tag})
 ========================================
 {tiktok_post}
 
@@ -506,6 +576,7 @@ RAW DATA (JSON)
             "tiktok_caption": ad_texts.get("tiktok_caption", ""),
             "hashtags_meta": ad_texts.get("hashtags_meta", ""),
             "ad_texts": ad_texts,
+            "lang": lang,
         }
         if ad_format == "Single Layout Ad (1 Εικόνα)":
             hist_payload["visual_prompt"] = visual_prompt
@@ -545,10 +616,10 @@ RAW DATA (JSON)
         st.session_state["loaded_slide3_prompt"] = hist_payload.get("slide3_prompt", "")
         st.session_state["show_loaded_pack"] = False
 
-        st.info(f"💾 Αποθηκεύτηκε στο `{file_path}`")
+        st.info(t("saved_info", lang, path=file_path))
         
         st.download_button(
-            label="📥 Download Content Pack (.txt)",
+            label=t("download_label", lang),
             data=txt_content,
             file_name=f"{brand}_{model_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
             mime="text/plain"
@@ -558,29 +629,37 @@ RAW DATA (JSON)
 # Show pack loaded from history (without regenerating)
 if st.session_state.get("show_loaded_pack"):
     st.markdown("---")
-    st.markdown("### Φορτωμένο από Ιστορικό / Loaded from History")
+    st.markdown(t("loaded_from_history", lang))
     if st.session_state.get("loaded_visual_prompt"):
-        st.markdown("#### Nano Banana Prompt (Single Image)")
+        st.markdown(t("prompt_single", lang))
         st.code(st.session_state["loaded_visual_prompt"], language="text")
     elif st.session_state.get("loaded_slide1_prompt"):
-        st.markdown("#### Nano Banana Prompts (3-Slide Carousel Pack)")
-        st.write("**Slide 1 (The Hook / Problem):**")
+        st.markdown(t("prompt_carousel", lang))
+        st.write(t("slide1_label", lang))
         st.code(st.session_state["loaded_slide1_prompt"], language="text")
-        st.write("**Slide 2 (The Solution / Product):**")
+        st.write(t("slide2_label", lang))
         st.code(st.session_state["loaded_slide2_prompt"], language="text")
-        st.write("**Slide 3 (Soft Discovery CTA):**")
+        st.write(t("slide3_label", lang))
         st.code(st.session_state["loaded_slide3_prompt"], language="text")
-    st.markdown("### English Social Media Captions (Soft Discovery)")
-    tab_h1, tab_h2 = st.tabs(["Facebook & Instagram (English)", "TikTok / Carousel (English)"])
+    st.markdown(t("captions_section", lang, lang_name=t("lang_name", lang)))
+    tab_h1, tab_h2 = st.tabs([
+        t("tab_meta", lang, lang_name=t("lang_name", lang)),
+        t("tab_tiktok", lang, lang_name=t("lang_name", lang)),
+    ])
     with tab_h1:
         meta_loaded = (
             f"{st.session_state.get('loaded_meta_caption', '')}\n\n"
             f"{st.session_state.get('loaded_hashtags_meta', '')}"
         ).strip()
-        st.text_area("FB / IG Caption (English):", value=meta_loaded, height=180, key="hist_meta_ta")
+        st.text_area(
+            t("caption_meta_label", lang, lang_name=t("lang_name", lang)),
+            value=meta_loaded,
+            height=180,
+            key="hist_meta_ta",
+        )
     with tab_h2:
         st.text_area(
-            "TikTok Caption (English):",
+            t("caption_tiktok_label", lang, lang_name=t("lang_name", lang)),
             value=st.session_state.get("loaded_tiktok_caption", ""),
             height=120,
             key="hist_tt_ta",

@@ -32,3 +32,14 @@ Designed specifically for footwear curators, dropshippers, and digital marketers
 ```bash
 git clone [https://github.com/ster4runsneakers/sneakerness-engine.git](https://github.com/ster4runsneakers/sneakerness-engine.git)
 cd sneakerness-engine
+
+## Ιστορικό / Product History
+
+* After **Generate Content Pack**, product fields, prompts, captions, and the shoe image are saved under `data/product_history.json` (images in `data/history_images/`).
+* Use the sidebar **Ιστορικό / History** to reload a past product into the form or delete it.
+
+
+## Language / Γλώσσα
+
+* Use the sidebar **Language / Γλώσσα** toggle (**English** / **Ελληνικά**) to switch UI labels and the language of AI-generated ad copy, captions, hooks, and slide texts. Choice is stored in the Streamlit session only.
+
