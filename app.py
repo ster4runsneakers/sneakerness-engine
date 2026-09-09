@@ -247,6 +247,103 @@ Return strict JSON with keys:
 
 
 # 3. RESET & INITIALIZE SESSION STATE
+
+def build_carousel_prompts(
+    slide_count,
+    *,
+    brand,
+    safe_model_name,
+    colorway,
+    key_materials,
+    selected_env,
+    selected_props,
+    selected_problem,
+    selected_tag,
+    selected_badge,
+    custom_watermark,
+    ad_texts,
+    negative_constraint,
+    ar_flag,
+):
+    """Build 2–5 Nano Banana carousel prompts with a clear story arc."""
+    hook_txt = ad_texts.get("slide1_text", ad_texts.get("hook", ""))
+    product_txt = ad_texts.get("slide2_text", ad_texts.get("body", ""))
+    cta_txt = ad_texts.get("slide3_text", ad_texts.get("cta", ""))
+    body_txt = ad_texts.get("body", "")
+
+    hook = (
+        f"Create an image: Cinematic portrait of {selected_problem}. "
+        f"Natural dramatic studio lighting. High emotion. Bold top text overlay: '{hook_txt}'. "
+        f"{negative_constraint} Photorealistic 8k {ar_flag}"
+    )
+    product = (
+        f"Create an image: Studio product photography of {brand} {safe_model_name} in {colorway} "
+        f"colorway ({key_materials}) placed on a surface in {selected_env}. EDC props: {selected_props}. "
+        f"Top-left tag '{selected_tag}', top-right badge '{selected_badge}'. Clean text overlay: '{product_txt}'. "
+        f"{negative_constraint} Commercial studio lighting {ar_flag}"
+    )
+    product_cta = (
+        f"Create an image: Studio product photography of {brand} {safe_model_name} in {colorway} "
+        f"colorway ({key_materials}) placed on a surface in {selected_env}. EDC props: {selected_props}. "
+        f"Top-left tag '{selected_tag}', top-right badge '{selected_badge}'. "
+        f"Clean product showcase with soft CTA overlay: '{cta_txt}' and watermark '{custom_watermark}'. "
+        f"{negative_constraint} Commercial studio lighting {ar_flag}"
+    )
+    lifestyle = (
+        f"Create an image: Lifestyle environment scene in {selected_env} featuring EDC props: {selected_props}, "
+        f"with {brand} {safe_model_name} in {colorway} colorway ({key_materials}) naturally placed in the scene. "
+        f"Atmospheric natural light. Subtle text overlay: '{body_txt}'. "
+        f"{negative_constraint} Photorealistic lifestyle photography 8k {ar_flag}"
+    )
+    specs = (
+        f"Create an image: Sleek macro detail close-up photo of the sole and cushioning of "
+        f"{brand} {safe_model_name} on {selected_env} background. Highlight materials: {key_materials}. "
+        f"Clean overlay text: '{body_txt}'. "
+        f"{negative_constraint} Commercial studio lighting {ar_flag}"
+    )
+    specs_cta = (
+        f"Create an image: Sleek macro detail close-up photo of the sole and cushioning of "
+        f"{brand} {safe_model_name} on {selected_env} background. Floating bold text '{custom_watermark}' "
+        f"and soft CTA: '{cta_txt}'. "
+        f"{negative_constraint} Commercial studio lighting {ar_flag}"
+    )
+    soft_cta = (
+        f"Create an image: Clean minimal product still of {brand} {safe_model_name} in {colorway} "
+        f"colorway ({key_materials}) on {selected_env} with soft negative space. "
+        f"Floating bold watermark '{custom_watermark}' and soft CTA: '{cta_txt}'. "
+        f"{negative_constraint} Commercial studio lighting {ar_flag}"
+    )
+
+    # roles: (role_i18n_key, prompt)
+    if slide_count == 2:
+        roles = [
+            ("slide_role_hook", hook),
+            ("slide_role_product_cta", product_cta),
+        ]
+    elif slide_count == 3:
+        roles = [
+            ("slide_role_hook", hook),
+            ("slide_role_product", product),
+            ("slide_role_specs_cta", specs_cta),
+        ]
+    elif slide_count == 4:
+        roles = [
+            ("slide_role_hook", hook),
+            ("slide_role_product", product),
+            ("slide_role_specs", specs),
+            ("slide_role_cta", soft_cta),
+        ]
+    else:  # 5
+        roles = [
+            ("slide_role_hook", hook),
+            ("slide_role_lifestyle", lifestyle),
+            ("slide_role_product", product),
+            ("slide_role_specs", specs),
+            ("slide_role_cta", soft_cta),
+        ]
+    return roles
+
+
 def clear_all_fields():
     st.session_state["brand_val"] = ""
     st.session_state["model_val"] = ""
@@ -259,6 +356,7 @@ def clear_all_fields():
     st.session_state["selected_tag_val"] = AUTHENTICITY_TAGS[0]
     st.session_state["selected_badge_val"] = CATEGORY_BADGES[0]
     st.session_state["ad_format_val"] = "Single Layout Ad (1 Εικόνα)"
+    st.session_state["slide_count_val"] = 3
     st.session_state["aspect_ratio_val"] = "1:1 (Square)"
     st.session_state["history_image_path"] = None
     st.session_state["loaded_meta_caption"] = ""
@@ -268,6 +366,8 @@ def clear_all_fields():
     st.session_state["loaded_slide1_prompt"] = ""
     st.session_state["loaded_slide2_prompt"] = ""
     st.session_state["loaded_slide3_prompt"] = ""
+    st.session_state["loaded_slide4_prompt"] = ""
+    st.session_state["loaded_slide5_prompt"] = ""
     st.session_state["show_loaded_pack"] = False
     st.session_state["uploader_key"] = st.session_state.get("uploader_key", 0) + 1
 
@@ -289,6 +389,11 @@ def apply_history_entry(entry: dict):
     formats = ["Single Layout Ad (1 Εικόνα)", "3-Slide Carousel Pack (3 Εικόνες)"]
     fmt = entry.get("ad_format") or formats[0]
     st.session_state["ad_format_val"] = fmt if fmt in formats else formats[0]
+    try:
+        sc = int(entry.get("slide_count") or 3)
+    except (TypeError, ValueError):
+        sc = 3
+    st.session_state["slide_count_val"] = sc if sc in (2, 3, 4, 5) else 3
     ratios = ["9:16 (Story/TikTok)", "4:5 (Instagram Feed)", "1:1 (Square)", "2:3 (Portrait)", "16:9 (Landscape/YouTube)"]
     ar = entry.get("aspect_ratio") or "1:1 (Square)"
     st.session_state["aspect_ratio_val"] = ar if ar in ratios else "1:1 (Square)"
@@ -301,6 +406,8 @@ def apply_history_entry(entry: dict):
     st.session_state["loaded_slide1_prompt"] = entry.get("slide1_prompt", "") or ""
     st.session_state["loaded_slide2_prompt"] = entry.get("slide2_prompt", "") or ""
     st.session_state["loaded_slide3_prompt"] = entry.get("slide3_prompt", "") or ""
+    st.session_state["loaded_slide4_prompt"] = entry.get("slide4_prompt", "") or ""
+    st.session_state["loaded_slide5_prompt"] = entry.get("slide5_prompt", "") or ""
     st.session_state["show_loaded_pack"] = True
     st.session_state["uploader_key"] = st.session_state.get("uploader_key", 0) + 1
 
@@ -316,6 +423,7 @@ if "watermark_val" not in st.session_state: st.session_state["watermark_val"] = 
 if "selected_tag_val" not in st.session_state: st.session_state["selected_tag_val"] = AUTHENTICITY_TAGS[0]
 if "selected_badge_val" not in st.session_state: st.session_state["selected_badge_val"] = CATEGORY_BADGES[0]
 if "ad_format_val" not in st.session_state: st.session_state["ad_format_val"] = "Single Layout Ad (1 Εικόνα)"
+if "slide_count_val" not in st.session_state: st.session_state["slide_count_val"] = 3
 if "aspect_ratio_val" not in st.session_state: st.session_state["aspect_ratio_val"] = "1:1 (Square)"
 if "history_image_path" not in st.session_state: st.session_state["history_image_path"] = None
 if "loaded_meta_caption" not in st.session_state: st.session_state["loaded_meta_caption"] = ""
@@ -325,6 +433,8 @@ if "loaded_visual_prompt" not in st.session_state: st.session_state["loaded_visu
 if "loaded_slide1_prompt" not in st.session_state: st.session_state["loaded_slide1_prompt"] = ""
 if "loaded_slide2_prompt" not in st.session_state: st.session_state["loaded_slide2_prompt"] = ""
 if "loaded_slide3_prompt" not in st.session_state: st.session_state["loaded_slide3_prompt"] = ""
+if "loaded_slide4_prompt" not in st.session_state: st.session_state["loaded_slide4_prompt"] = ""
+if "loaded_slide5_prompt" not in st.session_state: st.session_state["loaded_slide5_prompt"] = ""
 if "show_loaded_pack" not in st.session_state: st.session_state["show_loaded_pack"] = False
 
 
@@ -464,6 +574,17 @@ with col_ar:
     aspect_ratio = st.selectbox(t("aspect_label", lang), _ar_options, index=_ar_idx)
     st.session_state["aspect_ratio_val"] = aspect_ratio
 
+if ad_format != "Single Layout Ad (1 Εικόνα)":
+    if st.session_state.get("slide_count_val") not in (2, 3, 4, 5):
+        st.session_state["slide_count_val"] = 3
+    slide_count = st.selectbox(
+        t("slide_count_label", lang),
+        [2, 3, 4, 5],
+        key="slide_count_val",
+    )
+else:
+    slide_count = st.session_state.get("slide_count_val", 3)
+
 if aspect_ratio.startswith("4:5"):
     ar_flag = "--ar 4:5"
 elif aspect_ratio.startswith("2:3"):
@@ -508,19 +629,36 @@ if st.button(t("generate_button", lang), type="primary"):
             st.code(visual_prompt, language="text")
 
         else:
-            slide1_prompt = f"""Create an image: Cinematic portrait of {selected_problem}. Natural dramatic studio lighting. High emotion. Bold top text overlay: '{ad_texts.get('slide1_text', ad_texts['hook'])}'. {negative_constraint} Photorealistic 8k {ar_flag}"""
-            
-            slide2_prompt = f"""Create an image: Studio product photography of {brand} {safe_model_name} in {colorway} colorway ({key_materials}) placed on a surface in {selected_env}. EDC props: {selected_props}. Top-left tag '{selected_tag}', top-right badge '{selected_badge}'. Clean text overlay: '{ad_texts.get('slide2_text', ad_texts['body'])}'. {negative_constraint} Commercial studio lighting {ar_flag}"""
-            
-            slide3_prompt = f"""Create an image: Sleek macro detail close-up photo of the sole and cushioning of {brand} {safe_model_name} on {selected_env} background. Floating bold text '{custom_watermark}' and soft CTA: '{ad_texts.get('slide3_text', ad_texts['cta'])}'. {negative_constraint} Commercial studio lighting {ar_flag}"""
+            slide_count = int(st.session_state.get("slide_count_val", 3))
+            if slide_count not in (2, 3, 4, 5):
+                slide_count = 3
+            carousel_roles = build_carousel_prompts(
+                slide_count,
+                brand=brand,
+                safe_model_name=safe_model_name,
+                colorway=colorway,
+                key_materials=key_materials,
+                selected_env=selected_env,
+                selected_props=selected_props,
+                selected_problem=selected_problem,
+                selected_tag=selected_tag,
+                selected_badge=selected_badge,
+                custom_watermark=custom_watermark,
+                ad_texts=ad_texts,
+                negative_constraint=negative_constraint,
+                ar_flag=ar_flag,
+            )
+            slide_prompts = [p for _, p in carousel_roles]
+            # Pad to 5 for history / session consistency
+            while len(slide_prompts) < 5:
+                slide_prompts.append("")
+            slide1_prompt, slide2_prompt, slide3_prompt, slide4_prompt, slide5_prompt = slide_prompts[:5]
 
             st.markdown(t("prompt_carousel", lang))
-            st.write(t("slide1_label", lang))
-            st.code(slide1_prompt, language="text")
-            st.write(t("slide2_label", lang))
-            st.code(slide2_prompt, language="text")
-            st.write(t("slide3_label", lang))
-            st.code(slide3_prompt, language="text")
+            for i, (role_key, prompt) in enumerate(carousel_roles, start=1):
+                role = t(role_key, lang)
+                st.write(t("slide_label", lang, n=i, role=role))
+                st.code(prompt, language="text")
 
         st.markdown("---")
         st.markdown(t("captions_section", lang, lang_name=t("lang_name", lang)))
@@ -545,7 +683,7 @@ if st.button(t("generate_button", lang), type="primary"):
         txt_content = f"""========================================
 NANO BANANA VISUAL PROMPT
 ========================================
-{visual_prompt if ad_format == 'Single Layout Ad (1 Εικόνα)' else f'Slide 1:\n{slide1_prompt}\n\nSlide 2:\n{slide2_prompt}\n\nSlide 3:\n{slide3_prompt}'}
+{visual_prompt if ad_format == 'Single Layout Ad (1 Εικόνα)' else chr(10).join((f'Slide {i}:' + chr(10) + p) for i, p in enumerate([slide1_prompt, slide2_prompt, slide3_prompt, slide4_prompt, slide5_prompt], start=1) if p)}
 
 ========================================
 FACEBOOK & INSTAGRAM POST ({lang_tag})
@@ -587,16 +725,21 @@ RAW DATA (JSON)
             "ad_texts": ad_texts,
             "lang": lang,
         }
+        hist_payload["slide_count"] = int(st.session_state.get("slide_count_val", 3)) if ad_format != "Single Layout Ad (1 Εικόνα)" else 1
         if ad_format == "Single Layout Ad (1 Εικόνα)":
             hist_payload["visual_prompt"] = visual_prompt
             hist_payload["slide1_prompt"] = ""
             hist_payload["slide2_prompt"] = ""
             hist_payload["slide3_prompt"] = ""
+            hist_payload["slide4_prompt"] = ""
+            hist_payload["slide5_prompt"] = ""
         else:
             hist_payload["visual_prompt"] = ""
             hist_payload["slide1_prompt"] = slide1_prompt
             hist_payload["slide2_prompt"] = slide2_prompt
             hist_payload["slide3_prompt"] = slide3_prompt
+            hist_payload["slide4_prompt"] = slide4_prompt
+            hist_payload["slide5_prompt"] = slide5_prompt
 
         img_bytes = None
         mime = None
@@ -623,6 +766,8 @@ RAW DATA (JSON)
         st.session_state["loaded_slide1_prompt"] = hist_payload.get("slide1_prompt", "")
         st.session_state["loaded_slide2_prompt"] = hist_payload.get("slide2_prompt", "")
         st.session_state["loaded_slide3_prompt"] = hist_payload.get("slide3_prompt", "")
+        st.session_state["loaded_slide4_prompt"] = hist_payload.get("slide4_prompt", "")
+        st.session_state["loaded_slide5_prompt"] = hist_payload.get("slide5_prompt", "")
         st.session_state["show_loaded_pack"] = False
 
         st.info(t("saved_info", lang, path=file_path))
@@ -644,12 +789,32 @@ if st.session_state.get("show_loaded_pack"):
         st.code(st.session_state["loaded_visual_prompt"], language="text")
     elif st.session_state.get("loaded_slide1_prompt"):
         st.markdown(t("prompt_carousel", lang))
-        st.write(t("slide1_label", lang))
-        st.code(st.session_state["loaded_slide1_prompt"], language="text")
-        st.write(t("slide2_label", lang))
-        st.code(st.session_state["loaded_slide2_prompt"], language="text")
-        st.write(t("slide3_label", lang))
-        st.code(st.session_state["loaded_slide3_prompt"], language="text")
+        _loaded_slides = [
+            st.session_state.get("loaded_slide1_prompt", ""),
+            st.session_state.get("loaded_slide2_prompt", ""),
+            st.session_state.get("loaded_slide3_prompt", ""),
+            st.session_state.get("loaded_slide4_prompt", ""),
+            st.session_state.get("loaded_slide5_prompt", ""),
+        ]
+        try:
+            _n_show = int(st.session_state.get("slide_count_val", 3) or 3)
+        except (TypeError, ValueError):
+            _n_show = 3
+        if _n_show not in (2, 3, 4, 5):
+            _n_show = 3
+        _role_arcs = {
+            2: ["slide_role_hook", "slide_role_product_cta"],
+            3: ["slide_role_hook", "slide_role_product", "slide_role_specs_cta"],
+            4: ["slide_role_hook", "slide_role_product", "slide_role_specs", "slide_role_cta"],
+            5: ["slide_role_hook", "slide_role_lifestyle", "slide_role_product", "slide_role_specs", "slide_role_cta"],
+        }
+        _roles = _role_arcs[_n_show]
+        for i, prompt in enumerate(_loaded_slides[:_n_show], start=1):
+            if not prompt:
+                continue
+            role = t(_roles[i - 1], lang)
+            st.write(t("slide_label", lang, n=i, role=role))
+            st.code(prompt, language="text")
     st.markdown(t("captions_section", lang, lang_name=t("lang_name", lang)))
     tab_h1, tab_h2 = st.tabs([
         t("tab_meta", lang, lang_name=t("lang_name", lang)),
