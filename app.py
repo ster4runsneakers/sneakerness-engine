@@ -11,6 +11,10 @@ import streamlit as st
 from google import genai
 from google.genai import types
 
+import product_history  # noqa: F401
+from product_history import load_history, add_entry, delete_entry, get_entry
+from pathlib import Path
+
 st.set_page_config(page_title="Sneakerness Studio Engine", page_icon="👟", layout="centered")
 
 st.title("👟 Sneakerness Ad, Carousel & Copy Studio")
@@ -185,6 +189,53 @@ def clear_all_fields():
     st.session_state["env_desc_val"] = "minimalist concrete urban street with natural daylight"
     st.session_state["props_desc_val"] = "an open Kinfolk magazine, a ceramic cup of cappuccino, brass keys, succulent"
     st.session_state["problem_desc_val"] = "a tired worker sitting on stairs touching sore feet with work boots beside them"
+    st.session_state["watermark_val"] = "SNEAKERNESS.EU"
+    st.session_state["selected_tag_val"] = AUTHENTICITY_TAGS[0]
+    st.session_state["selected_badge_val"] = CATEGORY_BADGES[0]
+    st.session_state["ad_format_val"] = "Single Layout Ad (1 Εικόνα)"
+    st.session_state["aspect_ratio_val"] = "1:1 (Square)"
+    st.session_state["history_image_path"] = None
+    st.session_state["loaded_meta_caption"] = ""
+    st.session_state["loaded_tiktok_caption"] = ""
+    st.session_state["loaded_hashtags_meta"] = ""
+    st.session_state["loaded_visual_prompt"] = ""
+    st.session_state["loaded_slide1_prompt"] = ""
+    st.session_state["loaded_slide2_prompt"] = ""
+    st.session_state["loaded_slide3_prompt"] = ""
+    st.session_state["show_loaded_pack"] = False
+    st.session_state["uploader_key"] = st.session_state.get("uploader_key", 0) + 1
+
+
+def apply_history_entry(entry: dict):
+    """Populate session_state from a history entry; caller should st.rerun()."""
+    st.session_state["brand_val"] = entry.get("brand", "") or ""
+    st.session_state["model_val"] = entry.get("model", "") or ""
+    st.session_state["colorway_val"] = entry.get("colorway", "") or ""
+    st.session_state["specs_val"] = entry.get("specs", "") or ""
+    st.session_state["env_desc_val"] = entry.get("env_desc", "") or ""
+    st.session_state["props_desc_val"] = entry.get("props_desc", "") or ""
+    st.session_state["problem_desc_val"] = entry.get("problem_desc", "") or ""
+    st.session_state["watermark_val"] = entry.get("watermark", "SNEAKERNESS.EU") or "SNEAKERNESS.EU"
+    tag = entry.get("selected_tag") or AUTHENTICITY_TAGS[0]
+    badge = entry.get("selected_badge") or CATEGORY_BADGES[0]
+    st.session_state["selected_tag_val"] = tag if tag in AUTHENTICITY_TAGS else AUTHENTICITY_TAGS[0]
+    st.session_state["selected_badge_val"] = badge if badge in CATEGORY_BADGES else CATEGORY_BADGES[0]
+    formats = ["Single Layout Ad (1 Εικόνα)", "3-Slide Carousel Pack (3 Εικόνες)"]
+    fmt = entry.get("ad_format") or formats[0]
+    st.session_state["ad_format_val"] = fmt if fmt in formats else formats[0]
+    ratios = ["9:16 (Story/TikTok)", "1:1 (Square)"]
+    ar = entry.get("aspect_ratio") or "1:1 (Square)"
+    st.session_state["aspect_ratio_val"] = ar if ar in ratios else "1:1 (Square)"
+    img = entry.get("image_path")
+    st.session_state["history_image_path"] = img if img else None
+    st.session_state["loaded_meta_caption"] = entry.get("meta_caption", "") or ""
+    st.session_state["loaded_tiktok_caption"] = entry.get("tiktok_caption", "") or ""
+    st.session_state["loaded_hashtags_meta"] = entry.get("hashtags_meta", "") or ""
+    st.session_state["loaded_visual_prompt"] = entry.get("visual_prompt", "") or ""
+    st.session_state["loaded_slide1_prompt"] = entry.get("slide1_prompt", "") or ""
+    st.session_state["loaded_slide2_prompt"] = entry.get("slide2_prompt", "") or ""
+    st.session_state["loaded_slide3_prompt"] = entry.get("slide3_prompt", "") or ""
+    st.session_state["show_loaded_pack"] = True
     st.session_state["uploader_key"] = st.session_state.get("uploader_key", 0) + 1
 
 if "brand_val" not in st.session_state: st.session_state["brand_val"] = ""
@@ -195,6 +246,59 @@ if "env_desc_val" not in st.session_state: st.session_state["env_desc_val"] = "m
 if "props_desc_val" not in st.session_state: st.session_state["props_desc_val"] = "an open Kinfolk magazine, a ceramic cup of cappuccino, brass keys, succulent"
 if "problem_desc_val" not in st.session_state: st.session_state["problem_desc_val"] = "a tired worker sitting on stairs touching sore feet with work boots beside them"
 if "uploader_key" not in st.session_state: st.session_state["uploader_key"] = 0
+if "watermark_val" not in st.session_state: st.session_state["watermark_val"] = "SNEAKERNESS.EU"
+if "selected_tag_val" not in st.session_state: st.session_state["selected_tag_val"] = AUTHENTICITY_TAGS[0]
+if "selected_badge_val" not in st.session_state: st.session_state["selected_badge_val"] = CATEGORY_BADGES[0]
+if "ad_format_val" not in st.session_state: st.session_state["ad_format_val"] = "Single Layout Ad (1 Εικόνα)"
+if "aspect_ratio_val" not in st.session_state: st.session_state["aspect_ratio_val"] = "1:1 (Square)"
+if "history_image_path" not in st.session_state: st.session_state["history_image_path"] = None
+if "loaded_meta_caption" not in st.session_state: st.session_state["loaded_meta_caption"] = ""
+if "loaded_tiktok_caption" not in st.session_state: st.session_state["loaded_tiktok_caption"] = ""
+if "loaded_hashtags_meta" not in st.session_state: st.session_state["loaded_hashtags_meta"] = ""
+if "loaded_visual_prompt" not in st.session_state: st.session_state["loaded_visual_prompt"] = ""
+if "loaded_slide1_prompt" not in st.session_state: st.session_state["loaded_slide1_prompt"] = ""
+if "loaded_slide2_prompt" not in st.session_state: st.session_state["loaded_slide2_prompt"] = ""
+if "loaded_slide3_prompt" not in st.session_state: st.session_state["loaded_slide3_prompt"] = ""
+if "show_loaded_pack" not in st.session_state: st.session_state["show_loaded_pack"] = False
+
+
+# 3b. HISTORY SIDEBAR
+with st.sidebar:
+    st.markdown("### Ιστορικό / History")
+    history_entries = load_history()
+    history_entries_sorted = sorted(
+        history_entries,
+        key=lambda e: e.get("created_at", ""),
+        reverse=True,
+    )
+    if not history_entries_sorted:
+        st.caption("Δεν υπάρχουν αποθηκευμένα προϊόντα ακόμα.")
+    else:
+        labels = []
+        id_by_label = {}
+        for e in history_entries_sorted:
+            created = (e.get("created_at") or "")[:10]
+            label = f"{e.get('brand', '')} {e.get('model', '')} — {created}".strip()
+            base = label
+            n = 2
+            while label in id_by_label:
+                label = f"{base} ({n})"
+                n += 1
+            labels.append(label)
+            id_by_label[label] = e.get("id")
+
+        selected_label = st.selectbox("Επιλογή προϊόντος", labels, key="history_select_label")
+        col_load, col_del = st.columns(2)
+        with col_load:
+            if st.button("Load", use_container_width=True, key="history_load_btn"):
+                entry = get_entry(id_by_label[selected_label])
+                if entry:
+                    apply_history_entry(entry)
+                    st.rerun()
+        with col_del:
+            if st.button("Delete", use_container_width=True, key="history_delete_btn"):
+                delete_entry(id_by_label[selected_label])
+                st.rerun()
 
 # 4. UI & ACTIONS
 col_header, col_reset = st.columns([3, 1])
@@ -214,6 +318,10 @@ with col_up:
 with col_preview:
     if uploaded_file is not None:
         st.image(uploaded_file, caption="Προεπισκόπηση", use_container_width=True)
+    elif st.session_state.get("history_image_path"):
+        hist_img = Path(st.session_state["history_image_path"])
+        if hist_img.is_file():
+            st.image(str(hist_img), caption="Από ιστορικό", use_container_width=True)
 
 if st.button("🔍 Δυναμική Ανίχνευση & Δημιουργία Σκηνής (Custom Specs & Scene)"):
     if not uploaded_file:
@@ -251,14 +359,21 @@ with col3:
     colorway = st.text_input("Colorway / Χρώμα", value=st.session_state["colorway_val"], placeholder="π.χ. Cream / Red")
     st.session_state["colorway_val"] = colorway
 
-custom_watermark = st.text_input("Watermark / Domain", value="SNEAKERNESS.EU")
+custom_watermark = st.text_input("Watermark / Domain", value=st.session_state["watermark_val"])
+st.session_state["watermark_val"] = custom_watermark
 
 key_materials = st.text_area("Specs / Τεχνικά Χαρακτηριστικά", value=st.session_state["specs_val"], placeholder="Τεχνικά χαρακτηριστικά...", height=80)
 st.session_state["specs_val"] = key_materials
 
 col_tag, col_badge = st.columns(2)
-with col_tag: selected_tag = st.selectbox("Tag (Πάνω Αριστερά)", AUTHENTICITY_TAGS)
-with col_badge: selected_badge = st.selectbox("Badge (Πάνω Δεξιά)", CATEGORY_BADGES)
+with col_tag:
+    _tag_idx = AUTHENTICITY_TAGS.index(st.session_state["selected_tag_val"]) if st.session_state["selected_tag_val"] in AUTHENTICITY_TAGS else 0
+    selected_tag = st.selectbox("Tag (Πάνω Αριστερά)", AUTHENTICITY_TAGS, index=_tag_idx)
+    st.session_state["selected_tag_val"] = selected_tag
+with col_badge:
+    _badge_idx = CATEGORY_BADGES.index(st.session_state["selected_badge_val"]) if st.session_state["selected_badge_val"] in CATEGORY_BADGES else 0
+    selected_badge = st.selectbox("Badge (Πάνω Δεξιά)", CATEGORY_BADGES, index=_badge_idx)
+    st.session_state["selected_badge_val"] = selected_badge
 
 st.markdown("#### 🎨 Δυναμικά Στοιχεία Σκηνής (Custom Scene Prompts)")
 
@@ -273,9 +388,15 @@ st.session_state["problem_desc_val"] = selected_problem
 
 col_fmt, col_ar = st.columns(2)
 with col_fmt:
-    ad_format = st.selectbox("Τύπος Διαφήμισης (Format)", ["Single Layout Ad (1 Εικόνα)", "3-Slide Carousel Pack (3 Εικόνες)"])
+    _fmt_options = ["Single Layout Ad (1 Εικόνα)", "3-Slide Carousel Pack (3 Εικόνες)"]
+    _fmt_idx = _fmt_options.index(st.session_state["ad_format_val"]) if st.session_state["ad_format_val"] in _fmt_options else 0
+    ad_format = st.selectbox("Τύπος Διαφήμισης (Format)", _fmt_options, index=_fmt_idx)
+    st.session_state["ad_format_val"] = ad_format
 with col_ar:
-    aspect_ratio = st.radio("Αναλογία Εικόνας (Aspect Ratio)", ["9:16 (Story/TikTok)", "1:1 (Square)"], index=1)
+    _ar_options = ["9:16 (Story/TikTok)", "1:1 (Square)"]
+    _ar_idx = _ar_options.index(st.session_state["aspect_ratio_val"]) if st.session_state["aspect_ratio_val"] in _ar_options else 1
+    aspect_ratio = st.radio("Αναλογία Εικόνας (Aspect Ratio)", _ar_options, index=_ar_idx)
+    st.session_state["aspect_ratio_val"] = aspect_ratio
 
 ar_flag = "--ar 1:1" if "1:1" in aspect_ratio else "--ar 9:16"
 
@@ -366,6 +487,64 @@ RAW DATA (JSON)
         with open(file_path, "w", encoding="utf-8") as f:
             f.write(txt_content)
             
+
+        # Persist to product history
+        hist_payload = {
+            "brand": brand,
+            "model": model_name,
+            "colorway": colorway,
+            "specs": key_materials,
+            "env_desc": selected_env,
+            "props_desc": selected_props,
+            "problem_desc": selected_problem,
+            "watermark": custom_watermark,
+            "ad_format": ad_format,
+            "aspect_ratio": aspect_ratio,
+            "selected_tag": selected_tag,
+            "selected_badge": selected_badge,
+            "meta_caption": ad_texts.get("meta_caption", ""),
+            "tiktok_caption": ad_texts.get("tiktok_caption", ""),
+            "hashtags_meta": ad_texts.get("hashtags_meta", ""),
+            "ad_texts": ad_texts,
+        }
+        if ad_format == "Single Layout Ad (1 Εικόνα)":
+            hist_payload["visual_prompt"] = visual_prompt
+            hist_payload["slide1_prompt"] = ""
+            hist_payload["slide2_prompt"] = ""
+            hist_payload["slide3_prompt"] = ""
+        else:
+            hist_payload["visual_prompt"] = ""
+            hist_payload["slide1_prompt"] = slide1_prompt
+            hist_payload["slide2_prompt"] = slide2_prompt
+            hist_payload["slide3_prompt"] = slide3_prompt
+
+        img_bytes = None
+        mime = None
+        src_path = None
+        if uploaded_file is not None:
+            img_bytes = uploaded_file.getvalue()
+            mime = "image/jpeg"
+            name_l = (uploaded_file.name or "").lower()
+            if name_l.endswith(".webp"):
+                mime = "image/webp"
+            elif name_l.endswith(".png"):
+                mime = "image/png"
+        elif st.session_state.get("history_image_path"):
+            src_path = st.session_state["history_image_path"]
+
+        saved = add_entry(hist_payload, image_bytes=img_bytes, mime_type=mime, source_image_path=src_path)
+        if saved.get("image_path"):
+            st.session_state["history_image_path"] = saved["image_path"]
+
+        st.session_state["loaded_meta_caption"] = ad_texts.get("meta_caption", "")
+        st.session_state["loaded_tiktok_caption"] = ad_texts.get("tiktok_caption", "")
+        st.session_state["loaded_hashtags_meta"] = ad_texts.get("hashtags_meta", "")
+        st.session_state["loaded_visual_prompt"] = hist_payload.get("visual_prompt", "")
+        st.session_state["loaded_slide1_prompt"] = hist_payload.get("slide1_prompt", "")
+        st.session_state["loaded_slide2_prompt"] = hist_payload.get("slide2_prompt", "")
+        st.session_state["loaded_slide3_prompt"] = hist_payload.get("slide3_prompt", "")
+        st.session_state["show_loaded_pack"] = False
+
         st.info(f"💾 Αποθηκεύτηκε στο `{file_path}`")
         
         st.download_button(
@@ -374,3 +553,36 @@ RAW DATA (JSON)
             file_name=f"{brand}_{model_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
             mime="text/plain"
         )
+
+
+# Show pack loaded from history (without regenerating)
+if st.session_state.get("show_loaded_pack"):
+    st.markdown("---")
+    st.markdown("### Φορτωμένο από Ιστορικό / Loaded from History")
+    if st.session_state.get("loaded_visual_prompt"):
+        st.markdown("#### Nano Banana Prompt (Single Image)")
+        st.code(st.session_state["loaded_visual_prompt"], language="text")
+    elif st.session_state.get("loaded_slide1_prompt"):
+        st.markdown("#### Nano Banana Prompts (3-Slide Carousel Pack)")
+        st.write("**Slide 1 (The Hook / Problem):**")
+        st.code(st.session_state["loaded_slide1_prompt"], language="text")
+        st.write("**Slide 2 (The Solution / Product):**")
+        st.code(st.session_state["loaded_slide2_prompt"], language="text")
+        st.write("**Slide 3 (Soft Discovery CTA):**")
+        st.code(st.session_state["loaded_slide3_prompt"], language="text")
+    st.markdown("### English Social Media Captions (Soft Discovery)")
+    tab_h1, tab_h2 = st.tabs(["Facebook & Instagram (English)", "TikTok / Carousel (English)"])
+    with tab_h1:
+        meta_loaded = (
+            f"{st.session_state.get('loaded_meta_caption', '')}\n\n"
+            f"{st.session_state.get('loaded_hashtags_meta', '')}"
+        ).strip()
+        st.text_area("FB / IG Caption (English):", value=meta_loaded, height=180, key="hist_meta_ta")
+    with tab_h2:
+        st.text_area(
+            "TikTok Caption (English):",
+            value=st.session_state.get("loaded_tiktok_caption", ""),
+            height=120,
+            key="hist_tt_ta",
+        )
+

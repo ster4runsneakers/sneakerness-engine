@@ -16,3 +16,7 @@ __pycache__/
 .vscode/
 .idea/
 *.zip
+
+# Product history images (keep folder via .gitkeep)
+data/history_images/*
+!data/history_images/.gitkeep
