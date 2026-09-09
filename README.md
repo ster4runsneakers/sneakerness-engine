@@ -46,3 +46,20 @@ cd sneakerness-engine
 ## Carousel slide count
 
 * When **Ad Format** is the carousel option, use **Carousel slides / Αριθμός slides** to pick **2, 3, 4, or 5** (default **3**). The app generates that many Nano Banana prompts and stores `slide_count` plus `slide1_prompt`…`slide5_prompt` in product history (unused slides saved as empty strings).
+
+
+## Additive extras (MON)
+
+### A — Goal / story templates
+* Expander-style **Story goal / angle** select: Auto, Comfort, Wide fit, Style, Rain care (EN/EL labels).
+* Auto suggests a goal from specs (e.g. cushion → Comfort); you can override.
+* The chosen goal is passed into caption/hook generation (`safe_generate_ad_copy`) as a soft-discovery angle and stored as `goal` on history entries.
+
+### B — Weekly insights
+* Sidebar **Weekly insights** reads `data/weekly_insights.json` (seed included; no scraper required).
+* **Use this insight** stores the selection in session and biases the next Generate captions.
+* Optional research scripts under `research/` are left as-is and are not required to run the UI.
+
+### C — One-click export pack (ZIP)
+* After Generate (and when a history pack is loaded): **Download pack (ZIP)** with `captions_meta.txt`, `captions_tiktok.txt`, `prompts.txt`, and `meta.json` (brand, model, colorway, goal, lang, aspect, slide_count, specs).
+* Export only — does **not** auto-post to Instagram. Uses stdlib `zipfile` + `io.BytesIO`.

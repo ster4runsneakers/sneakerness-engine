@@ -2,6 +2,8 @@
 import os
 import json
 import time
+import io
+import zipfile
 from datetime import datetime
 from dotenv import load_dotenv
 
@@ -143,13 +145,32 @@ Return ONLY a valid, raw JSON object matching this schema:
         "problem_desc": "a tired worker sitting on stairs touching sore feet with work boots beside them"
     }
 
-def safe_generate_ad_copy(brand_name, model_name, colorway_text, materials, watermark, lang="el"):
+def safe_generate_ad_copy(brand_name, model_name, colorway_text, materials, watermark, lang="el", goal="auto", insight_context=""):
     # Ασπίδα αφαίρεσης ευαίσθητων λέξεων
     unsafe_keywords = ["kobe", "jordan", "lebron", "messi", "ronaldo", "curry"]
     clean_model_name = model_name
     for word in unsafe_keywords:
         if word in clean_model_name.lower():
             clean_model_name = clean_model_name.lower().replace(word, "signature pro")
+
+    goal_angles = {
+        "auto": "Let the shoe specs guide the angle; prefer soft comfort/discovery if unclear.",
+        "comfort": "Angle: all-day comfort, cushioning, standing shifts, fatigue relief — soft discovery, no hard sell.",
+        "wide_fit": "Angle: wide fit / toe box room without orthopedic look — soft discovery, no hard sell.",
+        "style": "Angle: street style, silhouette, colorway aesthetic — soft discovery, no hard sell.",
+        "rain_care": "Angle: rain protection, suede/mesh care, autumn maintenance — educational soft discovery, no hard sell.",
+    }
+    goal_key = (goal or "auto").strip().lower()
+    if goal_key not in goal_angles:
+        goal_key = "auto"
+    goal_instruction = goal_angles[goal_key]
+    insight_block = ""
+    if insight_context and str(insight_context).strip():
+        insight_block = (
+            "\nEXTRA MARKET INSIGHT TO SOFTLY REFLECT (do not invent stats; keep soft-discovery):\n"
+            + str(insight_context).strip()
+            + "\n"
+        )
 
     if lang == "el":
         lang_name = "Greek (Ελληνικά)"
@@ -167,6 +188,8 @@ CRITICAL CONSTRAINTS:
 3. Use soft discovery CTAs like "Ανακάλυψε περισσότερα στο {watermark}", "Εξερεύνησε τα χαρακτηριστικά στο {watermark}".
 4. STRICTLY DO NOT include celebrity names or restricted player names in any text or overlay.
 
+STORY GOAL / ANGLE: {goal_instruction}
+{insight_block}
 Return strict JSON with keys:
 1. "hook": Image top text in Greek, max 10 words.
 2. "body": Image mid text in Greek, max 10 words.
@@ -204,6 +227,8 @@ CRITICAL CONSTRAINTS:
 3. Use soft discovery CTAs like "Discover more at {watermark}", "Explore the full specs at {watermark}".
 4. STRICTLY DO NOT include celebrity names or restricted player names in any text or overlay.
 
+STORY GOAL / ANGLE: {goal_instruction}
+{insight_block}
 Return strict JSON with keys:
 1. "hook": Image top text, max 10 words.
 2. "body": Image mid text, max 10 words.
@@ -344,6 +369,82 @@ def build_carousel_prompts(
     return roles
 
 
+
+GOAL_KEYS = ["auto", "comfort", "wide_fit", "style", "rain_care"]
+
+
+def suggest_goal_from_specs(specs: str, model_name: str = "", brand: str = "") -> str:
+    """Map shoe specs / model text to a suggested story goal (soft heuristic)."""
+    blob = f"{specs or ''} {model_name or ''} {brand or ''}".lower()
+    if any(k in blob for k in ("suede", "nubuck", "gore-tex", "waterproof", "rain", "water repellent", "gusset")):
+        return "rain_care"
+    if any(k in blob for k in ("wide", "2e", "4e", "toe box", "toebox", "wide fit", "roomy")):
+        return "wide_fit"
+    if any(k in blob for k in ("cushion", "comfort", "eva", "foam", "standing", "all-day", "all day", "fatigue", "plush", "maxx", "bondi", "clifton")):
+        return "comfort"
+    if any(k in blob for k in ("heritage", "og", "retro", "street", "classic", "silhouette", "leather")):
+        return "style"
+    return "comfort"
+
+
+def load_weekly_insights(path: str | Path = "data/weekly_insights.json") -> dict:
+    """Load static weekly insights JSON; return {} on missing/invalid."""
+    p = Path(path)
+    if not p.is_file():
+        return {}
+    try:
+        data = json.loads(p.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
+    except (json.JSONDecodeError, OSError):
+        return {}
+
+
+def build_pack_zip_bytes(
+    *,
+    brand: str,
+    model_name: str,
+    colorway: str,
+    goal: str,
+    lang: str,
+    aspect_ratio: str,
+    slide_count: int,
+    specs: str,
+    meta_caption: str,
+    hashtags_meta: str,
+    tiktok_caption: str,
+    visual_prompt: str = "",
+    slide_prompts: list | None = None,
+) -> bytes:
+    """Build an in-memory ZIP export pack (stdlib only)."""
+    slide_prompts = slide_prompts or []
+    meta_body = f"{meta_caption or ''}\n\n{hashtags_meta or ''}".strip()
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("captions_meta.txt", meta_body)
+        zf.writestr("captions_tiktok.txt", tiktok_caption or "")
+        if visual_prompt:
+            prompts_txt = visual_prompt
+        else:
+            parts = []
+            for i, p in enumerate(slide_prompts, start=1):
+                if p:
+                    parts.append(f"=== slide{i} ===\n{p}")
+            prompts_txt = "\n\n".join(parts) if parts else ""
+        zf.writestr("prompts.txt", prompts_txt)
+        meta = {
+            "brand": brand,
+            "model": model_name,
+            "colorway": colorway,
+            "goal": goal,
+            "lang": lang,
+            "aspect": aspect_ratio,
+            "slide_count": slide_count,
+            "specs": specs,
+        }
+        zf.writestr("meta.json", json.dumps(meta, ensure_ascii=False, indent=2))
+    return buf.getvalue()
+
+
 def clear_all_fields():
     st.session_state["brand_val"] = ""
     st.session_state["model_val"] = ""
@@ -369,6 +470,9 @@ def clear_all_fields():
     st.session_state["loaded_slide4_prompt"] = ""
     st.session_state["loaded_slide5_prompt"] = ""
     st.session_state["show_loaded_pack"] = False
+    st.session_state["goal_val"] = "auto"
+    st.session_state["active_insight"] = ""
+    st.session_state["last_export_zip"] = None
     st.session_state["uploader_key"] = st.session_state.get("uploader_key", 0) + 1
 
 
@@ -408,7 +512,39 @@ def apply_history_entry(entry: dict):
     st.session_state["loaded_slide3_prompt"] = entry.get("slide3_prompt", "") or ""
     st.session_state["loaded_slide4_prompt"] = entry.get("slide4_prompt", "") or ""
     st.session_state["loaded_slide5_prompt"] = entry.get("slide5_prompt", "") or ""
+    g = (entry.get("goal") or "auto").strip().lower()
+    st.session_state["goal_val"] = g if g in GOAL_KEYS else "auto"
     st.session_state["show_loaded_pack"] = True
+    # Rebuild export ZIP from loaded history pack
+    _slides = [
+        entry.get("slide1_prompt", "") or "",
+        entry.get("slide2_prompt", "") or "",
+        entry.get("slide3_prompt", "") or "",
+        entry.get("slide4_prompt", "") or "",
+        entry.get("slide5_prompt", "") or "",
+    ]
+    try:
+        _sc = int(entry.get("slide_count") or 3)
+    except (TypeError, ValueError):
+        _sc = 3
+    st.session_state["last_export_zip"] = build_pack_zip_bytes(
+        brand=entry.get("brand", "") or "",
+        model_name=entry.get("model", "") or "",
+        colorway=entry.get("colorway", "") or "",
+        goal=st.session_state["goal_val"],
+        lang=entry.get("lang") or st.session_state.get("lang", "el"),
+        aspect_ratio=entry.get("aspect_ratio") or "1:1 (Square)",
+        slide_count=_sc,
+        specs=entry.get("specs", "") or "",
+        meta_caption=entry.get("meta_caption", "") or "",
+        hashtags_meta=entry.get("hashtags_meta", "") or "",
+        tiktok_caption=entry.get("tiktok_caption", "") or "",
+        visual_prompt=entry.get("visual_prompt", "") or "",
+        slide_prompts=[s for s in _slides if s],
+    )
+    _bn = (entry.get("brand") or "pack").replace(" ", "_")
+    _mn = (entry.get("model") or "export").replace(" ", "_")
+    st.session_state["last_export_name"] = f"{_bn}_{_mn}_pack.zip"
     st.session_state["uploader_key"] = st.session_state.get("uploader_key", 0) + 1
 
 if "brand_val" not in st.session_state: st.session_state["brand_val"] = ""
@@ -436,6 +572,10 @@ if "loaded_slide3_prompt" not in st.session_state: st.session_state["loaded_slid
 if "loaded_slide4_prompt" not in st.session_state: st.session_state["loaded_slide4_prompt"] = ""
 if "loaded_slide5_prompt" not in st.session_state: st.session_state["loaded_slide5_prompt"] = ""
 if "show_loaded_pack" not in st.session_state: st.session_state["show_loaded_pack"] = False
+if "goal_val" not in st.session_state: st.session_state["goal_val"] = "auto"
+if "active_insight" not in st.session_state: st.session_state["active_insight"] = ""
+if "last_export_zip" not in st.session_state: st.session_state["last_export_zip"] = None
+if "last_export_name" not in st.session_state: st.session_state["last_export_name"] = "content_pack.zip"
 
 
 # 3b. HISTORY SIDEBAR (below language switcher)
@@ -475,6 +615,51 @@ with st.sidebar:
             if st.button(t("history_delete", lang), use_container_width=True, key="history_delete_btn"):
                 delete_entry(id_by_label[selected_label])
                 st.rerun()
+
+
+# 3c. WEEKLY INSIGHTS (sidebar)
+with st.sidebar:
+    st.markdown("---")
+    st.markdown(t("insights_title", lang))
+    _insights = load_weekly_insights()
+    if not _insights:
+        st.caption(t("insights_empty", lang))
+    else:
+        if st.session_state.get("active_insight"):
+            st.info(t("insights_active", lang, text=st.session_state["active_insight"][:160]))
+            if st.button(t("insights_clear", lang), key="clear_insight_btn"):
+                st.session_state["active_insight"] = ""
+                st.rerun()
+        with st.expander(t("insights_actions", lang), expanded=True):
+            for i, insight in enumerate(_insights.get("top_3_actionable_insights") or []):
+                st.write(insight)
+                if st.button(t("insights_use", lang), key=f"use_action_insight_{i}"):
+                    st.session_state["active_insight"] = str(insight)
+                    st.rerun()
+        with st.expander(t("insights_intent", lang), expanded=False):
+            for i, row in enumerate(_insights.get("consumer_search_intent") or []):
+                q = row.get("query", "")
+                st.markdown(f"**{q}**")
+                st.caption(f"{t('insights_intent_label', lang)}: {row.get('intent', '')}")
+                st.caption(f"{t('insights_issue', lang)}: {row.get('core_issue', '')}")
+                if st.button(t("insights_use", lang), key=f"use_intent_{i}"):
+                    st.session_state["active_insight"] = (
+                        f"Search query: {q}. Intent: {row.get('intent', '')}. "
+                        f"Core issue: {row.get('core_issue', '')}."
+                    )
+                    st.rerun()
+        with st.expander(t("insights_ecom", lang), expanded=False):
+            for i, row in enumerate(_insights.get("ecom_monitoring") or []):
+                st.markdown(f"**{row.get('category', '')}**")
+                st.caption(f"{t('insights_demand', lang)}: {row.get('demand_trend', '')}")
+                st.caption(f"{t('insights_stock', lang)}: {row.get('stock_status', '')}")
+                st.caption(f"{t('insights_benefit', lang)}: {row.get('key_benefit', '')}")
+                if st.button(t("insights_use", lang), key=f"use_ecom_{i}"):
+                    st.session_state["active_insight"] = (
+                        f"Category: {row.get('category', '')}. Demand: {row.get('demand_trend', '')}. "
+                        f"Stock: {row.get('stock_status', '')}. Benefit: {row.get('key_benefit', '')}."
+                    )
+                    st.rerun()
 
 # 4. UI & ACTIONS
 col_header, col_reset = st.columns([3, 1])
@@ -562,6 +747,43 @@ st.session_state["props_desc_val"] = selected_props
 selected_problem = st.text_area(t("problem_label", lang), value=st.session_state["problem_desc_val"], height=70)
 st.session_state["problem_desc_val"] = selected_problem
 
+
+# 5b. GOAL / STORY TEMPLATES (hybrid — does not replace scene fields)
+st.markdown(t("goal_section", lang))
+_suggested = suggest_goal_from_specs(
+    st.session_state.get("specs_val", ""),
+    st.session_state.get("model_val", ""),
+    st.session_state.get("brand_val", ""),
+)
+_goal_labels = {
+    "auto": t("goal_auto", lang),
+    "comfort": t("goal_comfort", lang),
+    "wide_fit": t("goal_wide_fit", lang),
+    "style": t("goal_style", lang),
+    "rain_care": t("goal_rain_care", lang),
+}
+st.caption(t("goal_suggested", lang, goal=_goal_labels.get(_suggested, _suggested)))
+st.caption(t("goal_help", lang))
+_cur_goal = st.session_state.get("goal_val", "auto")
+if _cur_goal not in GOAL_KEYS:
+    _cur_goal = "auto"
+_goal_idx = GOAL_KEYS.index(_cur_goal)
+_picked_goal_label = st.selectbox(
+    t("goal_label", lang),
+    [_goal_labels[k] for k in GOAL_KEYS],
+    index=_goal_idx,
+    key="goal_select_label",
+)
+_label_to_goal = {v: k for k, v in _goal_labels.items()}
+_selected_goal = _label_to_goal.get(_picked_goal_label, "auto")
+if _selected_goal == "auto":
+    # Auto uses suggested angle for generation, but stores as auto
+    st.session_state["goal_val"] = "auto"
+    _effective_goal = _suggested
+else:
+    st.session_state["goal_val"] = _selected_goal
+    _effective_goal = _selected_goal
+
 col_fmt, col_ar = st.columns(2)
 with col_fmt:
     _fmt_options = ["Single Layout Ad (1 Εικόνα)", "Carousel Pack (multi-slide)"]
@@ -607,7 +829,12 @@ if st.button(t("generate_button", lang), type="primary"):
         st.error(t("generate_error", lang))
     else:
         with st.spinner(t("generate_spinner", lang, lang_name=t("lang_name", lang))):
-            ad_texts = safe_generate_ad_copy(brand, model_name, colorway, key_materials, custom_watermark, lang=lang)
+            ad_texts = safe_generate_ad_copy(
+                brand, model_name, colorway, key_materials, custom_watermark,
+                lang=lang,
+                goal=_effective_goal,
+                insight_context=st.session_state.get("active_insight", "") or "",
+            )
 
         # 🛡️ Ασπίδα προστασίας από φίλτρα ασφαλείας
         unsafe_keywords = ["kobe", "jordan", "lebron", "messi", "ronaldo", "curry"]
@@ -727,6 +954,7 @@ RAW DATA (JSON)
             "hashtags_meta": ad_texts.get("hashtags_meta", ""),
             "ad_texts": ad_texts,
             "lang": lang,
+            "goal": st.session_state.get("goal_val", "auto"),
         }
         hist_payload["slide_count"] = int(st.session_state.get("slide_count_val", 3)) if ad_format != "Single Layout Ad (1 Εικόνα)" else 1
         if ad_format == "Single Layout Ad (1 Εικόνα)":
@@ -775,12 +1003,48 @@ RAW DATA (JSON)
 
         st.info(t("saved_info", lang, path=file_path))
         
+
+        # Feature C — ZIP export pack (in-memory)
+        _zip_slides = []
+        if ad_format == "Single Layout Ad (1 Εικόνα)":
+            _zip_visual = visual_prompt
+            _zip_sc = 1
+        else:
+            _zip_visual = ""
+            _zip_slides = [p for p in [slide1_prompt, slide2_prompt, slide3_prompt, slide4_prompt, slide5_prompt] if p]
+            _zip_sc = int(st.session_state.get("slide_count_val", 3))
+        st.session_state["last_export_zip"] = build_pack_zip_bytes(
+            brand=brand,
+            model_name=model_name,
+            colorway=colorway,
+            goal=st.session_state.get("goal_val", "auto"),
+            lang=lang,
+            aspect_ratio=aspect_ratio,
+            slide_count=_zip_sc,
+            specs=key_materials,
+            meta_caption=ad_texts.get("meta_caption", ""),
+            hashtags_meta=ad_texts.get("hashtags_meta", ""),
+            tiktok_caption=ad_texts.get("tiktok_caption", ""),
+            visual_prompt=_zip_visual,
+            slide_prompts=_zip_slides,
+        )
+        st.session_state["last_export_name"] = f"{brand}_{model_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}_pack.zip".replace(" ", "_")
+
         st.download_button(
             label=t("download_label", lang),
             data=txt_content,
             file_name=f"{brand}_{model_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
             mime="text/plain"
         )
+        if st.session_state.get("last_export_zip"):
+            st.download_button(
+                label=t("export_zip_label", lang),
+                data=st.session_state["last_export_zip"],
+                file_name=st.session_state.get("last_export_name", "content_pack.zip"),
+                mime="application/zip",
+                help=t("export_zip_help", lang),
+                key="export_zip_after_gen",
+            )
 
 
 # Show pack loaded from history (without regenerating)
@@ -840,5 +1104,15 @@ if st.session_state.get("show_loaded_pack"):
             value=st.session_state.get("loaded_tiktok_caption", ""),
             height=120,
             key="hist_tt_ta",
+        )
+
+    if st.session_state.get("last_export_zip"):
+        st.download_button(
+            label=t("export_zip_label", lang),
+            data=st.session_state["last_export_zip"],
+            file_name=st.session_state.get("last_export_name", "content_pack.zip"),
+            mime="application/zip",
+            help=t("export_zip_help", lang),
+            key="export_zip_from_history",
         )
 
