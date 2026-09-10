@@ -16,7 +16,7 @@ from google.genai import types
 import product_history  # noqa: F401
 from product_history import load_history, add_entry, delete_entry, get_entry
 from pathlib import Path
-from i18n import t
+from i18n import t, pick_lang_text
 
 st.set_page_config(page_title="Sneakerness Studio Engine", page_icon="👟", layout="centered")
 
@@ -632,33 +632,34 @@ with st.sidebar:
                 st.rerun()
         with st.expander(t("insights_actions", lang), expanded=True):
             for i, insight in enumerate(_insights.get("top_3_actionable_insights") or []):
-                st.write(insight)
+                insight_txt = pick_lang_text(insight, lang)
+                st.write(insight_txt)
                 if st.button(t("insights_use", lang), key=f"use_action_insight_{i}"):
-                    st.session_state["active_insight"] = str(insight)
+                    st.session_state["active_insight"] = insight_txt
                     st.rerun()
         with st.expander(t("insights_intent", lang), expanded=False):
             for i, row in enumerate(_insights.get("consumer_search_intent") or []):
-                q = row.get("query", "")
+                q = pick_lang_text(row.get("query", ""), lang)
+                intent = pick_lang_text(row.get("intent", ""), lang)
+                issue = pick_lang_text(row.get("core_issue", ""), lang)
                 st.markdown(f"**{q}**")
-                st.caption(f"{t('insights_intent_label', lang)}: {row.get('intent', '')}")
-                st.caption(f"{t('insights_issue', lang)}: {row.get('core_issue', '')}")
+                st.caption(f"{t('insights_intent_label', lang)}: {intent}")
+                st.caption(f"{t('insights_issue', lang)}: {issue}")
                 if st.button(t("insights_use", lang), key=f"use_intent_{i}"):
-                    st.session_state["active_insight"] = (
-                        f"Search query: {q}. Intent: {row.get('intent', '')}. "
-                        f"Core issue: {row.get('core_issue', '')}."
-                    )
+                    st.session_state["active_insight"] = f"{q} | {intent} | {issue}"
                     st.rerun()
         with st.expander(t("insights_ecom", lang), expanded=False):
             for i, row in enumerate(_insights.get("ecom_monitoring") or []):
-                st.markdown(f"**{row.get('category', '')}**")
-                st.caption(f"{t('insights_demand', lang)}: {row.get('demand_trend', '')}")
-                st.caption(f"{t('insights_stock', lang)}: {row.get('stock_status', '')}")
-                st.caption(f"{t('insights_benefit', lang)}: {row.get('key_benefit', '')}")
+                cat = pick_lang_text(row.get("category", ""), lang)
+                demand = pick_lang_text(row.get("demand_trend", ""), lang)
+                stock = pick_lang_text(row.get("stock_status", ""), lang)
+                benefit = pick_lang_text(row.get("key_benefit", ""), lang)
+                st.markdown(f"**{cat}**")
+                st.caption(f"{t('insights_demand', lang)}: {demand}")
+                st.caption(f"{t('insights_stock', lang)}: {stock}")
+                st.caption(f"{t('insights_benefit', lang)}: {benefit}")
                 if st.button(t("insights_use", lang), key=f"use_ecom_{i}"):
-                    st.session_state["active_insight"] = (
-                        f"Category: {row.get('category', '')}. Demand: {row.get('demand_trend', '')}. "
-                        f"Stock: {row.get('stock_status', '')}. Benefit: {row.get('key_benefit', '')}."
-                    )
+                    st.session_state["active_insight"] = f"{cat} | {demand} | {stock} | {benefit}"
                     st.rerun()
 
 # 4. UI & ACTIONS
@@ -1002,6 +1003,7 @@ RAW DATA (JSON)
         st.session_state["show_loaded_pack"] = False
 
         st.info(t("saved_info", lang, path=file_path))
+        st.caption(t("save_where_help", lang))
         
 
         # Feature C — ZIP export pack (in-memory)

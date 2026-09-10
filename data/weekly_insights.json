@@ -1,40 +1,103 @@
 {
-    "status": "Success",
-    "stage": "Stage 1 - Data-Driven Market Research",
-    "ecom_monitoring": [
-        {
-            "category": "High Cushioning / EVA Midsole",
-            "demand_trend": "High (+35% search intent)",
-            "stock_status": "Low stock in standard sizes (42-44)",
-            "key_benefit": "Shock absorption for 8+ hours standing work"
-        },
-        {
-            "category": "Suede / Breathable Mesh Hybrids",
-            "demand_trend": "Rising",
-            "stock_status": "Stable",
-            "key_benefit": "Autumn transition wear & ease of cleaning"
-        }
-    ],
-    "consumer_search_intent": [
-        {
-            "query": "Best sneakers for 10 hour standing shifts",
-            "intent": "Comfort & Fatigue Reduction",
-            "core_issue": "Lower back pain and foot soreness by end of day"
-        },
-        {
-            "query": "Sneakers for wide feet that don't look orthopedic",
-            "intent": "Sizing & Fit",
-            "core_issue": "Toe compression in standard trendy silhouettes"
-        },
-        {
-            "query": "How to protect suede sneakers from rain without darkening material",
-            "intent": "Maintenance & Care",
-            "core_issue": "Fear of ruining suede texture in daily use"
-        }
-    ],
-    "top_3_actionable_insights": [
-        "1. Focus content on 8-10 hour standing comfort (High demand, size stockouts).",
-        "2. Address wide-toe box fit needs without sacrificing streetwear aesthetic.",
-        "3. Provide practical autumn suede maintenance/care guides."
-    ]
+  "status": "Success",
+  "stage": {
+    "en": "Stage 1 - Data-Driven Market Research",
+    "el": "Στάδιο 1 - Έρευνα αγοράς με δεδομένα"
+  },
+  "ecom_monitoring": [
+    {
+      "category": {
+        "en": "High Cushioning / EVA Midsole",
+        "el": "Υψηλή αντικραδασμική / σόλα EVA"
+      },
+      "demand_trend": {
+        "en": "High (+35% search intent)",
+        "el": "Υψηλή (+35% πρόθεση αναζήτησης)"
+      },
+      "stock_status": {
+        "en": "Low stock in standard sizes (42-44)",
+        "el": "Χαμηλό απόθεμα σε κανονικά μεγέθη (42-44)"
+      },
+      "key_benefit": {
+        "en": "Shock absorption for 8+ hours standing work",
+        "el": "Απορρόφηση κραδασμών για 8+ ώρες ορθοστασίας στη δουλειά"
+      }
+    },
+    {
+      "category": {
+        "en": "Suede / Breathable Mesh Hybrids",
+        "el": "Υβρίδια σουέτ / αναπνεύσιμου mesh"
+      },
+      "demand_trend": {
+        "en": "Rising",
+        "el": "Ανοδική"
+      },
+      "stock_status": {
+        "en": "Stable",
+        "el": "Σταθερό"
+      },
+      "key_benefit": {
+        "en": "Autumn transition wear & ease of cleaning",
+        "el": "Μεταβατική χρήση φθινοπώρου και εύκολος καθαρισμός"
+      }
+    }
+  ],
+  "consumer_search_intent": [
+    {
+      "query": {
+        "en": "Best sneakers for 10 hour standing shifts",
+        "el": "Καλύτερα sneakers για βάρδιες 10 ωρών όρθιος"
+      },
+      "intent": {
+        "en": "Comfort & Fatigue Reduction",
+        "el": "Άνεση και μείωση κούρασης"
+      },
+      "core_issue": {
+        "en": "Lower back pain and foot soreness by end of day",
+        "el": "Πόνος στη μέση και στα πόδια στο τέλος της ημέρας"
+      }
+    },
+    {
+      "query": {
+        "en": "Sneakers for wide feet that don't look orthopedic",
+        "el": "Sneakers για φαρδύ πόδι χωρίς να δείχνουν ορθοπεδικά"
+      },
+      "intent": {
+        "en": "Sizing & Fit",
+        "el": "Μέγεθος και εφαρμογή"
+      },
+      "core_issue": {
+        "en": "Toe compression in standard trendy silhouettes",
+        "el": "Πίεση στα δάχτυλα σε συνηθισμένες trendy σιλουέτες"
+      }
+    },
+    {
+      "query": {
+        "en": "How to protect suede sneakers from rain without darkening material",
+        "el": "Πώς να προστατεύσω σουέτ sneakers από βροχή χωρίς να σκουραίνει το υλικό"
+      },
+      "intent": {
+        "en": "Maintenance & Care",
+        "el": "Συντήρηση και φροντίδα"
+      },
+      "core_issue": {
+        "en": "Fear of ruining suede texture in daily use",
+        "el": "Φόβος ότι θα χαλάσει η υφή του σουέτ στην καθημερινή χρήση"
+      }
+    }
+  ],
+  "top_3_actionable_insights": [
+    {
+      "en": "1. Focus content on 8-10 hour standing comfort (high demand, size stockouts).",
+      "el": "1. Εστίασε περιεχόμενο σε άνεση για 8-10 ώρες ορθοστασίας (υψηλή ζήτηση, ελλείψεις μεγεθών)."
+    },
+    {
+      "en": "2. Address wide-toe box fit needs without sacrificing streetwear aesthetic.",
+      "el": "2. Κάλυψε ανάγκη για φαρδύ πάτημα χωρίς να χαθεί το streetwear στυλ."
+    },
+    {
+      "en": "3. Provide practical autumn suede maintenance/care guides.",
+      "el": "3. Δώσε πρακτικούς οδηγούς φροντίδας σουέτ για φθινόπωρο."
+    }
+  ]
 }
