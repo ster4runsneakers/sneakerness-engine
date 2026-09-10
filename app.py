@@ -17,6 +17,15 @@ import product_history  # noqa: F401
 from product_history import load_history, add_entry, delete_entry, get_entry
 from pathlib import Path
 from i18n import t, pick_lang_text
+import content_carousel
+from content_carousel import (
+    TOPIC_KEYS,
+    topic_label,
+    weekly_suggestions,
+    generate_content_carousel,
+    build_content_txt,
+    build_content_zip_bytes,
+)
 
 st.set_page_config(page_title="Sneakerness Studio Engine", page_icon="👟", layout="centered")
 
@@ -576,6 +585,14 @@ if "goal_val" not in st.session_state: st.session_state["goal_val"] = "auto"
 if "active_insight" not in st.session_state: st.session_state["active_insight"] = ""
 if "last_export_zip" not in st.session_state: st.session_state["last_export_zip"] = None
 if "last_export_name" not in st.session_state: st.session_state["last_export_name"] = "content_pack.zip"
+if "app_mode_val" not in st.session_state: st.session_state["app_mode_val"] = "product"
+if "content_topic_key" not in st.session_state: st.session_state["content_topic_key"] = "tips"
+if "content_topic_override" not in st.session_state: st.session_state["content_topic_override"] = ""
+if "content_slide_count_val" not in st.session_state: st.session_state["content_slide_count_val"] = 5
+if "content_result" not in st.session_state: st.session_state["content_result"] = None
+if "content_txt" not in st.session_state: st.session_state["content_txt"] = ""
+if "content_zip" not in st.session_state: st.session_state["content_zip"] = None
+if "content_zip_name" not in st.session_state: st.session_state["content_zip_name"] = "content_carousel.zip"
 
 
 # 3b. HISTORY SIDEBAR (below language switcher)
@@ -661,6 +678,172 @@ with st.sidebar:
                 if st.button(t("insights_use", lang), key=f"use_ecom_{i}"):
                     st.session_state["active_insight"] = f"{cat} | {demand} | {stock} | {benefit}"
                     st.rerun()
+
+# 3d. APP MODE TOGGLE
+_mode_options = ["product", "content"]
+_mode_labels = {
+    "product": t("mode_product", lang),
+    "content": t("mode_content", lang),
+}
+_cur_mode = st.session_state.get("app_mode_val", "product")
+if _cur_mode not in _mode_options:
+    _cur_mode = "product"
+_picked_mode_label = st.radio(
+    t("mode_label", lang),
+    [_mode_labels[k] for k in _mode_options],
+    index=_mode_options.index(_cur_mode),
+    horizontal=True,
+    key="app_mode_radio",
+)
+_label_to_mode = {v: k for k, v in _mode_labels.items()}
+st.session_state["app_mode_val"] = _label_to_mode.get(_picked_mode_label, "product")
+app_mode = st.session_state["app_mode_val"]
+
+# ========== CONTENT CAROUSEL MODE ==========
+if app_mode == "content":
+    st.markdown("---")
+    st.markdown(f"### {t('weekly_suggestions_title', lang)}")
+    _insights_for_topics = load_weekly_insights()
+    _suggestions = weekly_suggestions(_insights_for_topics, lang=lang, count=4)
+    for _si, _sug in enumerate(_suggestions):
+        _c1, _c2 = st.columns([4, 1])
+        with _c1:
+            st.write(f"• {_sug}")
+        with _c2:
+            if st.button(t("weekly_suggestion_use", lang), key=f"use_weekly_sug_{_si}"):
+                st.session_state["content_topic_override"] = _sug
+                st.rerun()
+
+    _topic_keys = TOPIC_KEYS
+    _topic_display = [t(f"topic_{k}", lang) if t(f"topic_{k}", lang) != f"topic_{k}" else topic_label(k, lang) for k in _topic_keys]
+    _cur_tk = st.session_state.get("content_topic_key", "tips")
+    if _cur_tk not in _topic_keys:
+        _cur_tk = "tips"
+    _tk_idx = _topic_keys.index(_cur_tk)
+    _picked_topic_label = st.selectbox(
+        t("topic_picker_label", lang),
+        _topic_display,
+        index=_tk_idx,
+        key="content_topic_select",
+    )
+    st.session_state["content_topic_key"] = _topic_keys[_topic_display.index(_picked_topic_label)]
+
+    _override = st.text_input(
+        t("topic_override_label", lang),
+        value=st.session_state.get("content_topic_override", ""),
+        placeholder=t("topic_override_placeholder", lang),
+        key="content_override_input",
+    )
+    st.session_state["content_topic_override"] = _override
+
+    _ar_options_c = ["9:16 (Story/TikTok)", "4:5 (Instagram Feed)", "1:1 (Square)", "2:3 (Portrait)", "16:9 (Landscape/YouTube)"]
+    _ar_idx_c = _ar_options_c.index(st.session_state["aspect_ratio_val"]) if st.session_state.get("aspect_ratio_val") in _ar_options_c else _ar_options_c.index("1:1 (Square)")
+    _aspect_c = st.selectbox(t("aspect_label", lang), _ar_options_c, index=_ar_idx_c, key="content_aspect_select")
+    st.session_state["aspect_ratio_val"] = _aspect_c
+
+    _sc_opts = [4, 5, 6]
+    _cur_sc = st.session_state.get("content_slide_count_val", 5)
+    if _cur_sc not in _sc_opts:
+        _cur_sc = 5
+    _slide_c = st.selectbox(
+        t("content_slide_count_label", lang),
+        _sc_opts,
+        index=_sc_opts.index(_cur_sc),
+        key="content_slide_count_select",
+    )
+    st.session_state["content_slide_count_val"] = _slide_c
+
+    st.markdown("---")
+    if st.button(t("generate_content_button", lang), type="primary", key="gen_content_btn"):
+        def _warn(msg):
+            st.warning(t("model_failed", lang, model="gemini", error=msg))
+
+        with st.spinner(t("generate_content_spinner", lang)):
+            _result = generate_content_carousel(
+                client,
+                topic_key=st.session_state["content_topic_key"],
+                topic_override=st.session_state.get("content_topic_override", "") or "",
+                slide_count=int(st.session_state.get("content_slide_count_val", 5)),
+                aspect_ratio=st.session_state.get("aspect_ratio_val", "1:1 (Square)"),
+                insight_context=st.session_state.get("active_insight", "") or "",
+                models=["gemini-3.6-flash", "gemini-2.5-flash"],
+                warn=_warn,
+            )
+        st.session_state["content_result"] = _result
+        _txt = build_content_txt(_result)
+        st.session_state["content_txt"] = _txt
+        st.session_state["content_zip"] = build_content_zip_bytes(
+            _result, aspect_ratio=st.session_state.get("aspect_ratio_val", "1:1 (Square)")
+        )
+        _ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        _tk = (_result.get("topic_key") or "content").replace(" ", "_")
+        st.session_state["content_zip_name"] = f"content_{_tk}_{_ts}.zip"
+        os.makedirs("output", exist_ok=True)
+        _out = f"output/content_{_tk}_{_ts}.txt"
+        with open(_out, "w", encoding="utf-8") as _f:
+            _f.write(_txt)
+        st.session_state["content_out_path"] = _out
+        # Optional: light history entry with type=content
+        try:
+            add_entry({
+                "type": "content",
+                "brand": "Content",
+                "model": _result.get("topic_en") or _tk,
+                "colorway": "",
+                "specs": "",
+                "topic_key": _result.get("topic_key"),
+                "topic_en": _result.get("topic_en"),
+                "slide_count": _result.get("slide_count"),
+                "aspect_ratio": st.session_state.get("aspect_ratio_val", "1:1 (Square)"),
+                "meta_caption": _result.get("ig_caption", ""),
+                "tiktok_caption": _result.get("tiktok_caption", ""),
+                "hashtags_meta": "",
+                "lang": "en",
+                "goal": "content",
+                "ad_format": "Content Carousel",
+                "slide1_prompt": (_result.get("slides") or [{}])[0].get("image_prompt", "") if (_result.get("slides") or []) else "",
+                "slide2_prompt": (_result.get("slides") or [{}, {}])[1].get("image_prompt", "") if len(_result.get("slides") or []) > 1 else "",
+                "slide3_prompt": (_result.get("slides") or [{}, {}, {}])[2].get("image_prompt", "") if len(_result.get("slides") or []) > 2 else "",
+                "slide4_prompt": (_result.get("slides") or [{}, {}, {}, {}])[3].get("image_prompt", "") if len(_result.get("slides") or []) > 3 else "",
+                "slide5_prompt": (_result.get("slides") or [{}, {}, {}, {}, {}])[4].get("image_prompt", "") if len(_result.get("slides") or []) > 4 else "",
+                "content_slides": _result.get("slides"),
+            })
+        except Exception:
+            pass
+        st.info(t("content_saved_info", lang, path=_out))
+
+    _cr = st.session_state.get("content_result")
+    if _cr:
+        st.markdown(t("content_results_title", lang))
+        for _i, _slide in enumerate(_cr.get("slides") or [], start=1):
+            st.write(t("content_slide_heading", lang, n=_i))
+            st.text_input(t("content_title_label", lang), value=_slide.get("title", ""), key=f"c_title_{_i}", disabled=False)
+            st.text_area(t("content_body_label", lang), value=_slide.get("body", ""), height=80, key=f"c_body_{_i}")
+            st.caption(t("content_prompt_label", lang))
+            st.code(_slide.get("image_prompt", ""), language="text")
+        st.markdown(t("content_captions_section", lang))
+        st.text_area(t("content_ig_label", lang), value=_cr.get("ig_caption", ""), height=140, key="c_ig_cap")
+        st.text_area(t("content_tiktok_label", lang), value=_cr.get("tiktok_caption", ""), height=100, key="c_tt_cap")
+        if st.session_state.get("content_txt"):
+            st.download_button(
+                label=t("content_download_txt", lang),
+                data=st.session_state["content_txt"],
+                file_name=st.session_state.get("content_zip_name", "content.txt").replace(".zip", ".txt"),
+                mime="text/plain",
+                key="dl_content_txt",
+            )
+        if st.session_state.get("content_zip"):
+            st.download_button(
+                label=t("content_download_zip", lang),
+                data=st.session_state["content_zip"],
+                file_name=st.session_state.get("content_zip_name", "content_carousel.zip"),
+                mime="application/zip",
+                help=t("export_zip_help", lang),
+                key="dl_content_zip",
+            )
+    st.stop()  # Product pack UI below is skipped in content mode
+
+# ========== PRODUCT PACK MODE (existing flow) ==========
 
 # 4. UI & ACTIONS
 col_header, col_reset = st.columns([3, 1])
