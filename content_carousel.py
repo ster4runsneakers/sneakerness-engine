@@ -182,65 +182,87 @@ def _parse_json_response(text: str) -> dict:
 
 
 def _fallback_carousel(topic_en: str, slide_count: int, ar_flag: str) -> dict[str, Any]:
-    """Deterministic soft-discovery fallback if Gemini fails."""
-    slides = []
+    """Deterministic soft-discovery fallback if Gemini fails.
+
+    Slides form one continuous mini-story; each body teaches from that slide's image
+    and states why the visual/tip is useful.
+    """
+    # Continuous arc: hook problem/scene -> steps that continue -> soft CTA/takeaway
     templates = [
         (
             "Tired feet after long days?",
-            "Small habit changes and smarter cushioning choices can ease end-of-day soreness.",
-            f"Soft editorial photo of empty sneakers by a window, calm morning light, educational mood, no logos as hero text, no celebrities. Overlay vibe for: Tired feet after long days? Soft-discovery, not an ad. Photorealistic 8k {ar_flag}",
+            "That end-of-day ache often starts with shoes that never get a quick check. Spotting the problem in this quiet scene is the first useful step.",
+            f"Soft editorial photo of empty everyday sneakers by a window at dusk, calm tired-day mood, educational, no logos as hero text, no celebrities. Clean short typography overlay matching the title: Tired feet after long days? Soft-discovery, not an ad. Photorealistic 8k {ar_flag}",
         ),
         (
-            "Start with a quick check",
-            "Look at midsole compression, upper creases, and how your toes feel after two hours.",
-            f"Close-up lifestyle still of sneaker midsole and upper on a clean desk, natural light, Kinfolk aesthetic, educational. Soft-discovery, not hard sell. Photorealistic 8k {ar_flag}",
+            "Start with a two-hour check",
+            "After two hours on your feet, notice midsole compression, upper creases, and toe pinch. This close-up check shows what to fix next — before soreness becomes a habit.",
+            f"Close-up lifestyle still of sneaker midsole and upper on a clean desk, natural light, Kinfolk aesthetic, educational. Clean short typography overlay matching: Start with a two-hour check. Soft-discovery, not hard sell. Photorealistic 8k {ar_flag}",
         ),
         (
             "Clean gently, dry slowly",
-            "Skip harsh heat. Soft brush, mild soap where safe, air dry away from radiators.",
-            f"Hands gently brushing a sneaker with a soft brush, towels nearby, calm tutorial feel, no brand hard-sell. Photorealistic 8k {ar_flag}",
+            "Once the pair is worth keeping, use a soft brush and mild soap where safe, then air-dry away from radiators. Gentle cleaning protects materials so cushioning lasts longer.",
+            f"Hands gently brushing a sneaker with a soft brush, towels nearby, calm tutorial feel, no brand hard-sell. Clean short typography overlay matching: Clean gently, dry slowly. Photorealistic 8k {ar_flag}",
         ),
         (
-            "Rotate and rest pairs",
-            "Alternating pairs lets foam rebound and keeps odor down without heavy products.",
-            f"Two pairs of everyday sneakers side by side on a shelf, soft daylight, organized storage, educational still life. Photorealistic 8k {ar_flag}",
+            "Rotate and let foam rebound",
+            "Alternating pairs between wear days lets midsole foam rebound and keeps odor down. Resting shoes on the shelf is a free comfort upgrade you can see.",
+            f"Two pairs of everyday sneakers side by side on a shelf, soft daylight, organized storage, educational still life. Clean short typography overlay matching: Rotate and let foam rebound. Photorealistic 8k {ar_flag}",
+        ),
+        (
+            "Match material to the day",
+            "Mesh breathes on warm walks, suede needs rain care, foam cushions standing hours. Matching what you see in the shoe to how you use it breaks the same tired-feet loop.",
+            f"Macro texture still of mesh and suede in one calm frame, soft studio light, educational product photography. Clean short typography overlay matching: Match material to the day. Photorealistic 8k {ar_flag}",
         ),
         (
             "Save this tip for later",
-            "Follow for the next soft tip — explore more calm footwear advice anytime.",
-            f"Minimal flat-lay of sneakers with notebook and coffee, negative space for soft CTA, calm discovery mood, no celebrity, no hard sell. Photorealistic 8k {ar_flag}",
-        ),
-        (
-            "Materials matter day to day",
-            "Mesh breathes, suede needs care in rain, foam cushions standing hours — match the use.",
-            f"Macro texture collage feel of mesh and suede (tasteful single frame), soft studio light, educational product photography. Photorealistic 8k {ar_flag}",
+            "You now have a simple loop: check, care, rotate, match materials. Save this carousel and follow for the next calm footwear tip.",
+            f"Minimal flat-lay of sneakers with notebook and coffee, negative space for soft CTA, calm discovery mood, no celebrity, no hard sell. Clean short typography overlay matching: Save this tip for later. Photorealistic 8k {ar_flag}",
         ),
     ]
+    slides = []
     for i in range(slide_count):
         title, body, prompt = templates[i % len(templates)]
         if i == 0:
             title = "A calmer way to think about sneakers"
-            body = f"Today's focus: {topic_en}. Soft tips — no hard sell."
-        if i == slide_count - 1:
+            body = (
+                f"Today's focus: {topic_en}. This opening scene sets a common problem you can ease "
+                "with small soft habits — no hard sell."
+            )
+            prompt = (
+                f"Soft editorial photo of empty everyday sneakers by a window, calm morning light, "
+                f"educational mood, no logos as hero text, no celebrities. Clean short typography overlay "
+                f"matching: A calmer way to think about sneakers. Soft-discovery, not an ad. "
+                f"Photorealistic 8k {ar_flag}"
+            )
+        elif i == slide_count - 1:
             title = "Follow for the next tip"
-            body = "Explore more calm footwear advice — soft discovery, not an ad."
+            body = (
+                "Takeaway: small checks and gentle care compound. "
+                "Explore more calm footwear advice anytime — soft discovery, not an ad."
+            )
+            prompt = (
+                f"Minimal flat-lay of sneakers with notebook and coffee, negative space for soft CTA, "
+                f"calm discovery mood, no celebrity, no hard sell. Clean short typography overlay matching: "
+                f"Follow for the next tip. Photorealistic 8k {ar_flag}"
+            )
         slides.append({"title": title, "body": body, "image_prompt": prompt})
     return {
         "slides": slides,
         "ig_caption": (
-            f"Soft tip thread: {topic_en}. Save for later — educational, not a sales pitch. "
+            f"Soft tip thread: {topic_en}. Save for later - educational, not a sales pitch. "
             "#Sneakerness #SneakerCare #SoftDiscovery"
         ),
         "tiktok_caption": (
-            f"{topic_en} — quick educational carousel. Follow for the next tip 👟 "
+            f"{topic_en} - quick educational carousel. Follow for the next tip. "
             "#Sneakerness #SneakerTips #FootwearEducation #FYP"
         ),
         "pinterest_caption": (
             f"Educational sneaker tips: {topic_en}. Soft-discovery advice for everyday footwear comfort "
-            "and care — save this pin for later. #Sneakerness #SneakerCare #FootwearTips #SoftDiscovery"
+            "and care - save this pin for later. #Sneakerness #SneakerCare #FootwearTips #SoftDiscovery"
         ),
         "youtube_caption": (
-            f"{topic_en} — calm footwear tips\n"
+            f"{topic_en} - calm footwear tips\n"
             f"A short educational carousel on {topic_en}. Soft discovery, not a sales pitch. "
             "Follow for the next tip. #Sneakerness #SneakerTips"
         ),
@@ -298,7 +320,14 @@ def generate_content_carousel(
         "discovery accounts (like sneakers.loft vibe): soft tips, not ads. "
         "ALL output must be ENGLISH ONLY. NEVER use celebrity athlete names. "
         "NEVER use hard-sell verbs (buy, shop, order, purchase). "
-        "Prefer soft CTAs: follow for next tip, save this, explore more."
+        "Prefer soft CTAs: follow for next tip, save this, explore more. "
+        "CRITICAL STORY RULE: titles and bodies across all slides MUST read as ONE continuous "
+        "narrative when read in order — slide 1 hooks a problem/scene, middle slides continue "
+        "with steps/tips that follow from the previous slide (not random disconnected tips), "
+        "last slide is a soft CTA / takeaway. "
+        "CRITICAL IMAGE-TEXT LOCK: for every slide, title + body must describe and teach from "
+        "what that slide's image_prompt depicts; the body must state the practical usefulness "
+        "of that visual (what the viewer learns and why the tip helps)."
     )
 
     script_prompt = f"""Create an educational Instagram/TikTok CONTENT CAROUSEL (not a product ad) about:
@@ -306,27 +335,34 @@ TOPIC: {topic_en}
 
 CRITICAL CONSTRAINTS:
 1. ALL OUTPUT MUST BE IN ENGLISH ONLY (titles, bodies, captions, image prompts).
-2. Soft-discovery / educational advice feel — NOT hard sell. No "buy", "shop", "order", "purchase".
+2. Soft-discovery / educational advice feel - NOT hard sell. No "buy", "shop", "order", "purchase".
 3. STRICTLY NO celebrity names (no Jordan, Kobe, LeBron, Messi, Ronaldo, Curry, etc.).
-4. Story arc across exactly {slide_count} slides: hook → tips/steps or list → soft CTA (follow for next tip / explore more).
-5. Each slide needs short on-screen title + short body (readable on phone).
-6. Each slide needs an image generation prompt in Nano Banana / Midjourney style: soft-discovery aesthetic, photorealistic or clean editorial, calm lighting, no hard-sell product packaging UI, no celebrity faces.
-7. Append aspect flag exactly as: {ar_flag} at the end of every image_prompt.
-8. Image prompts: STRICTLY NO text like 'Slide X of Y', NO carousel numbering, NO UI chrome — only optional short overlay text if helpful.
+4. CONTINUOUS STORY ARC across exactly {slide_count} slides:
+   - Slide 1 = hook (problem or scene that opens the story).
+   - Middle slides = steps/tips that CONTINUE from the previous slide (not a random tip dump).
+   - Last slide = soft CTA / takeaway.
+   Titles and bodies MUST read as one continuous narrative when read in order.
+5. IMAGE-TEXT LOCK: for each slide, title + body MUST describe and teach from what that slide's image_prompt depicts.
+   The body MUST state the practical usefulness of that visual (what the viewer learns / why this tip helps).
+   Encode usefulness IN the body (do not invent extra JSON fields).
+6. Each slide needs short on-screen title + short body (readable on phone).
+7. Each slide needs an image generation prompt in Nano Banana / Midjourney style: soft-discovery aesthetic, photorealistic or clean editorial, calm lighting, no hard-sell product packaging UI, no celebrity faces.
+8. Optional short on-image overlay: image_prompt MAY include the SAME short title (or a 2-5 word overlay matching the title) as clean typography on the image. Prefer soft-discovery aesthetic. Keep NO "Slide X of Y", NO carousel numbering, NO UI chrome, NO hard sell.
+9. Append aspect flag exactly as: {ar_flag} at the end of every image_prompt.
 {insight_block}
 Return strict JSON:
 {{
   "slides": [
     {{
       "title": "short on-screen title EN",
-      "body": "short body EN",
-      "image_prompt": "full EN image gen prompt ending with {ar_flag}"
+      "body": "short body EN — continues the story AND states why the image/tip is useful",
+      "image_prompt": "full EN image gen prompt (optional clean title overlay) ending with {ar_flag}"
     }}
   ],
   "ig_caption": "optional Instagram caption EN + light hashtags",
   "tiktok_caption": "optional TikTok caption EN + FYP hashtags",
-  "pinterest_caption": "optional Pinterest pin description EN — 2-4 discovery/SEO sentences; optional 3-5 hashtags",
-  "youtube_caption": "optional YouTube Shorts/community caption EN — strong hook first line; 2-4 sentences; soft CTA; fewer hashtags"
+  "pinterest_caption": "optional Pinterest pin description EN - 2-4 discovery/SEO sentences; optional 3-5 hashtags",
+  "youtube_caption": "optional YouTube Shorts/community caption EN - strong hook first line; 2-4 sentences; soft CTA; fewer hashtags"
 }}
 Exactly {slide_count} objects inside "slides".
 """
