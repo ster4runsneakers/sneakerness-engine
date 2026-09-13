@@ -38,13 +38,21 @@ _UI_CSS = """
   padding-top: 1.4rem;
   padding-bottom: 2.5rem;
 }
-/* Soften sidebar */
+/* Dark sidebar — readable with Streamlit dark theme light text */
 section[data-testid="stSidebar"] {
-  background: linear-gradient(180deg, #f7fafb 0%, #eef3f5 100%);
-  border-right: 1px solid #e2e8f0;
+  background: linear-gradient(180deg, #0b1220 0%, #111827 100%);
+  border-right: 1px solid #1f2937;
 }
 section[data-testid="stSidebar"] > div {
   padding-top: 0.75rem;
+}
+section[data-testid="stSidebar"],
+section[data-testid="stSidebar"] label,
+section[data-testid="stSidebar"] p,
+section[data-testid="stSidebar"] span,
+section[data-testid="stSidebar"] .stMarkdown,
+section[data-testid="stSidebar"] [data-testid="stWidgetLabel"] {
+  color: #e5e7eb !important;
 }
 /* Primary / default buttons */
 div.stButton > button {
@@ -65,16 +73,24 @@ div.stButton > button:hover {
 div.stButton > button:focus {
   box-shadow: 0 0 0 2px rgba(45, 212, 191, 0.45);
 }
-/* Onboarding / expanders as light cards */
+/* Dark expanders — body text readable on dark theme */
 div[data-testid="stExpander"] {
-  border: 1px solid #e2e8f0;
+  border: 1px solid #334155;
   border-radius: 12px;
-  background: #f8fafc;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  background: #111827;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
   overflow: hidden;
+  color: #e5e7eb;
 }
 div[data-testid="stExpander"] details {
   border: none !important;
+}
+div[data-testid="stExpander"] summary,
+div[data-testid="stExpander"] p,
+div[data-testid="stExpander"] span,
+div[data-testid="stExpander"] .stMarkdown,
+div[data-testid="stExpander"] [data-testid="stMarkdownContainer"] {
+  color: #e5e7eb !important;
 }
 /* Product badge under title */
 .sis-product-badge {
