@@ -206,9 +206,11 @@ Return strict JSON with keys:
 4. "meta_caption": Greek Facebook/Instagram caption.
 5. "tiktok_caption": Short Greek TikTok caption + 4 FYP hashtags.
 6. "hashtags_meta": 8-10 trending hashtags (Greek or bilingual OK).
-7. "slide1_text": Text overlay for Slide 1 in Greek.
-8. "slide2_text": Text overlay for Slide 2 in Greek.
-9. "slide3_text": Soft CTA text overlay for Slide 3 in Greek.
+7. "pinterest_caption": Greek Pinterest pin description — 2–4 short discovery/SEO-friendly sentences (light keyword phrases OK, not spammy); optional 3–5 hashtags at end.
+8. "youtube_caption": Greek YouTube Shorts/community description — first line a strong hook; then 2–4 sentences on comfort/use; soft CTA; fewer hashtags than TikTok; include site/watermark if natural.
+9. "slide1_text": Text overlay for Slide 1 in Greek.
+10. "slide2_text": Text overlay for Slide 2 in Greek.
+11. "slide3_text": Soft CTA text overlay for Slide 3 in Greek.
 """
         fallback = {
             "hook": f"Κουράστηκες από κούραση στα πόδια; Ανακάλυψε {brand_name} {clean_model_name}.",
@@ -217,6 +219,8 @@ Return strict JSON with keys:
             "meta_caption": f"Οι πολλές ώρες όρθιος δεν χρειάζεται να επιβαρύνουν τα πόδια σου. Εξερεύνησε πώς το {brand_name} {clean_model_name} προσφέρει στήριξη στάσης. Μάθε περισσότερα στο {watermark}.",
             "tiktok_caption": f"Πώς αντιμετωπίζεις την κούραση στα πόδια; Δες την τεχνολογία πίσω από {brand_name} {clean_model_name} στο {watermark}! 👟 #Sneakerness #{brand_name}",
             "hashtags_meta": f"#Sneakerness #{brand_name} #DailyComfort #FootwearTech",
+            "pinterest_caption": f"Ψάχνεις άνετα sneakers για πολλές ώρες όρθιος; Το {brand_name} {clean_model_name} συνδυάζει στήριξη στάσης και καθημερινή άνεση. Ιδανικό για δουλειά, περπάτημα και ήπια χρήση όλη μέρα. Ανακάλυψε περισσότερα στο {watermark}. #Sneakerness #{brand_name} #ComfortShoes #DailyComfort",
+            "youtube_caption": f"Κούραση στα πόδια μετά από πολλές ώρες;\nΤο {brand_name} {clean_model_name} έχει σχεδιαστεί για άνεση και στήριξη στην καθημερινότητα. Δες πώς βοηθά σε ορθοστασία και ήπια χρήση. Εξερεύνησε περισσότερα στο {watermark}. #Sneakerness #{brand_name}",
             "slide1_text": "Κουράστηκες από κούραση στα πόδια μετά από πολλές ώρες;",
             "slide2_text": f"Ανακάλυψε {brand_name} {clean_model_name}.",
             "slide3_text": f"Εξερεύνησε τα χαρακτηριστικά στο {watermark}",
@@ -245,9 +249,11 @@ Return strict JSON with keys:
 4. "meta_caption": English Facebook/Instagram caption.
 5. "tiktok_caption": Short English TikTok caption + 4 FYP hashtags.
 6. "hashtags_meta": 8-10 trending English hashtags.
-7. "slide1_text": Text overlay for Slide 1.
-8. "slide2_text": Text overlay for Slide 2.
-9. "slide3_text": Soft CTA text overlay for Slide 3.
+7. "pinterest_caption": English Pinterest pin description — 2–4 short discovery/SEO-friendly sentences (light keyword phrases OK, not spammy); optional 3–5 hashtags at end.
+8. "youtube_caption": English YouTube Shorts/community description — first line a strong hook; then 2–4 sentences on comfort/use; soft CTA; fewer hashtags than TikTok; include site/watermark if natural.
+9. "slide1_text": Text overlay for Slide 1.
+10. "slide2_text": Text overlay for Slide 2.
+11. "slide3_text": Soft CTA text overlay for Slide 3.
 """
         fallback = {
             "hook": f"Tired of foot fatigue after long hours? Discover {brand_name} {clean_model_name}.",
@@ -256,6 +262,8 @@ Return strict JSON with keys:
             "meta_caption": f"Long shifts and daily standing don't have to take a toll on your feet. Explore how {brand_name} {clean_model_name} delivers posture support. Learn more at {watermark}.",
             "tiktok_caption": f"How do you deal with foot fatigue? Check out the tech behind {brand_name} {clean_model_name} at {watermark}! 👟 #Sneakerness #{brand_name}",
             "hashtags_meta": f"#Sneakerness #{brand_name} #DailyComfort #FootwearTech",
+            "pinterest_caption": f"Looking for comfortable sneakers for long hours on your feet? The {brand_name} {clean_model_name} blends posture support with everyday comfort. Great for work, walking, and all-day wear. Discover more at {watermark}. #Sneakerness #{brand_name} #ComfortShoes #DailyComfort",
+            "youtube_caption": f"Tired of foot fatigue after long hours?\nThe {brand_name} {clean_model_name} is built for daily comfort and posture support. See how it helps with standing and light everyday use. Explore more at {watermark}. #Sneakerness #{brand_name}",
             "slide1_text": "Tired of Foot Fatigue After Long Hours?",
             "slide2_text": f"Discover {brand_name} {clean_model_name}.",
             "slide3_text": f"Explore the Full Specs at {watermark}",
@@ -421,6 +429,8 @@ def build_pack_zip_bytes(
     meta_caption: str,
     hashtags_meta: str,
     tiktok_caption: str,
+    pinterest_caption: str = "",
+    youtube_caption: str = "",
     visual_prompt: str = "",
     slide_prompts: list | None = None,
 ) -> bytes:
@@ -431,6 +441,8 @@ def build_pack_zip_bytes(
     with zipfile.ZipFile(buf, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
         zf.writestr("captions_meta.txt", meta_body)
         zf.writestr("captions_tiktok.txt", tiktok_caption or "")
+        zf.writestr("captions_pinterest.txt", pinterest_caption or "")
+        zf.writestr("captions_youtube.txt", youtube_caption or "")
         if visual_prompt:
             prompts_txt = visual_prompt
         else:
@@ -472,6 +484,8 @@ def clear_all_fields():
     st.session_state["loaded_meta_caption"] = ""
     st.session_state["loaded_tiktok_caption"] = ""
     st.session_state["loaded_hashtags_meta"] = ""
+    st.session_state["loaded_pinterest_caption"] = ""
+    st.session_state["loaded_youtube_caption"] = ""
     st.session_state["loaded_visual_prompt"] = ""
     st.session_state["loaded_slide1_prompt"] = ""
     st.session_state["loaded_slide2_prompt"] = ""
@@ -515,6 +529,8 @@ def apply_history_entry(entry: dict):
     st.session_state["loaded_meta_caption"] = entry.get("meta_caption", "") or ""
     st.session_state["loaded_tiktok_caption"] = entry.get("tiktok_caption", "") or ""
     st.session_state["loaded_hashtags_meta"] = entry.get("hashtags_meta", "") or ""
+    st.session_state["loaded_pinterest_caption"] = entry.get("pinterest_caption", "") or ""
+    st.session_state["loaded_youtube_caption"] = entry.get("youtube_caption", "") or ""
     st.session_state["loaded_visual_prompt"] = entry.get("visual_prompt", "") or ""
     st.session_state["loaded_slide1_prompt"] = entry.get("slide1_prompt", "") or ""
     st.session_state["loaded_slide2_prompt"] = entry.get("slide2_prompt", "") or ""
@@ -548,6 +564,8 @@ def apply_history_entry(entry: dict):
         meta_caption=entry.get("meta_caption", "") or "",
         hashtags_meta=entry.get("hashtags_meta", "") or "",
         tiktok_caption=entry.get("tiktok_caption", "") or "",
+        pinterest_caption=entry.get("pinterest_caption", "") or "",
+        youtube_caption=entry.get("youtube_caption", "") or "",
         visual_prompt=entry.get("visual_prompt", "") or "",
         slide_prompts=[s for s in _slides if s],
     )
@@ -574,6 +592,8 @@ if "history_image_path" not in st.session_state: st.session_state["history_image
 if "loaded_meta_caption" not in st.session_state: st.session_state["loaded_meta_caption"] = ""
 if "loaded_tiktok_caption" not in st.session_state: st.session_state["loaded_tiktok_caption"] = ""
 if "loaded_hashtags_meta" not in st.session_state: st.session_state["loaded_hashtags_meta"] = ""
+if "loaded_pinterest_caption" not in st.session_state: st.session_state["loaded_pinterest_caption"] = ""
+if "loaded_youtube_caption" not in st.session_state: st.session_state["loaded_youtube_caption"] = ""
 if "loaded_visual_prompt" not in st.session_state: st.session_state["loaded_visual_prompt"] = ""
 if "loaded_slide1_prompt" not in st.session_state: st.session_state["loaded_slide1_prompt"] = ""
 if "loaded_slide2_prompt" not in st.session_state: st.session_state["loaded_slide2_prompt"] = ""
@@ -798,6 +818,8 @@ if app_mode == "content":
                 "meta_caption": _result.get("ig_caption", ""),
                 "tiktok_caption": _result.get("tiktok_caption", ""),
                 "hashtags_meta": "",
+                "pinterest_caption": _result.get("pinterest_caption", ""),
+                "youtube_caption": _result.get("youtube_caption", ""),
                 "lang": "en",
                 "goal": "content",
                 "ad_format": "Content Carousel",
@@ -824,6 +846,8 @@ if app_mode == "content":
         st.markdown(t("content_captions_section", lang))
         st.text_area(t("content_ig_label", lang), value=_cr.get("ig_caption", ""), height=140, key="c_ig_cap")
         st.text_area(t("content_tiktok_label", lang), value=_cr.get("tiktok_caption", ""), height=100, key="c_tt_cap")
+        st.text_area(t("content_pinterest_label", lang), value=_cr.get("pinterest_caption", ""), height=140, key="c_pin_cap")
+        st.text_area(t("content_youtube_label", lang), value=_cr.get("youtube_caption", ""), height=120, key="c_yt_cap")
         if st.session_state.get("content_txt"):
             st.download_button(
                 label=t("content_download_txt", lang),
@@ -1077,9 +1101,11 @@ if st.button(t("generate_button", lang), type="primary"):
         st.markdown("---")
         st.markdown(t("captions_section", lang, lang_name=t("lang_name", lang)))
 
-        tab1, tab2 = st.tabs([
+        tab1, tab2, tab3, tab4 = st.tabs([
             t("tab_meta", lang, lang_name=t("lang_name", lang)),
             t("tab_tiktok", lang, lang_name=t("lang_name", lang)),
+            t("tab_pinterest", lang, lang_name=t("lang_name", lang)),
+            t("tab_youtube", lang, lang_name=t("lang_name", lang)),
         ])
         
         with tab1:
@@ -1089,6 +1115,14 @@ if st.button(t("generate_button", lang), type="primary"):
         with tab2:
             tiktok_post = ad_texts.get('tiktok_caption', '')
             st.text_area(t("caption_tiktok_label", lang, lang_name=t("lang_name", lang)), value=tiktok_post, height=120)
+
+        with tab3:
+            pinterest_post = ad_texts.get('pinterest_caption', '')
+            st.text_area(t("caption_pinterest_label", lang, lang_name=t("lang_name", lang)), value=pinterest_post, height=180)
+
+        with tab4:
+            youtube_post = ad_texts.get('youtube_caption', '')
+            st.text_area(t("caption_youtube_label", lang, lang_name=t("lang_name", lang)), value=youtube_post, height=160)
 
         lang_tag = "EL" if lang == "el" else "EN"
         os.makedirs("output", exist_ok=True)
@@ -1108,6 +1142,16 @@ FACEBOOK & INSTAGRAM POST ({lang_tag})
 TIKTOK / CAROUSEL POST ({lang_tag})
 ========================================
 {tiktok_post}
+
+========================================
+PINTEREST PIN DESCRIPTION ({lang_tag})
+========================================
+{pinterest_post}
+
+========================================
+YOUTUBE CAPTION ({lang_tag})
+========================================
+{youtube_post}
 
 ========================================
 RAW DATA (JSON)
@@ -1136,6 +1180,8 @@ RAW DATA (JSON)
             "meta_caption": ad_texts.get("meta_caption", ""),
             "tiktok_caption": ad_texts.get("tiktok_caption", ""),
             "hashtags_meta": ad_texts.get("hashtags_meta", ""),
+            "pinterest_caption": ad_texts.get("pinterest_caption", ""),
+            "youtube_caption": ad_texts.get("youtube_caption", ""),
             "ad_texts": ad_texts,
             "lang": lang,
             "goal": st.session_state.get("goal_val", "auto"),
@@ -1177,6 +1223,8 @@ RAW DATA (JSON)
         st.session_state["loaded_meta_caption"] = ad_texts.get("meta_caption", "")
         st.session_state["loaded_tiktok_caption"] = ad_texts.get("tiktok_caption", "")
         st.session_state["loaded_hashtags_meta"] = ad_texts.get("hashtags_meta", "")
+        st.session_state["loaded_pinterest_caption"] = ad_texts.get("pinterest_caption", "")
+        st.session_state["loaded_youtube_caption"] = ad_texts.get("youtube_caption", "")
         st.session_state["loaded_visual_prompt"] = hist_payload.get("visual_prompt", "")
         st.session_state["loaded_slide1_prompt"] = hist_payload.get("slide1_prompt", "")
         st.session_state["loaded_slide2_prompt"] = hist_payload.get("slide2_prompt", "")
@@ -1210,6 +1258,8 @@ RAW DATA (JSON)
             meta_caption=ad_texts.get("meta_caption", ""),
             hashtags_meta=ad_texts.get("hashtags_meta", ""),
             tiktok_caption=ad_texts.get("tiktok_caption", ""),
+            pinterest_caption=ad_texts.get("pinterest_caption", ""),
+            youtube_caption=ad_texts.get("youtube_caption", ""),
             visual_prompt=_zip_visual,
             slide_prompts=_zip_slides,
         )
@@ -1268,9 +1318,11 @@ if st.session_state.get("show_loaded_pack"):
             st.write(t("slide_label", lang, n=i, role=role))
             st.code(prompt, language="text")
     st.markdown(t("captions_section", lang, lang_name=t("lang_name", lang)))
-    tab_h1, tab_h2 = st.tabs([
+    tab_h1, tab_h2, tab_h3, tab_h4 = st.tabs([
         t("tab_meta", lang, lang_name=t("lang_name", lang)),
         t("tab_tiktok", lang, lang_name=t("lang_name", lang)),
+        t("tab_pinterest", lang, lang_name=t("lang_name", lang)),
+        t("tab_youtube", lang, lang_name=t("lang_name", lang)),
     ])
     with tab_h1:
         meta_loaded = (
@@ -1289,6 +1341,20 @@ if st.session_state.get("show_loaded_pack"):
             value=st.session_state.get("loaded_tiktok_caption", ""),
             height=120,
             key="hist_tt_ta",
+        )
+    with tab_h3:
+        st.text_area(
+            t("caption_pinterest_label", lang, lang_name=t("lang_name", lang)),
+            value=st.session_state.get("loaded_pinterest_caption", ""),
+            height=180,
+            key="hist_pin_ta",
+        )
+    with tab_h4:
+        st.text_area(
+            t("caption_youtube_label", lang, lang_name=t("lang_name", lang)),
+            value=st.session_state.get("loaded_youtube_caption", ""),
+            height=160,
+            key="hist_yt_ta",
         )
 
     if st.session_state.get("last_export_zip"):

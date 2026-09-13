@@ -235,6 +235,15 @@ def _fallback_carousel(topic_en: str, slide_count: int, ar_flag: str) -> dict[st
             f"{topic_en} — quick educational carousel. Follow for the next tip 👟 "
             "#Sneakerness #SneakerTips #FootwearEducation #FYP"
         ),
+        "pinterest_caption": (
+            f"Educational sneaker tips: {topic_en}. Soft-discovery advice for everyday footwear comfort "
+            "and care — save this pin for later. #Sneakerness #SneakerCare #FootwearTips #SoftDiscovery"
+        ),
+        "youtube_caption": (
+            f"{topic_en} — calm footwear tips\n"
+            f"A short educational carousel on {topic_en}. Soft discovery, not a sales pitch. "
+            "Follow for the next tip. #Sneakerness #SneakerTips"
+        ),
     }
 
 
@@ -254,7 +263,7 @@ def generate_content_carousel(
 
     Returns dict with:
       slides: [{title, body, image_prompt}, ...]
-      ig_caption, tiktok_caption
+      ig_caption, tiktok_caption, pinterest_caption, youtube_caption
     """
     slide_count = int(slide_count or 5)
     if slide_count < 4:
@@ -315,7 +324,9 @@ Return strict JSON:
     }}
   ],
   "ig_caption": "optional Instagram caption EN + light hashtags",
-  "tiktok_caption": "optional TikTok caption EN + FYP hashtags"
+  "tiktok_caption": "optional TikTok caption EN + FYP hashtags",
+  "pinterest_caption": "optional Pinterest pin description EN — 2-4 discovery/SEO sentences; optional 3-5 hashtags",
+  "youtube_caption": "optional YouTube Shorts/community caption EN — strong hook first line; 2-4 sentences; soft CTA; fewer hashtags"
 }}
 Exactly {slide_count} objects inside "slides".
 """
@@ -364,6 +375,8 @@ Exactly {slide_count} objects inside "slides".
                     "slides": normalized[:slide_count],
                     "ig_caption": str(data.get("ig_caption") or "").strip(),
                     "tiktok_caption": str(data.get("tiktok_caption") or "").strip(),
+                    "pinterest_caption": str(data.get("pinterest_caption") or "").strip(),
+                    "youtube_caption": str(data.get("youtube_caption") or "").strip(),
                     "topic_en": topic_en,
                     "topic_key": topic_key,
                     "slide_count": slide_count,
@@ -414,6 +427,16 @@ def build_content_txt(result: dict[str, Any]) -> str:
     lines.append(result.get("tiktok_caption") or "")
     lines.append("")
     lines.append("========================================")
+    lines.append("PINTEREST DESCRIPTION")
+    lines.append("========================================")
+    lines.append(result.get("pinterest_caption") or "")
+    lines.append("")
+    lines.append("========================================")
+    lines.append("YOUTUBE CAPTION")
+    lines.append("========================================")
+    lines.append(result.get("youtube_caption") or "")
+    lines.append("")
+    lines.append("========================================")
     lines.append("RAW JSON")
     lines.append("========================================")
     lines.append(json.dumps(result, ensure_ascii=False, indent=2))
@@ -430,6 +453,8 @@ def build_content_zip_bytes(result: dict[str, Any], *, aspect_ratio: str = "") -
     with zipfile.ZipFile(buf, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
         zf.writestr("captions_meta.txt", result.get("ig_caption") or "")
         zf.writestr("captions_tiktok.txt", result.get("tiktok_caption") or "")
+        zf.writestr("captions_pinterest.txt", result.get("pinterest_caption") or "")
+        zf.writestr("captions_youtube.txt", result.get("youtube_caption") or "")
         parts = []
         for i, s in enumerate(slides, start=1):
             parts.append(
