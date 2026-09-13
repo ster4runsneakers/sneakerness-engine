@@ -1,11 +1,14 @@
-"""Simple EN/EL string tables for Sneakerness Studio (no gettext)."""
+"""Simple EN/EL string tables for Sneaker Image Studio (no gettext)."""
 from __future__ import annotations
 
 STRINGS = {
     "en": {
         "language_label": "Language",
-        "title": "Sneakerness Ad, Carousel & Copy Studio",
-        "subheader": "Multimodal Auto-Matching Engine",
+        "onboarding_title": "Quick start (30 seconds)",
+        "onboarding_body": "1. Upload a product photo (or pick Content mode)\n2. Press generate\n3. Download TXT/ZIP\n4. Paste the image prompts into Nano Banana / Gemini / Grok",
+        "product_badge": "for footwear sellers",
+        "title": "Sneaker Image Studio",
+        "subheader": "Photo → ad prompts, captions & carousels",
         "api_key_missing": "GEMINI_API_KEY not found in Secrets / .env!",
         "history_title": "### History",
         "history_empty": "No saved products yet.",
@@ -135,7 +138,10 @@ STRINGS = {
     },
     "el": {
         "language_label": "Γλώσσα",
-        "title": "Sneakerness — Στούντιο διαφημίσεων & κειμένων",
+        "onboarding_title": "Γρήγορη αρχή (30 δευτερόλεπτα)",
+        "onboarding_body": "1. Ανέβασε φωτό προϊόντος (ή διάλεξε Content mode)\n2. Πάτα generate\n3. Κατέβασε TXT/ZIP\n4. Βάλε τα image prompts στο Nano Banana / Gemini / Grok",
+        "product_badge": "για πωλητές υποδημάτων",
+        "title": "Sneaker Image Studio",
         "subheader": "Ανάλυση παπουτσιού και δημιουργία σκηνής / κειμένων",
         "api_key_missing": "Δεν βρέθηκε το GEMINI_API_KEY στα Secrets / .env!",
         "history_title": "### Ιστορικό",

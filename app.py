@@ -1,4 +1,4 @@
-# app.py - Multimodal Auto-Matching Sneakerness Engine (Dynamic Creative Edition)
+# app.py - Sneaker Image Studio (Dynamic Creative Edition)
 import os
 import json
 import time
@@ -27,7 +27,76 @@ from content_carousel import (
     build_content_zip_bytes,
 )
 
-st.set_page_config(page_title="Sneakerness Studio Engine", page_icon="👟", layout="centered")
+st.set_page_config(page_title="Sneaker Image Studio", page_icon="👟", layout="centered")
+
+# Light UI polish (inject once after page_config)
+_UI_CSS = """
+<style>
+/* Main canvas: slightly roomier, product-like feel */
+.block-container {
+  max-width: 820px;
+  padding-top: 1.4rem;
+  padding-bottom: 2.5rem;
+}
+/* Soften sidebar */
+section[data-testid="stSidebar"] {
+  background: linear-gradient(180deg, #f7fafb 0%, #eef3f5 100%);
+  border-right: 1px solid #e2e8f0;
+}
+section[data-testid="stSidebar"] > div {
+  padding-top: 0.75rem;
+}
+/* Primary / default buttons */
+div.stButton > button {
+  border-radius: 10px;
+  border: 1px solid #0f766e;
+  background: linear-gradient(180deg, #14b8a6 0%, #0d9488 100%);
+  color: #ffffff;
+  font-weight: 600;
+  transition: filter 0.15s ease, box-shadow 0.15s ease;
+  box-shadow: 0 1px 2px rgba(15, 118, 110, 0.25);
+}
+div.stButton > button:hover {
+  filter: brightness(1.05);
+  box-shadow: 0 2px 8px rgba(13, 148, 136, 0.35);
+  border-color: #0f766e;
+  color: #ffffff;
+}
+div.stButton > button:focus {
+  box-shadow: 0 0 0 2px rgba(45, 212, 191, 0.45);
+}
+/* Onboarding / expanders as light cards */
+div[data-testid="stExpander"] {
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #f8fafc;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  overflow: hidden;
+}
+div[data-testid="stExpander"] details {
+  border: none !important;
+}
+/* Product badge under title */
+.sis-product-badge {
+  display: inline-block;
+  margin: -0.35rem 0 0.85rem 0;
+  padding: 0.2rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: #0f766e;
+  background: #ecfdf5;
+  border: 1px solid #99f6e4;
+}
+/* Optional: hide Streamlit chrome (common, low-risk) */
+#MainMenu { visibility: hidden; }
+footer { visibility: hidden; }
+header[data-testid="stHeader"] { background: transparent; }
+</style>
+"""
+st.markdown(_UI_CSS, unsafe_allow_html=True)
+
 
 if "lang" not in st.session_state:
     st.session_state["lang"] = "el"
@@ -50,6 +119,10 @@ with st.sidebar:
 lang = st.session_state["lang"]
 
 st.title(t("title", lang))
+st.markdown(
+    f'<span class="sis-product-badge">{t("product_badge", lang)}</span>',
+    unsafe_allow_html=True,
+)
 st.subheader(t("subheader", lang))
 
 api_key = os.getenv("GEMINI_API_KEY")
@@ -699,7 +772,12 @@ with st.sidebar:
                     st.session_state["active_insight"] = f"{cat} | {demand} | {stock} | {benefit}"
                     st.rerun()
 
-# 3d. APP MODE TOGGLE
+
+# 3d. QUICK-START ONBOARDING (before mode / upload)
+with st.expander(t("onboarding_title", lang), expanded=True):
+    st.markdown(t("onboarding_body", lang).replace("\n", "  \n"))
+
+# 3e. APP MODE TOGGLE
 _mode_options = ["product", "content"]
 _mode_labels = {
     "product": t("mode_product", lang),

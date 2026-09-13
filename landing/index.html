@@ -1,0 +1,173 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sneaker Image Studio — AI Ad Packs for Sneaker Sellers</title>
+  <meta name="description" content="Turn a sneaker photo into Meta and TikTok ad prompts, captions, and carousels in minutes. Built for footwear sellers and media buyers." />
+  <style>
+    :root {
+      --bg: #0b1220;
+      --card: #121a2b;
+      --text: #e8eefc;
+      --muted: #9aa8c7;
+      --accent: #2dd4bf;
+      --accent2: #f97316;
+      --line: #243049;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background: radial-gradient(1200px 600px at 10% -10%, #16324a 0%, transparent 50%),
+                  radial-gradient(900px 500px at 100% 0%, #3b1d12 0%, transparent 40%),
+                  var(--bg);
+      color: var(--text);
+      line-height: 1.55;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    .wrap { width: min(1080px, 92%); margin: 0 auto; }
+    header {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 1.25rem 0; border-bottom: 1px solid var(--line);
+    }
+    .logo { font-weight: 800; letter-spacing: 0.02em; }
+    .logo span { color: var(--accent); }
+    nav a { color: var(--muted); margin-left: 1rem; font-size: 0.95rem; }
+    .hero { padding: 4.5rem 0 3rem; display: grid; gap: 1.25rem; }
+    .badge {
+      display: inline-block; font-size: 0.8rem; color: var(--accent);
+      border: 1px solid #1f6f66; background: #0f2a28; padding: 0.35rem 0.7rem; border-radius: 999px;
+    }
+    h1 { font-size: clamp(2rem, 5vw, 3.2rem); line-height: 1.1; margin: 0.4rem 0; max-width: 16ch; }
+    .lead { color: var(--muted); font-size: 1.15rem; max-width: 52ch; margin: 0; }
+    .cta-row { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 0.5rem; }
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      padding: 0.85rem 1.25rem; border-radius: 12px; font-weight: 700; border: 0; cursor: pointer;
+    }
+    .btn-primary { background: linear-gradient(135deg, var(--accent), #14b8a6); color: #042f2e; }
+    .btn-secondary { background: transparent; color: var(--text); border: 1px solid var(--line); }
+    .note { color: var(--muted); font-size: 0.9rem; }
+    section { padding: 2.75rem 0; border-top: 1px solid var(--line); }
+    h2 { font-size: 1.7rem; margin: 0 0 1rem; }
+    .grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+    .card {
+      background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 1.2rem;
+    }
+    .card h3 { margin: 0 0 0.4rem; font-size: 1.05rem; }
+    .card p { margin: 0; color: var(--muted); font-size: 0.95rem; }
+    .steps { counter-reset: step; display: grid; gap: 0.85rem; }
+    .steps li {
+      list-style: none; background: var(--card); border: 1px solid var(--line);
+      border-radius: 14px; padding: 1rem 1rem 1rem 3rem; position: relative; color: var(--muted);
+    }
+    .steps li::before {
+      counter-increment: step; content: counter(step);
+      position: absolute; left: 0.9rem; top: 0.95rem; width: 1.5rem; height: 1.5rem;
+      border-radius: 50%; background: var(--accent2); color: #fff; font-weight: 800;
+      display: grid; place-items: center; font-size: 0.85rem;
+    }
+    .price { font-size: 2rem; font-weight: 800; margin: 0.3rem 0; }
+    .price small { font-size: 0.95rem; color: var(--muted); font-weight: 500; }
+    .features { margin: 0.8rem 0 1rem; padding-left: 1.1rem; color: var(--muted); }
+    .features li { margin: 0.25rem 0; }
+    .highlight { border-color: #2a6b63; box-shadow: 0 0 0 1px #1f4f4a inset; }
+    footer { padding: 2rem 0 3rem; color: var(--muted); font-size: 0.9rem; }
+    .placeholder {
+      margin-top: 0.6rem; padding: 0.7rem 0.85rem; border-radius: 10px;
+      background: #1a2233; border: 1px dashed #3a4a66; color: #c5d0ea; font-size: 0.85rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="logo">Sneaker Image <span>Studio</span></div>
+      <nav>
+        <a href="#how">How it works</a>
+        <a href="#pricing">Pricing</a>
+        <a href="#faq">FAQ</a>
+      </nav>
+    </header>
+
+    <section class="hero" style="border:0;padding-top:3.5rem">
+      <div class="badge">For sneaker sellers &amp; media buyers</div>
+      <h1>From shoe photo to ad pack — in minutes</h1>
+      <p class="lead">
+        Upload a sneaker. Get brand/model detection, lifestyle scene prompts, Meta &amp; TikTok captions,
+        and carousel scripts — ready to paste into Gemini, Grok, or your creative tools.
+      </p>
+      <div class="cta-row">
+        <!-- Replace href with Lemon Squeezy checkout / app URL when ready -->
+        <a class="btn btn-primary" id="cta-pro" href="#pricing">Start Free</a>
+        <a class="btn btn-secondary" href="https://sneakerness-engine.streamlit.app/" target="_blank" rel="noopener">Open the app</a>
+      </div>
+      <p class="note">You keep making final images in Gemini/Grok — we write the brief that saves you hours.</p>
+    </section>
+
+    <section id="problems">
+      <h2>Built for the messy middle of sneaker ads</h2>
+      <div class="grid">
+        <div class="card"><h3>Too slow per SKU</h3><p>Specs, scene, captions, carousel — rewritten by hand every time.</p></div>
+        <div class="card"><h3>Hard-sell fatigue</h3><p>Soft-discovery copy that teaches comfort &amp; use — not spammy “BUY NOW”.</p></div>
+        <div class="card"><h3>No memory</h3><p>History, goals (comfort / wide fit / style / rain), and weekly insights keep you consistent.</p></div>
+      </div>
+    </section>
+
+    <section id="how">
+      <h2>How it works</h2>
+      <ol class="steps">
+        <li>Upload a product photo (or load from History).</li>
+        <li>Detect brand, model, colorway, and a matching lifestyle scene.</li>
+        <li>Pick language (EN/EL), goal angle, aspect ratio, and carousel slides (2–5).</li>
+        <li>Generate the pack — then download TXT or ZIP and create images in your AI tool.</li>
+      </ol>
+    </section>
+
+    <section id="pricing">
+      <h2>Simple pricing</h2>
+      <div class="grid">
+        <div class="card">
+          <h3>Free</h3>
+          <p class="price">&euro;0 <small>/ month</small></p>
+          <ul class="features">
+            <li>5 content packs / month</li>
+            <li>Basic captions &amp; prompts</li>
+            <li>EN / EL</li>
+          </ul>
+          <a class="btn btn-secondary" href="https://sneakerness-engine.streamlit.app/" target="_blank" rel="noopener">Try free</a>
+          <div class="placeholder">Lemon link: replace with Free / trial checkout when store is live</div>
+        </div>
+        <div class="card highlight">
+          <h3>Pro</h3>
+          <p class="price">&euro;39 <small>/ month</small></p>
+          <p class="note">Founding price — early supporters lock this rate.</p>
+          <ul class="features">
+            <li>High volume packs</li>
+            <li>Full History</li>
+            <li>Goal templates + weekly insights</li>
+            <li>One-click ZIP export</li>
+            <li>Carousel 2–5 slides &amp; all aspect ratios</li>
+          </ul>
+          <a class="btn btn-primary" href="https://sneakerimageengine.lemonsqueezy.com/checkout/buy/68cb2fc4-a76f-40b3-b17c-247392288e05" target="_blank" rel="noopener">Go Pro</a>
+        </div>
+        </div>
+    </section>
+
+    <section id="faq">
+      <h2>FAQ</h2>
+      <div class="grid">
+        <div class="card"><h3>Does it create the final image?</h3><p>No — it creates the prompts and captions. You generate images in Gemini, Grok, or Midjourney.</p></div>
+        <div class="card"><h3>Who is it for?</h3><p>Footwear e‑commerce, dropshippers, and media buyers who ship sneaker creatives every week.</p></div>
+        <div class="card"><h3>Where do packs save on mobile?</h3><p>Use Download TXT/ZIP — files go to your phone’s Downloads. Cloud disk is temporary.</p></div>
+      </div>
+    </section>
+
+    <footer>
+      <p>Copyright Sneaker Image Studio — AI creative packs for footwear sellers</p>
+      <p>Payments via Lemon Squeezy (Merchant of Record) — VAT handled for international sales.</p>
+    </footer>
+  </div>
+</body>
+</html>
