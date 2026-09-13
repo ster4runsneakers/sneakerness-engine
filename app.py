@@ -18,6 +18,7 @@ from product_history import load_history, add_entry, delete_entry, get_entry
 from pathlib import Path
 from i18n import t, pick_lang_text
 import content_carousel
+import usage
 from content_carousel import (
     TOPIC_KEYS,
     topic_label,
@@ -133,6 +134,31 @@ with st.sidebar:
     st.session_state["lang"] = _lang_codes.get(_picked, "el")
 
 lang = st.session_state["lang"]
+
+# Free / Pro plan badge + unlock (sidebar)
+usage.sync_session(st.session_state)
+with st.sidebar:
+    st.markdown("---")
+    if usage.is_pro(st.session_state):
+        st.markdown(f"**{t('plan_pro', lang)}**")
+    else:
+        st.markdown(f"**{t('plan_free', lang)}**")
+        _u_used, _u_lim = usage.usage_counts(st.session_state)
+        st.caption(t("usage_line", lang, used=_u_used, limit=_u_lim))
+        st.markdown(f"[{t('go_pro', lang)}]({usage.LEMON_CHECKOUT_URL})")
+    _pro_code = st.text_input(
+        t("unlock_placeholder", lang),
+        value="",
+        key="pro_code_input",
+        type="password",
+    )
+    if st.button(t("unlock_pro", lang), key="unlock_pro_btn", use_container_width=True):
+        if usage.try_unlock(st.session_state, _pro_code):
+            st.success(t("unlock_ok", lang))
+            st.rerun()
+        else:
+            st.error(t("unlock_bad", lang))
+
 
 st.title(t("title", lang))
 st.markdown(
@@ -868,7 +894,16 @@ if app_mode == "content":
     st.session_state["content_slide_count_val"] = _slide_c
 
     st.markdown("---")
-    if st.button(t("generate_content_button", lang), type="primary", key="gen_content_btn"):
+    _can_gen_content = usage.can_generate(st.session_state)
+    if not _can_gen_content:
+        st.warning(t("limit_reached", lang))
+        st.markdown(f"[{t('go_pro', lang)}]({usage.LEMON_CHECKOUT_URL})")
+    if st.button(
+        t("generate_content_button", lang),
+        type="primary",
+        key="gen_content_btn",
+        disabled=not _can_gen_content,
+    ):
         def _warn(msg):
             st.warning(t("model_failed", lang, model="gemini", error=msg))
 
@@ -884,6 +919,7 @@ if app_mode == "content":
                 warn=_warn,
             )
         st.session_state["content_result"] = _result
+        usage.record_generate(st.session_state)
         _txt = build_content_txt(_result)
         st.session_state["content_txt"] = _txt
         st.session_state["content_zip"] = build_content_zip_bytes(
@@ -1126,7 +1162,15 @@ else:
 st.markdown("---")
 
 # 6. GENERATION
-if st.button(t("generate_button", lang), type="primary"):
+_can_gen_product = usage.can_generate(st.session_state)
+if not _can_gen_product:
+    st.warning(t("limit_reached", lang))
+    st.markdown(f"[{t('go_pro', lang)}]({usage.LEMON_CHECKOUT_URL})")
+if st.button(
+    t("generate_button", lang),
+    type="primary",
+    disabled=not _can_gen_product,
+):
     if not brand or not model_name:
         st.error(t("generate_error", lang))
     else:
@@ -1137,6 +1181,8 @@ if st.button(t("generate_button", lang), type="primary"):
                 goal=_effective_goal,
                 insight_context=st.session_state.get("active_insight", "") or "",
             )
+
+        usage.record_generate(st.session_state)
 
         # 🛡️ Ασπίδα προστασίας από φίλτρα ασφαλείας
         unsafe_keywords = ["kobe", "jordan", "lebron", "messi", "ronaldo", "curry"]

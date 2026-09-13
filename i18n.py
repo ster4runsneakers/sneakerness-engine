@@ -134,6 +134,15 @@ STRINGS = {
         "topic_mistakes": "Common mistakes",
         "topic_materials": "Sneaker materials",
 
+        "plan_free": "Plan: Free",
+        "plan_pro": "Plan: Pro ✨",
+        "usage_line": "{used}/{limit} packs this month",
+        "unlock_pro": "Unlock Pro",
+        "unlock_placeholder": "Pro code",
+        "unlock_ok": "Pro unlocked!",
+        "unlock_bad": "Invalid code.",
+        "limit_reached": "Free limit reached (5 generates this month). Go Pro for unlimited.",
+        "go_pro": "Go Pro",
         "save_where_help": "Also saved under the app folder: output/ (txt) and History in the sidebar. On Streamlit Cloud, download the ZIP/TXT — cloud disk is temporary.",
     },
     "el": {
@@ -268,6 +277,15 @@ STRINGS = {
         "topic_mistakes": "Συχνά λάθη",
         "topic_materials": "Υλικά sneakers",
 
+        "plan_free": "Πλάνο: Free",
+        "plan_pro": "Πλάνο: Pro ✨",
+        "usage_line": "{used}/{limit} packs αυτόν τον μήνα",
+        "unlock_pro": "Ξεκλείδωμα Pro",
+        "unlock_placeholder": "Κωδικός Pro",
+        "unlock_ok": "Το Pro ξεκλειδώθηκε!",
+        "unlock_bad": "Λάθος κωδικός.",
+        "limit_reached": "Έφτασες το όριο Free (5/μήνα). Πήγαινε Pro για απεριόριστα.",
+        "go_pro": "Go Pro",
         "save_where_help": "Αποθήκευση και στον φάκελο της εφαρμογής: output/ (txt) και Ιστορικό στο sidebar. Στο Streamlit Cloud κατέβασε ZIP/TXT — ο δίσκος εκεί είναι προσωρινός.",
     },
 }
