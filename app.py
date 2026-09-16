@@ -453,8 +453,10 @@ def watermark_image_clause(watermark: str) -> str:
     """Image-prompt watermark guidance.
 
     Default: no website / brand-store / SNEAKERNESS.EU text on the image.
-    If user provides a domain string: REQUIRED small discreet bottom-right watermark
-    with that exact text — no giant headline, no Explore CTA sentence on image.
+    If user provides a domain string: REQUIRED phone-readable bottom-right watermark
+    with that exact text — clearly readable on a phone without zoom (~3–5% of image
+    height, clean sans-serif, good contrast; subtle dark/light shadow OK), ~2–3% margin
+    from edges — not a giant headline, not Explore CTA, not dominating the shoe.
     Captions (meta/tiktok/pinterest/youtube) must include the domain when set.
     """
     w = (watermark or "").strip()
@@ -464,9 +466,11 @@ def watermark_image_clause(watermark: str) -> str:
             "text on the image."
         )
     return (
-        f" REQUIRED: render exact watermark text '{w}' as small discreet text in the "
-        f"bottom-right corner of the image — no other site URLs, no Explore CTA on image, "
-        f"no giant headline watermark."
+        f" REQUIRED: render exact watermark text '{w}' as clearly phone-readable text "
+        f"in the bottom-right corner (~3–5% of image height, clean sans-serif, good "
+        f"contrast; subtle dark/light shadow OK), leaving ~2–3% margin from the edges — "
+        f"must be readable on a phone without zoom; no other site URLs, no Explore CTA "
+        f"on image, not a giant headline, not dominating the shoe."
     )
 
 def build_carousel_prompts(
@@ -1813,8 +1817,10 @@ if st.button(
             "unless that exact text is requested in this prompt. "
             "By default NO website / brand-store / SNEAKERNESS.EU text on the image. "
             "If a watermark domain is provided in this prompt: REQUIRED — render that exact "
-            "string as small discreet text in the bottom-right corner — no giant headline, no "
-            "'Explore… at …' site CTA sentence on the image. "
+            "string as clearly phone-readable text in the bottom-right corner (~3–5% of image "
+            "height, clean sans-serif, good contrast; subtle dark/light shadow OK), leaving "
+            "~2–3% margin from the edges — readable on a phone without zoom; no giant headline, "
+            "not dominating the shoe, no 'Explore… at …' site CTA sentence on the image. "
             "Overlay text must match the scene: ban work-shift / 'long shifts' overlay wording "
             "when the scene is running / track / curb-after-run; keep shift wording only for "
             "standing/work scenes. "
