@@ -454,11 +454,7 @@ def watermark_image_clause(watermark: str) -> str:
 
     Default: no website / brand-store / SNEAKERNESS.EU text on the image.
     If user provides a domain string: REQUIRED phone-readable bottom-right watermark
-    rendered EXACTLY ONCE with that exact user string only — no tiny/micro duplicate,
-    no shortened copy (e.g. do not also add "sneakerness" when user typed sneakerness.eu),
-    no extra corner mark. Clearly readable on a phone without zoom (~3–5% of image
-    height, clean sans-serif, good contrast; subtle dark/light shadow OK), ~2–3% margin
-    from edges — not a giant headline, not Explore CTA, not dominating the shoe.
+    with the literal domain embedded in the prompt — never a vague "if provided" line.
     Overlay/CTA texts must NOT contain website/domain (watermark is the only on-image site text).
     Captions (meta/tiktok/pinterest/youtube) must include the domain when set.
     """
@@ -469,16 +465,17 @@ def watermark_image_clause(watermark: str) -> str:
             "text on the image."
         )
     return (
-        f" REQUIRED: render watermark EXACTLY ONCE — exact user string '{w}' only "
-        f"(do not also add a shortened/brand-name copy such as 'sneakerness' if the user "
-        f"typed a full domain; ban any second tiny/micro duplicate or extra corner mark) "
-        f"as clearly phone-readable text in the bottom-right corner (~3–5% of image height, "
-        f"clean sans-serif, good contrast; subtle dark/light shadow OK), leaving ~2–3% "
-        f"margin from the edges — must be readable on a phone without zoom; no other site "
-        f"URLs, no Explore CTA on image, not a giant headline, not dominating the shoe. "
-        f"Overlay/CTA texts must NOT contain any website/domain — the watermark is the "
-        f"only on-image site text."
+        f" REQUIRED on-image watermark text (exactly once, bottom-right): {w} "
+        f"Render that exact string EXACTLY ONCE as clearly phone-readable text "
+        f"(~3–5% of image height, clean sans-serif, good contrast; subtle dark/light shadow OK), "
+        f"leaving ~2–3% margin from the edges — must be readable on a phone without zoom; "
+        f"do not also add a shortened/brand-name copy such as 'sneakerness' if the user "
+        f"typed a full domain; ban any second tiny/micro duplicate or extra corner mark; "
+        f"no other site URLs, no Explore CTA on image, not a giant headline, not dominating "
+        f"the shoe. Overlay/CTA texts must NOT contain any website/domain — the watermark "
+        f"is the only on-image site text."
     )
+
 
 def build_carousel_prompts(
     slide_count,
@@ -509,6 +506,10 @@ def build_carousel_prompts(
         f"— do not substitute Nike/Adidas/generic. Soft trademark-safe: correct brand family "
         f"silhouette/colors as provided; do not invent a different brand."
     )
+    _distinct = (
+        " CRITICAL: This slide's composition MUST be visually distinct from other slides — "
+        "different camera distance and angle; do not repeat the same bench still-life layout."
+    )
     hook_txt = ad_texts.get("slide1_text", ad_texts.get("hook", ""))
     product_txt = ad_texts.get("slide2_text", ad_texts.get("body", ""))
     cta_txt = ad_texts.get("slide3_text", ad_texts.get("cta", ""))
@@ -516,55 +517,85 @@ def build_carousel_prompts(
 
     if _no_face:
         hook = (
-            f"Create an image: Lifestyle footwear/legs scene for {selected_problem}. "
+            f"Create an image: WIDE environment lifestyle scene for {selected_problem}. "
+            f"COMPOSITION LOCK — Slide 1 HOOK: wide establishing shot / environment mood; "
+            f"shoe appears SMALLER in frame (not a product hero still-life); person-legs or "
+            f"empty scene atmosphere OK; NO full-pair product still-life on a bench. "
             f"No face, no portrait framing — crop strictly below the chin; no partial face at frame edge; prioritize shoes, legs, hands, props. "
             f"Natural dramatic studio lighting. Atmospheric mood. Bold top text overlay: '{hook_txt}'. "
+            f"{_distinct} "
             f"{negative_constraint}{brand_lock}{_appx} Photorealistic 8k {ar_flag}"
         )
     else:
         hook = (
-            f"Create an image: Cinematic lifestyle scene of {selected_problem}. "
+            f"Create an image: WIDE cinematic lifestyle environment of {selected_problem}. "
+            f"COMPOSITION LOCK — Slide 1 HOOK: wide establishing shot; shoe smaller in frame "
+            f"or problem-focused mood; NOT a bench product still-life. "
             f"Natural dramatic studio lighting. High emotion. Bold top text overlay: '{hook_txt}'. "
+            f"{_distinct} "
             f"{negative_constraint}{brand_lock}{_appx} Photorealistic 8k {ar_flag}"
         )
     product = (
-        f"Create an image: Studio product photography of {brand} {safe_model_name} in {colorway} "
-        f"colorway ({key_materials}) placed on a surface in {selected_env}. EDC props: {selected_props}. "
+        f"Create an image: Clean studio PRODUCT HERO of {brand} {safe_model_name} in {colorway} "
+        f"colorway ({key_materials}) in {selected_env}. "
+        f"COMPOSITION LOCK — Slide 2 PRODUCT: three-quarter (3/4) side angle, medium camera distance, "
+        f"clean studio product hero; fewer or differently arranged props ({selected_props}) — "
+        f"NOT wide environment, NOT macro sole, NOT the same bench still-life as other slides. "
         f"Top-left tag '{selected_tag}', top-right badge '{selected_badge}'. Clean text overlay: '{product_txt}'. "
+        f"{_distinct} "
         f"{negative_constraint}{brand_lock}{_appx} Commercial studio lighting {ar_flag}"
     )
     _wm_img = watermark_image_clause(custom_watermark)
     product_cta = (
-        f"Create an image: Studio product photography of {brand} {safe_model_name} in {colorway} "
-        f"colorway ({key_materials}) placed on a surface in {selected_env}. EDC props: {selected_props}. "
+        f"Create an image: Clean studio PRODUCT HERO of {brand} {safe_model_name} in {colorway} "
+        f"colorway ({key_materials}) in {selected_env}. "
+        f"COMPOSITION LOCK — PRODUCT+CTA: three-quarter (3/4) side angle, medium camera distance, "
+        f"clean product showcase; props sparingly ({selected_props}) — NOT macro sole, NOT wide "
+        f"environment, NOT top-down flat lay. "
         f"Top-left tag '{selected_tag}', top-right badge '{selected_badge}'. "
         f"Clean product showcase with soft CTA overlay: '{cta_txt}'."
         f"{_wm_img} "
+        f"{_distinct} "
         f"{negative_constraint}{brand_lock}{_appx} Commercial studio lighting {ar_flag}"
     )
     lifestyle = (
-        f"Create an image: Lifestyle environment scene in {selected_env} featuring EDC props: {selected_props}, "
-        f"with {brand} {safe_model_name} in {colorway} colorway ({key_materials}) naturally placed in the scene. "
+        f"Create an image: ON-FOOT crop / lifestyle action in {selected_env} featuring EDC props: {selected_props}, "
+        f"with {brand} {safe_model_name} in {colorway} colorway ({key_materials}) naturally worn or mid-stride. "
+        f"COMPOSITION LOCK — LIFESTYLE: on-foot crop or mid-distance lifestyle (legs/shoes in motion); "
+        f"NOT studio bench still-life, NOT 3/4 product hero, NOT macro sole fill. "
         f"Atmospheric natural light. Subtle text overlay: '{body_txt}'. "
+        f"{_distinct} "
         f"{negative_constraint}{brand_lock}{_appx} Photorealistic lifestyle photography 8k {ar_flag}"
     )
     specs = (
-        f"Create an image: Sleek macro detail close-up photo of the sole and cushioning of "
-        f"{brand} {safe_model_name} on {selected_env} background. Highlight materials: {key_materials}. "
+        f"Create an image: EXTREME MACRO close-up filling the entire frame with ONLY the sole and "
+        f"cushioning of {brand} {safe_model_name}. Background hint of {selected_env} only. "
+        f"Highlight materials: {key_materials}. "
+        f"COMPOSITION LOCK — DETAIL/MACRO: sole/cushioning ONLY fills the frame; NO full pair on bench, "
+        f"NO wide environment, NO 3/4 product hero — tight macro camera distance only. "
         f"Clean overlay text: '{body_txt}'. "
+        f"{_distinct} "
         f"{negative_constraint}{brand_lock}{_appx} Commercial studio lighting {ar_flag}"
     )
     specs_cta = (
-        f"Create an image: Sleek macro detail close-up photo of the sole and cushioning of "
-        f"{brand} {safe_model_name} on {selected_env} background. Soft CTA overlay: '{cta_txt}'."
+        f"Create an image: EXTREME MACRO close-up filling the entire frame with ONLY the sole and "
+        f"cushioning of {brand} {safe_model_name}. Background hint of {selected_env} only. "
+        f"COMPOSITION LOCK — DETAIL/MACRO+CTA: sole/cushioning ONLY fills the frame; NO full pair on bench, "
+        f"NO wide environment, NO 3/4 product hero — tight macro camera distance only. "
+        f"Soft CTA overlay: '{cta_txt}'."
         f"{_wm_img} "
+        f"{_distinct} "
         f"{negative_constraint}{brand_lock}{_appx} Commercial studio lighting {ar_flag}"
     )
     soft_cta = (
-        f"Create an image: Clean minimal product still of {brand} {safe_model_name} in {colorway} "
+        f"Create an image: TOP-DOWN flat lay of {brand} {safe_model_name} in {colorway} "
         f"colorway ({key_materials}) on {selected_env} with soft negative space. "
+        f"COMPOSITION LOCK — CTA/FLAT LAY: bird's-eye top-down flat lay OR clean side-profile silhouette "
+        f"with generous negative space — NEVER repeat prior slide's camera distance (not wide hook, "
+        f"not 3/4 product hero, not macro sole fill). "
         f"Soft CTA overlay: '{cta_txt}'."
         f"{_wm_img} "
+        f"{_distinct} "
         f"{negative_constraint}{brand_lock}{_appx} Commercial studio lighting {ar_flag}"
     )
 
@@ -596,7 +627,6 @@ def build_carousel_prompts(
             ("slide_role_cta", soft_cta),
         ]
     return roles
-
 
 
 GOAL_KEYS = ["auto", "comfort", "wide_fit", "style", "rain_care"]
@@ -1880,22 +1910,30 @@ if st.button(
                     if word in ad_texts[key].lower():
                         ad_texts[key] = ad_texts[key].lower().replace(word, "signature pro")
 
+        _wm_clean = (custom_watermark or "").strip()
+        if _wm_clean:
+            _wm_neg = (
+                f"REQUIRED on-image watermark text (exactly once, bottom-right): {_wm_clean} "
+                "Render that exact string EXACTLY ONCE as clearly phone-readable text in the "
+                "bottom-right corner (~3–5% of image height, clean sans-serif, good contrast; "
+                "subtle dark/light shadow OK), leaving ~2–3% margin from the edges — readable on "
+                "a phone without zoom; ban any second tiny/micro duplicate, shortened copy, or "
+                "extra corner mark; no giant headline, not dominating the shoe, no Explore CTA on "
+                "the image. Overlay/CTA texts must NOT contain any website/domain — the watermark "
+                "is the only on-image site text. "
+            )
+        else:
+            _wm_neg = (
+                "By default NO website / brand-store / SNEAKERNESS.EU text on the image. "
+                "Overlay/CTA texts must NOT contain any website/domain. "
+            )
         negative_constraint = (
             " STRICTLY NO text like 'Slide X of Y', NO carousel numbering, NO carousel dots, "
             "NO LEARN MORE buttons, NO app UI chrome, NO page numbers. "
             "Do NOT invent badges/seals like OFFICIAL SELECTION / BESTSELLER / SNEAKERNESS "
             "unless that exact text is requested in this prompt. "
-            "By default NO website / brand-store / SNEAKERNESS.EU text on the image. "
-            "If a watermark domain is provided in this prompt: REQUIRED — render watermark "
-            "EXACTLY ONCE using that exact user string only (ban any second tiny/micro duplicate, "
-            "shortened copy, or extra corner mark; do not also add \"sneakerness\" when the user "
-            "typed a full domain) as clearly phone-readable text in the bottom-right corner "
-            "(~3–5% of image height, clean sans-serif, good contrast; subtle dark/light shadow OK), "
-            "leaving ~2–3% margin from the edges — readable on a phone without zoom; no giant "
-            "headline, not dominating the shoe, no 'Explore… at …' site CTA sentence on the image. "
-            "Overlay/CTA texts must NOT contain any website/domain — the watermark is the only "
-            "on-image site text. "
-            "Overlay text must match the scene: ban work-shift / 'long shifts' overlay wording "
+            + _wm_neg
+            + "Overlay text must match the scene: ban work-shift / 'long shifts' overlay wording "
             "when the scene is running / track / curb-after-run; keep shift wording only for "
             "standing/work scenes. "
             "ONLY the requested overlay text."
