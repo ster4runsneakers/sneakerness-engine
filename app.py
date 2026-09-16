@@ -304,10 +304,12 @@ def safe_generate_ad_copy(brand_name, model_name, colorway_text, materials, wate
     # Domain belongs primarily in captions; image overlays must not force site/CTA-with-URL.
     if wm_clean:
         caption_site_rule_el = (
-            f"Include site/domain '{wm_clean}' naturally in meta/tiktok/pinterest/youtube captions when it fits."
+            f"REQUIRED: Include site/domain '{wm_clean}' exactly once, naturally, in EACH of "
+            f"meta_caption, tiktok_caption, pinterest_caption, and youtube_caption."
         )
         caption_site_rule_en = (
-            f"Include site/domain '{wm_clean}' naturally in meta/tiktok/pinterest/youtube captions when it fits."
+            f"REQUIRED: Include site/domain '{wm_clean}' exactly once, naturally, in EACH of "
+            f"meta_caption, tiktok_caption, pinterest_caption, and youtube_caption."
         )
         image_overlay_rule_el = (
             "Image overlays (hook/body/cta/slide texts) must NOT include website URLs, domain strings, "
@@ -361,7 +363,7 @@ Return strict JSON with keys:
 5. "tiktok_caption": Short Greek TikTok caption + 4 FYP hashtags.
 6. "hashtags_meta": 8-10 trending hashtags (Greek or bilingual OK).
 7. "pinterest_caption": Greek Pinterest pin description — 2–4 short discovery/SEO-friendly sentences (light keyword phrases OK, not spammy); optional 3–5 hashtags at end.
-8. "youtube_caption": Greek YouTube Shorts/community description — first line a strong hook; then 2–4 sentences on comfort/use; soft CTA; fewer hashtags than TikTok; include site/watermark if natural.
+8. "youtube_caption": Greek YouTube Shorts/community description — first line a strong hook; then 2–4 sentences on comfort/use; soft CTA; fewer hashtags than TikTok; MUST include the site/domain once naturally when the caption-site rule requires it.
 9. "slide1_text": Text overlay for Slide 1 in Greek.
 10. "slide2_text": Text overlay for Slide 2 in Greek.
 11. "slide3_text": Soft CTA text overlay for Slide 3 in Greek WITHOUT website/URL/domain.
@@ -406,7 +408,7 @@ Return strict JSON with keys:
 5. "tiktok_caption": Short English TikTok caption + 4 FYP hashtags.
 6. "hashtags_meta": 8-10 trending English hashtags.
 7. "pinterest_caption": English Pinterest pin description — 2–4 short discovery/SEO-friendly sentences (light keyword phrases OK, not spammy); optional 3–5 hashtags at end.
-8. "youtube_caption": English YouTube Shorts/community description — first line a strong hook; then 2–4 sentences on comfort/use; soft CTA; fewer hashtags than TikTok; include site/watermark if natural.
+8. "youtube_caption": English YouTube Shorts/community description — first line a strong hook; then 2–4 sentences on comfort/use; soft CTA; fewer hashtags than TikTok; MUST include the site/domain once naturally when the caption-site rule requires it.
 9. "slide1_text": Text overlay for Slide 1.
 10. "slide2_text": Text overlay for Slide 2.
 11. "slide3_text": Soft CTA text overlay for Slide 3 WITHOUT website/URL/domain.
@@ -451,9 +453,9 @@ def watermark_image_clause(watermark: str) -> str:
     """Image-prompt watermark guidance.
 
     Default: no website / brand-store / SNEAKERNESS.EU text on the image.
-    If user provides a domain string: only a tiny discreet bottom-right watermark
+    If user provides a domain string: REQUIRED small discreet bottom-right watermark
     with that exact text — no giant headline, no Explore CTA sentence on image.
-    Captions (meta/tiktok/pinterest/youtube) may still include the domain.
+    Captions (meta/tiktok/pinterest/youtube) must include the domain when set.
     """
     w = (watermark or "").strip()
     if not w:
@@ -462,10 +464,10 @@ def watermark_image_clause(watermark: str) -> str:
             "text on the image."
         )
     return (
-        f" Optional tiny discreet bottom-right watermark text exactly: {w} "
-        f"— no other site URLs, no Explore CTA on image, no giant headline watermark."
+        f" REQUIRED: render exact watermark text '{w}' as small discreet text in the "
+        f"bottom-right corner of the image — no other site URLs, no Explore CTA on image, "
+        f"no giant headline watermark."
     )
-
 
 def build_carousel_prompts(
     slide_count,
@@ -1810,8 +1812,8 @@ if st.button(
             "Do NOT invent badges/seals like OFFICIAL SELECTION / BESTSELLER / SNEAKERNESS "
             "unless that exact text is requested in this prompt. "
             "By default NO website / brand-store / SNEAKERNESS.EU text on the image. "
-            "If a watermark domain is provided in this prompt: optional ONLY a tiny discreet "
-            "bottom-right watermark with that exact string — no giant headline, no "
+            "If a watermark domain is provided in this prompt: REQUIRED — render that exact "
+            "string as small discreet text in the bottom-right corner — no giant headline, no "
             "'Explore… at …' site CTA sentence on the image. "
             "Overlay text must match the scene: ban work-shift / 'long shifts' overlay wording "
             "when the scene is running / track / curb-after-run; keep shift wording only for "
