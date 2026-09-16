@@ -299,6 +299,40 @@ def safe_generate_ad_copy(brand_name, model_name, colorway_text, materials, wate
             + "\n"
         )
 
+
+    wm_clean = (watermark or "").strip()
+    # Domain belongs primarily in captions; image overlays must not force site/CTA-with-URL.
+    if wm_clean:
+        caption_site_rule_el = (
+            f"Include site/domain '{wm_clean}' naturally in meta/tiktok/pinterest/youtube captions when it fits."
+        )
+        caption_site_rule_en = (
+            f"Include site/domain '{wm_clean}' naturally in meta/tiktok/pinterest/youtube captions when it fits."
+        )
+        image_overlay_rule_el = (
+            "Image overlays (hook/body/cta/slide texts) must NOT include website URLs, domain strings, "
+            "or 'Explore… at …' / 'Μάθε περισσότερα στο …' site CTAs. Soft CTA without a URL is OK."
+        )
+        image_overlay_rule_en = (
+            "Image overlays (hook/body/cta/slide texts) must NOT include website URLs, domain strings, "
+            "or 'Explore… at …' / 'Discover more at …' site CTAs. Soft CTA without a URL is OK."
+        )
+        site_for_prompt = wm_clean
+    else:
+        caption_site_rule_el = (
+            "Do NOT invent a website/domain in captions; leave site out unless the user provided one."
+        )
+        caption_site_rule_en = (
+            "Do NOT invent a website/domain in captions; leave site out unless the user provided one."
+        )
+        image_overlay_rule_el = (
+            "Image overlays must NOT include any website, brand-store URL, or SNEAKERNESS.EU text."
+        )
+        image_overlay_rule_en = (
+            "Image overlays must NOT include any website, brand-store URL, or SNEAKERNESS.EU text."
+        )
+        site_for_prompt = "(none — do not invent a site)"
+
     if lang == "el":
         lang_name = "Greek (Ελληνικά)"
         sys_instruction = (
@@ -307,20 +341,22 @@ def safe_generate_ad_copy(brand_name, model_name, colorway_text, materials, wate
             "NEVER use celebrity athlete names in your text overlays. "
             "Write ALL user-facing copy in natural, fluent Modern Greek."
         )
-        script_prompt = f"""Write ALL ad assets and copy in GREEK (Ελληνικά) for {brand_name} {clean_model_name} in {colorway_text} ({materials}) for website {watermark}.
+        script_prompt = f"""Write ALL ad assets and copy in GREEK (Ελληνικά) for {brand_name} {clean_model_name} in {colorway_text} ({materials}) for website {site_for_prompt}.
 
 CRITICAL CONSTRAINTS:
 1. ALL OUTPUT MUST BE IN GREEK (Ελληνικά). Do not use English for hooks, body, CTA, captions, or slide texts.
 2. DO NOT use hard-sell verbs like "αγόρασε", "αγορά", "παράγγειλε", "buy", "shop", "order", "purchase".
-3. Use soft discovery CTAs like "Ανακάλυψε περισσότερα στο {watermark}", "Εξερεύνησε τα χαρακτηριστικά στο {watermark}".
+3. Use soft discovery CTAs in overlays WITHOUT forcing a URL. Put the domain only in captions when provided.
 4. STRICTLY DO NOT include celebrity names or restricted player names in any text or overlay.
+5. {image_overlay_rule_el}
+6. {caption_site_rule_el}
 
 STORY GOAL / ANGLE: {goal_instruction}
 {insight_block}
 Return strict JSON with keys:
 1. "hook": Image top text in Greek, max 10 words.
 2. "body": Image mid text in Greek, max 10 words.
-3. "cta": Image bottom soft CTA in Greek including '{watermark}', max 8 words.
+3. "cta": Image bottom soft CTA in Greek WITHOUT any website/URL/domain, max 8 words. Soft discovery only.
 4. "meta_caption": Greek Facebook/Instagram caption.
 5. "tiktok_caption": Short Greek TikTok caption + 4 FYP hashtags.
 6. "hashtags_meta": 8-10 trending hashtags (Greek or bilingual OK).
@@ -328,20 +364,20 @@ Return strict JSON with keys:
 8. "youtube_caption": Greek YouTube Shorts/community description — first line a strong hook; then 2–4 sentences on comfort/use; soft CTA; fewer hashtags than TikTok; include site/watermark if natural.
 9. "slide1_text": Text overlay for Slide 1 in Greek.
 10. "slide2_text": Text overlay for Slide 2 in Greek.
-11. "slide3_text": Soft CTA text overlay for Slide 3 in Greek.
+11. "slide3_text": Soft CTA text overlay for Slide 3 in Greek WITHOUT website/URL/domain.
 """
         fallback = {
             "hook": f"Κουράστηκες από κούραση στα πόδια; Ανακάλυψε {brand_name} {clean_model_name}.",
             "body": "Σχεδιασμένο να απορροφά τους κραδασμούς και να στηρίζει τη στάση όλη μέρα.",
-            "cta": f"Ανακάλυψε περισσότερα στο {watermark}.",
-            "meta_caption": f"Οι πολλές ώρες όρθιος δεν χρειάζεται να επιβαρύνουν τα πόδια σου. Εξερεύνησε πώς το {brand_name} {clean_model_name} προσφέρει στήριξη στάσης. Μάθε περισσότερα στο {watermark}.",
-            "tiktok_caption": f"Πώς αντιμετωπίζεις την κούραση στα πόδια; Δες την τεχνολογία πίσω από {brand_name} {clean_model_name} στο {watermark}! 👟 #Sneakerness #{brand_name}",
+            "cta": "Μάθε περισσότερα.",
+            "meta_caption": (f"Οι πολλές ώρες όρθιος δεν χρειάζεται να επιβαρύνουν τα πόδια σου. Εξερεύνησε πώς το {brand_name} {clean_model_name} προσφέρει στήριξη στάσης." + (f" Μάθε περισσότερα στο {wm_clean}." if wm_clean else "")),
+            "tiktok_caption": (f"Πώς αντιμετωπίζεις την κούραση στα πόδια; Δες την τεχνολογία πίσω από {brand_name} {clean_model_name}" + (f" στο {wm_clean}" if wm_clean else "") + f"! 👟 #Sneakerness #{brand_name}"),
             "hashtags_meta": f"#Sneakerness #{brand_name} #DailyComfort #FootwearTech",
-            "pinterest_caption": f"Ψάχνεις άνετα sneakers για πολλές ώρες όρθιος; Το {brand_name} {clean_model_name} συνδυάζει στήριξη στάσης και καθημερινή άνεση. Ιδανικό για δουλειά, περπάτημα και ήπια χρήση όλη μέρα. Ανακάλυψε περισσότερα στο {watermark}. #Sneakerness #{brand_name} #ComfortShoes #DailyComfort",
-            "youtube_caption": f"Κούραση στα πόδια μετά από πολλές ώρες;\nΤο {brand_name} {clean_model_name} έχει σχεδιαστεί για άνεση και στήριξη στην καθημερινότητα. Δες πώς βοηθά σε ορθοστασία και ήπια χρήση. Εξερεύνησε περισσότερα στο {watermark}. #Sneakerness #{brand_name}",
+            "pinterest_caption": (f"Ψάχνεις άνετα sneakers για πολλές ώρες όρθιος; Το {brand_name} {clean_model_name} συνδυάζει στήριξη στάσης και καθημερινή άνεση. Ιδανικό για δουλειά, περπάτημα και ήπια χρήση όλη μέρα." + (f" Ανακάλυψε περισσότερα στο {wm_clean}." if wm_clean else "") + f" #Sneakerness #{brand_name} #ComfortShoes #DailyComfort"),
+            "youtube_caption": (f"Κούραση στα πόδια μετά από πολλές ώρες;\nΤο {brand_name} {clean_model_name} έχει σχεδιαστεί για άνεση και στήριξη στην καθημερινότητα. Δες πώς βοηθά σε ορθοστασία και ήπια χρήση." + (f" Εξερεύνησε περισσότερα στο {wm_clean}." if wm_clean else "") + f" #Sneakerness #{brand_name}"),
             "slide1_text": "Κουράστηκες από κούραση στα πόδια μετά από πολλές ώρες;",
             "slide2_text": f"Ανακάλυψε {brand_name} {clean_model_name}.",
-            "slide3_text": f"Εξερεύνησε τα χαρακτηριστικά στο {watermark}",
+            "slide3_text": "Δες τα χαρακτηριστικά.",
         }
     else:
         lang_name = "English"
@@ -350,20 +386,22 @@ Return strict JSON with keys:
             "and discovery-focused footwear ad copy and engaging social media posts in English. "
             "NEVER use celebrity athlete names in your text overlays."
         )
-        script_prompt = f"""Write ALL ad assets and copy in ENGLISH for {brand_name} {clean_model_name} in {colorway_text} ({materials}) for website {watermark}.
+        script_prompt = f"""Write ALL ad assets and copy in ENGLISH for {brand_name} {clean_model_name} in {colorway_text} ({materials}) for website {site_for_prompt}.
 
 CRITICAL CONSTRAINTS:
 1. ALL OUTPUT MUST BE IN ENGLISH.
 2. DO NOT use hard-sell verbs like "buy", "shop", "order", "purchase".
-3. Use soft discovery CTAs like "Discover more at {watermark}", "Explore the full specs at {watermark}".
+3. Use soft discovery CTAs in overlays WITHOUT forcing a URL (e.g. "Discover more", "See the full specs"). Put the domain only in captions when provided.
 4. STRICTLY DO NOT include celebrity names or restricted player names in any text or overlay.
+5. {image_overlay_rule_en}
+6. {caption_site_rule_en}
 
 STORY GOAL / ANGLE: {goal_instruction}
 {insight_block}
 Return strict JSON with keys:
 1. "hook": Image top text, max 10 words.
 2. "body": Image mid text, max 10 words.
-3. "cta": Image bottom soft CTA including '{watermark}', max 8 words.
+3. "cta": Image bottom soft CTA WITHOUT any website/URL/domain, max 8 words. Soft discovery only.
 4. "meta_caption": English Facebook/Instagram caption.
 5. "tiktok_caption": Short English TikTok caption + 4 FYP hashtags.
 6. "hashtags_meta": 8-10 trending English hashtags.
@@ -371,20 +409,20 @@ Return strict JSON with keys:
 8. "youtube_caption": English YouTube Shorts/community description — first line a strong hook; then 2–4 sentences on comfort/use; soft CTA; fewer hashtags than TikTok; include site/watermark if natural.
 9. "slide1_text": Text overlay for Slide 1.
 10. "slide2_text": Text overlay for Slide 2.
-11. "slide3_text": Soft CTA text overlay for Slide 3.
+11. "slide3_text": Soft CTA text overlay for Slide 3 WITHOUT website/URL/domain.
 """
         fallback = {
             "hook": f"Tired of foot fatigue after long hours? Discover {brand_name} {clean_model_name}.",
             "body": "Engineered to absorb impact and support posture all day.",
-            "cta": f"Discover more at {watermark}.",
-            "meta_caption": f"Long shifts and daily standing don't have to take a toll on your feet. Explore how {brand_name} {clean_model_name} delivers posture support. Learn more at {watermark}.",
-            "tiktok_caption": f"How do you deal with foot fatigue? Check out the tech behind {brand_name} {clean_model_name} at {watermark}! 👟 #Sneakerness #{brand_name}",
+            "cta": "Discover more.",
+            "meta_caption": (f"Long shifts and daily standing don't have to take a toll on your feet. Explore how {brand_name} {clean_model_name} delivers posture support." + (f" Learn more at {wm_clean}." if wm_clean else "")),
+            "tiktok_caption": (f"How do you deal with foot fatigue? Check out the tech behind {brand_name} {clean_model_name}" + (f" at {wm_clean}" if wm_clean else "") + f"! 👟 #Sneakerness #{brand_name}"),
             "hashtags_meta": f"#Sneakerness #{brand_name} #DailyComfort #FootwearTech",
-            "pinterest_caption": f"Looking for comfortable sneakers for long hours on your feet? The {brand_name} {clean_model_name} blends posture support with everyday comfort. Great for work, walking, and all-day wear. Discover more at {watermark}. #Sneakerness #{brand_name} #ComfortShoes #DailyComfort",
-            "youtube_caption": f"Tired of foot fatigue after long hours?\nThe {brand_name} {clean_model_name} is built for daily comfort and posture support. See how it helps with standing and light everyday use. Explore more at {watermark}. #Sneakerness #{brand_name}",
+            "pinterest_caption": (f"Looking for comfortable sneakers for long hours on your feet? The {brand_name} {clean_model_name} blends posture support with everyday comfort. Great for work, walking, and all-day wear." + (f" Discover more at {wm_clean}." if wm_clean else "") + f" #Sneakerness #{brand_name} #ComfortShoes #DailyComfort"),
+            "youtube_caption": (f"Tired of foot fatigue after long hours?\nThe {brand_name} {clean_model_name} is built for daily comfort and posture support. See how it helps with standing and light everyday use." + (f" Explore more at {wm_clean}." if wm_clean else "") + f" #Sneakerness #{brand_name}"),
             "slide1_text": "Tired of Foot Fatigue After Long Hours?",
             "slide2_text": f"Discover {brand_name} {clean_model_name}.",
-            "slide3_text": f"Explore the Full Specs at {watermark}",
+            "slide3_text": "Explore the full specs.",
         }
 
     models_to_try = ["gemini-3.6-flash", "gemini-2.5-flash"]
@@ -407,6 +445,27 @@ Return strict JSON with keys:
 
 
 # 3. RESET & INITIALIZE SESSION STATE
+
+
+def watermark_image_clause(watermark: str) -> str:
+    """Image-prompt watermark guidance.
+
+    Default: no website / brand-store / SNEAKERNESS.EU text on the image.
+    If user provides a domain string: only a tiny discreet bottom-right watermark
+    with that exact text — no giant headline, no Explore CTA sentence on image.
+    Captions (meta/tiktok/pinterest/youtube) may still include the domain.
+    """
+    w = (watermark or "").strip()
+    if not w:
+        return (
+            " By default NO website, brand-store URL, or SNEAKERNESS.EU / sneakerness "
+            "text on the image."
+        )
+    return (
+        f" Optional tiny discreet bottom-right watermark text exactly: {w} "
+        f"— no other site URLs, no Explore CTA on image, no giant headline watermark."
+    )
+
 
 def build_carousel_prompts(
     slide_count,
@@ -445,7 +504,7 @@ def build_carousel_prompts(
     if _no_face:
         hook = (
             f"Create an image: Lifestyle footwear/legs scene for {selected_problem}. "
-            f"No face, no portrait framing — crop face out of frame; prioritize shoes, legs, hands, props. "
+            f"No face, no portrait framing — crop strictly below the chin; no partial face at frame edge; prioritize shoes, legs, hands, props. "
             f"Natural dramatic studio lighting. Atmospheric mood. Bold top text overlay: '{hook_txt}'. "
             f"{negative_constraint}{brand_lock}{_appx} Photorealistic 8k {ar_flag}"
         )
@@ -461,11 +520,13 @@ def build_carousel_prompts(
         f"Top-left tag '{selected_tag}', top-right badge '{selected_badge}'. Clean text overlay: '{product_txt}'. "
         f"{negative_constraint}{brand_lock}{_appx} Commercial studio lighting {ar_flag}"
     )
+    _wm_img = watermark_image_clause(custom_watermark)
     product_cta = (
         f"Create an image: Studio product photography of {brand} {safe_model_name} in {colorway} "
         f"colorway ({key_materials}) placed on a surface in {selected_env}. EDC props: {selected_props}. "
         f"Top-left tag '{selected_tag}', top-right badge '{selected_badge}'. "
-        f"Clean product showcase with soft CTA overlay: '{cta_txt}' and watermark '{custom_watermark}'. "
+        f"Clean product showcase with soft CTA overlay: '{cta_txt}'."
+        f"{_wm_img} "
         f"{negative_constraint}{brand_lock}{_appx} Commercial studio lighting {ar_flag}"
     )
     lifestyle = (
@@ -482,14 +543,15 @@ def build_carousel_prompts(
     )
     specs_cta = (
         f"Create an image: Sleek macro detail close-up photo of the sole and cushioning of "
-        f"{brand} {safe_model_name} on {selected_env} background. Floating bold text '{custom_watermark}' "
-        f"and soft CTA: '{cta_txt}'. "
+        f"{brand} {safe_model_name} on {selected_env} background. Soft CTA overlay: '{cta_txt}'."
+        f"{_wm_img} "
         f"{negative_constraint}{brand_lock}{_appx} Commercial studio lighting {ar_flag}"
     )
     soft_cta = (
         f"Create an image: Clean minimal product still of {brand} {safe_model_name} in {colorway} "
         f"colorway ({key_materials}) on {selected_env} with soft negative space. "
-        f"Floating bold watermark '{custom_watermark}' and soft CTA: '{cta_txt}'. "
+        f"Soft CTA overlay: '{cta_txt}'."
+        f"{_wm_img} "
         f"{negative_constraint}{brand_lock}{_appx} Commercial studio lighting {ar_flag}"
     )
 
@@ -611,7 +673,7 @@ def clear_all_fields():
     st.session_state["env_desc_val"] = "minimalist concrete urban street with natural daylight"
     st.session_state["props_desc_val"] = "an open Kinfolk magazine, a ceramic cup of cappuccino, brass keys, succulent"
     st.session_state["problem_desc_val"] = "a tired worker sitting on stairs touching sore feet with work boots beside them"
-    st.session_state["watermark_val"] = "SNEAKERNESS.EU"
+    st.session_state["watermark_val"] = ""
     st.session_state["selected_tag_val"] = AUTHENTICITY_TAGS[0]
     st.session_state["selected_badge_val"] = CATEGORY_BADGES[0]
     st.session_state["ad_format_val"] = "Single Layout Ad (1 Εικόνα)"
@@ -646,7 +708,7 @@ def apply_history_entry(entry: dict):
     st.session_state["env_desc_val"] = entry.get("env_desc", "") or ""
     st.session_state["props_desc_val"] = entry.get("props_desc", "") or ""
     st.session_state["problem_desc_val"] = entry.get("problem_desc", "") or ""
-    st.session_state["watermark_val"] = entry.get("watermark", "SNEAKERNESS.EU") or "SNEAKERNESS.EU"
+    st.session_state["watermark_val"] = (entry.get("watermark") or "").strip()
     tag = entry.get("selected_tag") or AUTHENTICITY_TAGS[0]
     badge = entry.get("selected_badge") or CATEGORY_BADGES[0]
     st.session_state["selected_tag_val"] = tag if tag in AUTHENTICITY_TAGS else AUTHENTICITY_TAGS[0]
@@ -722,7 +784,7 @@ if "env_desc_val" not in st.session_state: st.session_state["env_desc_val"] = "m
 if "props_desc_val" not in st.session_state: st.session_state["props_desc_val"] = "an open Kinfolk magazine, a ceramic cup of cappuccino, brass keys, succulent"
 if "problem_desc_val" not in st.session_state: st.session_state["problem_desc_val"] = "a tired worker sitting on stairs touching sore feet with work boots beside them"
 if "uploader_key" not in st.session_state: st.session_state["uploader_key"] = 0
-if "watermark_val" not in st.session_state: st.session_state["watermark_val"] = "SNEAKERNESS.EU"
+if "watermark_val" not in st.session_state: st.session_state["watermark_val"] = ""
 if "selected_tag_val" not in st.session_state: st.session_state["selected_tag_val"] = AUTHENTICITY_TAGS[0]
 if "selected_badge_val" not in st.session_state: st.session_state["selected_badge_val"] = CATEGORY_BADGES[0]
 if "ad_format_val" not in st.session_state: st.session_state["ad_format_val"] = "Single Layout Ad (1 Εικόνα)"
@@ -1274,11 +1336,13 @@ if st.button(
             "NO LEARN MORE buttons, NO app UI chrome, NO page numbers. "
             "Do NOT invent badges/seals like OFFICIAL SELECTION / BESTSELLER / SNEAKERNESS "
             "unless that exact text is requested in this prompt. "
-            "Do NOT auto-brand SNEAKERNESS.EU or sneakerness on the image unless the watermark "
-            "field in this prompt explicitly includes it — prefer product brand footwear only "
-            "plus watermark exactly as provided. "
-            "Overlay text must match the scene (work-shift / long-shifts wording only for "
-            "standing/work scenes; never on a running curb scene). "
+            "By default NO website / brand-store / SNEAKERNESS.EU text on the image. "
+            "If a watermark domain is provided in this prompt: optional ONLY a tiny discreet "
+            "bottom-right watermark with that exact string — no giant headline, no "
+            "'Explore… at …' site CTA sentence on the image. "
+            "Overlay text must match the scene: ban work-shift / 'long shifts' overlay wording "
+            "when the scene is running / track / curb-after-run; keep shift wording only for "
+            "standing/work scenes. "
             "ONLY the requested overlay text."
         )
         _appearance_extra = appearance_clause(st.session_state.get("appearance_val", "eu"))
@@ -1292,9 +1356,9 @@ if st.button(
         if ad_format == "Single Layout Ad (1 Εικόνα)":
             _no_face = "No identifiable face" in (_appearance_extra or "")
             if _no_face:
-                visual_prompt = f"""Create an image: Photorealistic lifestyle/product photograph prioritizing footwear of {brand} {safe_model_name} in {colorway} colorway ({key_materials}) on a smooth surface in the foreground with {selected_props}. Soft-focus upper background suggests {selected_problem} without showing an identifiable face (crop above waist / face out of frame; shoes, legs, hands, props only). Natural depth of field and continuous studio lighting. Render a top-left fabric tag reading '{selected_tag}' and a top-right badge reading '{selected_badge}'. Display headline text overlay '{ad_texts['hook']}', body text overlay '{ad_texts['body']}', and bottom watermark '{custom_watermark}' with soft CTA '{ad_texts['cta']}'. {negative_constraint}{_brand_lock}{(' ' + _appearance_extra) if _appearance_extra else ''} Photorealistic 8k, seamless single canvas {ar_flag}"""
+                visual_prompt = f"""Create an image: Photorealistic lifestyle/product photograph prioritizing footwear of {brand} {safe_model_name} in {colorway} colorway ({key_materials}) on a smooth surface in the foreground with {selected_props}. Soft-focus upper background suggests {selected_problem} without showing an identifiable face (crop strictly below the chin; no partial face at frame edge; shoes, legs, hands, props only). Natural depth of field and continuous studio lighting. Render a top-left fabric tag reading '{selected_tag}' and a top-right badge reading '{selected_badge}'. Display headline text overlay '{ad_texts['hook']}', body text overlay '{ad_texts['body']}', and soft CTA overlay '{ad_texts['cta']}'.{watermark_image_clause(custom_watermark)} {negative_constraint}{_brand_lock}{(' ' + _appearance_extra) if _appearance_extra else ''} Photorealistic 8k, seamless single canvas {ar_flag}"""
             else:
-                visual_prompt = f"""Create an image: Photorealistic vertical photograph of {brand} {safe_model_name} in {colorway} colorway ({key_materials}) placed on a smooth surface in the foreground, accompanied by {selected_props}. In the soft-focus upper background, {selected_problem}. Natural depth of field and continuous studio lighting. Render a top-left fabric tag reading '{selected_tag}' and a top-right badge reading '{selected_badge}'. Display headline text overlay '{ad_texts['hook']}', body text overlay '{ad_texts['body']}', and bottom watermark '{custom_watermark}' with soft CTA '{ad_texts['cta']}'. {negative_constraint}{_brand_lock}{(' ' + _appearance_extra) if _appearance_extra else ''} Photorealistic 8k, seamless single canvas {ar_flag}"""
+                visual_prompt = f"""Create an image: Photorealistic vertical photograph of {brand} {safe_model_name} in {colorway} colorway ({key_materials}) placed on a smooth surface in the foreground, accompanied by {selected_props}. In the soft-focus upper background, {selected_problem}. Natural depth of field and continuous studio lighting. Render a top-left fabric tag reading '{selected_tag}' and a top-right badge reading '{selected_badge}'. Display headline text overlay '{ad_texts['hook']}', body text overlay '{ad_texts['body']}', and soft CTA overlay '{ad_texts['cta']}'.{watermark_image_clause(custom_watermark)} {negative_constraint}{_brand_lock}{(' ' + _appearance_extra) if _appearance_extra else ''} Photorealistic 8k, seamless single canvas {ar_flag}"""
 
             st.markdown(t("prompt_single", lang))
             st.code(visual_prompt, language="text")

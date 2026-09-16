@@ -93,8 +93,8 @@ APPEARANCE_CLAUSES = {
         "If no person body is shown, ignore skin/ethnicity language."
     ),
     "no_face": (
-        "CRITICAL: No identifiable face, no portrait framing. Crop above waist or face fully "
-        "out of frame. Composition must prioritize footwear/legs/hands/props only. "
+        "CRITICAL: No identifiable face, no portrait framing. Crop strictly below the chin; "
+        "no partial face at the frame edge. Composition must prioritize footwear/legs/hands/props only. "
         "Do NOT describe facial features or head-and-shoulders portrait."
     ),
 }
@@ -400,6 +400,7 @@ def generate_content_carousel(
                 f"{_appearance_clause}\n"
                 "WRITE each image_prompt WITHOUT words like: portrait, face close-up, looking at camera, "
                 "headshot, head-and-shoulders, facial features, smiling face. "
+                "Crop strictly below the chin; no partial face at the frame edge. "
                 "Use lifestyle/product framing instead: footwear, legs, hands, props, environments.\n"
             )
         else:
@@ -438,9 +439,12 @@ def generate_content_carousel(
         "HARD IMAGE RULES for every image_prompt: NEVER render Slide X of Y, LEARN MORE buttons, "
         "carousel dots, app UI chrome, or invented badges/seals (OFFICIAL SELECTION, BESTSELLER, "
         "SNEAKERNESS) unless the user prompt explicitly requests that exact text. "
-        "NEVER auto-brand SNEAKERNESS.EU / sneakerness on the image unless an explicit watermark/"
-        "domain string is provided in the prompt — prefer product/scene only. "
-        "Overlay text must match the scene (work-shift wording only for standing/work scenes). "
+        "NEVER auto-brand SNEAKERNESS.EU / sneakerness on the image by default. "
+        "If an explicit watermark/domain string is provided: optional ONLY a tiny discreet "
+        "bottom-right watermark with that exact text — no giant headline, no Explore CTA on image. "
+        "Domain/URL belongs in captions when provided, not forced into every image_prompt. "
+        "Overlay text must match the scene: ban work-shift / long-shifts wording when the scene "
+        "is running/track/curb-after-run; keep shift wording only for standing/work scenes. "
         "If no_face: never write portrait/face/headshot language; prioritize shoes/legs/hands/props."
     )
 
@@ -463,9 +467,9 @@ CRITICAL CONSTRAINTS:
 7. Each slide needs an image generation prompt in Nano Banana / Midjourney style: soft-discovery aesthetic, photorealistic or clean editorial, calm lighting, no hard-sell product packaging UI, no celebrity faces.
 8. Optional short on-image overlay: image_prompt MAY include the SAME short title (or a 2-5 word overlay matching the title) as clean typography on the image. Prefer soft-discovery aesthetic. Keep NO "Slide X of Y", NO carousel numbering, NO carousel dots, NO LEARN MORE buttons, NO app UI chrome, NO invented OFFICIAL/BESTSELLER/SNEAKERNESS seals, NO hard sell.
 9. Append aspect flag exactly as: {ar_flag} at the end of every image_prompt.
-10. NEVER auto-brand SNEAKERNESS.EU or sneakerness on the image unless an explicit watermark/domain is provided in this prompt — prefer product/scene framing only.
-11. Overlay text must match the depicted scene (do not put work-shift / "long shifts" wording on a running curb scene; keep work wording only for standing/work scenes).
-12. If HARD APPEARANCE / no_face is active: write image_prompt as lifestyle/product framing with shoes/legs/hands/props — never portrait, face close-up, looking at camera, or headshot language.
+10. By default NEVER put SNEAKERNESS.EU / sneakerness / any website on the image. If an explicit watermark/domain is provided in this prompt: optional ONLY a tiny discreet bottom-right watermark with that exact string — no giant headline, no Explore CTA sentence on image. Put domain/URL in captions when provided; do not force site into every image_prompt.
+11. Overlay text must match the depicted scene (do not put work-shift / "long shifts" wording on a running / track / curb-after-run scene; keep work wording only for standing/work scenes).
+12. If HARD APPEARANCE / no_face is active: crop strictly below the chin; no partial face at frame edge; write image_prompt as lifestyle/product framing with shoes/legs/hands/props - never portrait, face close-up, looking at camera, or headshot language.
 {insight_block}{appearance_block}
 Return strict JSON:
 {{

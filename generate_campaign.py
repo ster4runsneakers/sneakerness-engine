@@ -48,7 +48,7 @@ def generate_dynamic_campaign():
     - Top-left badge: '100% AUTHENTIC GUARANTEED' (Render ONCE ONLY at absolute top-left).
     - Top-right badge: 'REVIEWED ★★★★★' (Render ONCE ONLY at absolute top-right).
     - STRICT NEGATIVE INSTRUCTION: ABSOLUTELY NO DUPLICATE BADGES. Do NOT repeat, mirror, or recreate badges, logos, or trust seals on the bottom panel or lower half.
-    - Clean bottom area featuring the product, subtle lifestyle props, and clear brand watermark 'SNEAKERNESS.EU'.
+    - Clean bottom area featuring the product and subtle lifestyle props. By default NO website/SNEAKERNESS.EU watermark on the image (optional tiny discreet bottom-right domain only if a watermark field is set).
 
     OUTPUT FORMAT:
     Return ONLY a valid JSON object matching this schema (no markdown formatting, no code blocks):
@@ -57,7 +57,7 @@ def generate_dynamic_campaign():
         "tiktok_script": {{
             "hook": "...",
             "body": "...",
-            "cta": "Explore more specs at SNEAKERNESS.EU"
+            "cta": "Explore more specs."
         }},
         "social_caption": "...",
         "pomelli_brief": {{
