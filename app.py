@@ -467,7 +467,7 @@ def watermark_image_clause(watermark: str) -> str:
     return (
         f" REQUIRED on-image watermark text (exactly once, bottom-right): {w} "
         f"Render that exact string EXACTLY ONCE as clearly phone-readable text "
-        f"(~3–5% of image height, clean sans-serif, good contrast; subtle dark/light shadow OK), "
+        f"(~7–9% of image height, clean sans-serif, strong contrast — must be easily readable at a glance on a phone screen; not microscopic; not faint grey on busy background; subtle dark/light shadow OK), "
         f"leaving ~2–3% margin from the edges — must be readable on a phone without zoom; "
         f"do not also add a shortened/brand-name copy such as 'sneakerness' if the user "
         f"typed a full domain; ban any second tiny/micro duplicate or extra corner mark; "
@@ -1915,7 +1915,7 @@ if st.button(
             _wm_neg = (
                 f"REQUIRED on-image watermark text (exactly once, bottom-right): {_wm_clean} "
                 "Render that exact string EXACTLY ONCE as clearly phone-readable text in the "
-                "bottom-right corner (~3–5% of image height, clean sans-serif, good contrast; "
+                "bottom-right corner (~7–9% of image height, clean sans-serif, strong contrast — must be easily readable at a glance on a phone screen; not microscopic; not faint grey on busy background; "
                 "subtle dark/light shadow OK), leaving ~2–3% margin from the edges — readable on "
                 "a phone without zoom; ban any second tiny/micro duplicate, shortened copy, or "
                 "extra corner mark; no giant headline, not dominating the shoe, no Explore CTA on "
