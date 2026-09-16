@@ -74,6 +74,48 @@ _FIXED_WEEKLY_EL = [
 ]
 
 
+
+APPEARANCE_KEYS = ["auto", "eu", "diverse", "no_face"]
+
+# English clauses injected into image prompts (Gemini/Grok). Soft creative control only.
+APPEARANCE_CLAUSES = {
+    "auto": "",
+    "eu": (
+        "person appearance: light-to-olive Mediterranean/European adult, natural look; "
+        "do not default to unrelated ethnicity"
+    ),
+    "diverse": (
+        "person appearance: naturally diverse adults appropriate to everyday EU street/"
+        "footwear content; vary across slides; avoid stereotypes"
+    ),
+    "no_face": (
+        "prefer no identifiable face (or face out of frame / cropped); "
+        "focus on shoes, legs, hands, lifestyle props"
+    ),
+}
+
+
+def appearance_clause(key: str) -> str:
+    """Return English appearance clause for key, or empty for auto/unknown."""
+    k = (key or "auto").strip().lower()
+    return APPEARANCE_CLAUSES.get(k, "")
+
+
+def append_appearance_clause(prompt: str, appearance: str = "auto") -> str:
+    """Append appearance clause to an image prompt; insert before trailing --ar flag."""
+    clause = appearance_clause(appearance)
+    if not clause or not (prompt or "").strip():
+        return prompt or ""
+    if clause in prompt:
+        return prompt
+    import re
+
+    m = re.search(r"(\s*--ar\s+\S+)\s*$", prompt)
+    if m:
+        return (prompt[: m.start()].rstrip() + " " + clause + m.group(1)).strip()
+    return (prompt.rstrip() + " " + clause).strip()
+
+
 def topic_label(key: str, lang: str = "el") -> str:
     """UI label for a topic key."""
     entry = TOPIC_CATALOG.get(key) or {}
@@ -181,7 +223,12 @@ def _parse_json_response(text: str) -> dict:
     return json.loads(clean.strip())
 
 
-def _fallback_carousel(topic_en: str, slide_count: int, ar_flag: str) -> dict[str, Any]:
+def _fallback_carousel(
+    topic_en: str,
+    slide_count: int,
+    ar_flag: str,
+    appearance: str = "auto",
+) -> dict[str, Any]:
     """Deterministic soft-discovery fallback if Gemini fails.
 
     Slides form one continuous mini-story; each body teaches from that slide's image
@@ -246,7 +293,11 @@ def _fallback_carousel(topic_en: str, slide_count: int, ar_flag: str) -> dict[st
                 f"calm discovery mood, no celebrity, no hard sell. Clean short typography overlay matching: "
                 f"Follow for the next tip. Photorealistic 8k {ar_flag}"
             )
-        slides.append({"title": title, "body": body, "image_prompt": prompt})
+        slides.append({
+            "title": title,
+            "body": body,
+            "image_prompt": append_appearance_clause(prompt, appearance),
+        })
     return {
         "slides": slides,
         "ig_caption": (
@@ -277,6 +328,7 @@ def generate_content_carousel(
     slide_count: int = 5,
     aspect_ratio: str = "1:1 (Square)",
     insight_context: str = "",
+    appearance: str = "eu",
     models: Optional[list[str]] = None,
     warn: Optional[Callable[[str], None]] = None,
 ) -> dict[str, Any]:
@@ -305,6 +357,19 @@ def generate_content_carousel(
         ar_flag = "--ar 1:1"
 
     topic_en = topic_brief_en(topic_key, topic_override)
+    _appearance_key = (appearance or "auto").strip().lower()
+    if _appearance_key not in APPEARANCE_KEYS:
+        _appearance_key = "auto"
+    _appearance_clause = appearance_clause(_appearance_key)
+    appearance_block = ""
+    if _appearance_clause:
+        appearance_block = (
+            "\nPERSON / MODEL APPEARANCE (apply to EVERY slide image_prompt; soft creative "
+            "control for brand consistency across Gemini/Grok — professional, non-stereotyped):\n"
+            f"{_appearance_clause}\n"
+            "Include this guidance naturally in each image_prompt (English).\n"
+        )
+
     models_to_try = models or ["gemini-3.6-flash", "gemini-2.5-flash"]
 
     insight_block = ""
@@ -327,7 +392,9 @@ def generate_content_carousel(
         "last slide is a soft CTA / takeaway. "
         "CRITICAL IMAGE-TEXT LOCK: for every slide, title + body must describe and teach from "
         "what that slide's image_prompt depicts; the body must state the practical usefulness "
-        "of that visual (what the viewer learns and why the tip helps)."
+        "of that visual (what the viewer learns and why the tip helps). "
+        "When a person/model appearance guidance is provided in the user prompt, reflect it "
+        "consistently in every image_prompt."
     )
 
     script_prompt = f"""Create an educational Instagram/TikTok CONTENT CAROUSEL (not a product ad) about:
@@ -349,7 +416,7 @@ CRITICAL CONSTRAINTS:
 7. Each slide needs an image generation prompt in Nano Banana / Midjourney style: soft-discovery aesthetic, photorealistic or clean editorial, calm lighting, no hard-sell product packaging UI, no celebrity faces.
 8. Optional short on-image overlay: image_prompt MAY include the SAME short title (or a 2-5 word overlay matching the title) as clean typography on the image. Prefer soft-discovery aesthetic. Keep NO "Slide X of Y", NO carousel numbering, NO UI chrome, NO hard sell.
 9. Append aspect flag exactly as: {ar_flag} at the end of every image_prompt.
-{insight_block}
+{insight_block}{appearance_block}
 Return strict JSON:
 {{
   "slides": [
@@ -397,6 +464,7 @@ Exactly {slide_count} objects inside "slides".
                     prompt = str(s.get("image_prompt") or "")
                     if ar_flag not in prompt:
                         prompt = (prompt + " " + ar_flag).strip()
+                    prompt = append_appearance_clause(prompt, _appearance_key)
                     normalized.append(
                         {
                             "title": str(s.get("title") or "").strip() or "Tip",
@@ -405,7 +473,7 @@ Exactly {slide_count} objects inside "slides".
                         }
                     )
                 while len(normalized) < slide_count:
-                    fb = _fallback_carousel(topic_en, slide_count, ar_flag)
+                    fb = _fallback_carousel(topic_en, slide_count, ar_flag, _appearance_key)
                     normalized.append(fb["slides"][len(normalized)])
                 return {
                     "slides": normalized[:slide_count],
@@ -417,6 +485,7 @@ Exactly {slide_count} objects inside "slides".
                     "topic_key": topic_key,
                     "slide_count": slide_count,
                     "ar_flag": ar_flag,
+                    "appearance": _appearance_key,
                 }
         except Exception as e:
             if warn:
@@ -426,8 +495,9 @@ Exactly {slide_count} objects inside "slides".
                     pass
             time.sleep(1)
 
-    fb = _fallback_carousel(topic_en, slide_count, ar_flag)
+    fb = _fallback_carousel(topic_en, slide_count, ar_flag, _appearance_key)
     fb["topic_en"] = topic_en
+    fb["appearance"] = _appearance_key
     fb["topic_key"] = topic_key
     fb["slide_count"] = slide_count
     fb["ar_flag"] = ar_flag

@@ -21,6 +21,9 @@ import content_carousel
 import usage
 from content_carousel import (
     TOPIC_KEYS,
+    APPEARANCE_KEYS,
+    appearance_clause,
+    append_appearance_clause,
     topic_label,
     weekly_suggestions,
     generate_content_carousel,
@@ -421,8 +424,10 @@ def build_carousel_prompts(
     ad_texts,
     negative_constraint,
     ar_flag,
+    appearance_extra="",
 ):
     """Build 2–5 Nano Banana carousel prompts with a clear story arc."""
+    _appx = f" {appearance_extra}" if (appearance_extra or "").strip() else ""
     hook_txt = ad_texts.get("slide1_text", ad_texts.get("hook", ""))
     product_txt = ad_texts.get("slide2_text", ad_texts.get("body", ""))
     cta_txt = ad_texts.get("slide3_text", ad_texts.get("cta", ""))
@@ -431,44 +436,44 @@ def build_carousel_prompts(
     hook = (
         f"Create an image: Cinematic portrait of {selected_problem}. "
         f"Natural dramatic studio lighting. High emotion. Bold top text overlay: '{hook_txt}'. "
-        f"{negative_constraint} Photorealistic 8k {ar_flag}"
+        f"{negative_constraint}{_appx} Photorealistic 8k {ar_flag}"
     )
     product = (
         f"Create an image: Studio product photography of {brand} {safe_model_name} in {colorway} "
         f"colorway ({key_materials}) placed on a surface in {selected_env}. EDC props: {selected_props}. "
         f"Top-left tag '{selected_tag}', top-right badge '{selected_badge}'. Clean text overlay: '{product_txt}'. "
-        f"{negative_constraint} Commercial studio lighting {ar_flag}"
+        f"{negative_constraint}{_appx} Commercial studio lighting {ar_flag}"
     )
     product_cta = (
         f"Create an image: Studio product photography of {brand} {safe_model_name} in {colorway} "
         f"colorway ({key_materials}) placed on a surface in {selected_env}. EDC props: {selected_props}. "
         f"Top-left tag '{selected_tag}', top-right badge '{selected_badge}'. "
         f"Clean product showcase with soft CTA overlay: '{cta_txt}' and watermark '{custom_watermark}'. "
-        f"{negative_constraint} Commercial studio lighting {ar_flag}"
+        f"{negative_constraint}{_appx} Commercial studio lighting {ar_flag}"
     )
     lifestyle = (
         f"Create an image: Lifestyle environment scene in {selected_env} featuring EDC props: {selected_props}, "
         f"with {brand} {safe_model_name} in {colorway} colorway ({key_materials}) naturally placed in the scene. "
         f"Atmospheric natural light. Subtle text overlay: '{body_txt}'. "
-        f"{negative_constraint} Photorealistic lifestyle photography 8k {ar_flag}"
+        f"{negative_constraint}{_appx} Photorealistic lifestyle photography 8k {ar_flag}"
     )
     specs = (
         f"Create an image: Sleek macro detail close-up photo of the sole and cushioning of "
         f"{brand} {safe_model_name} on {selected_env} background. Highlight materials: {key_materials}. "
         f"Clean overlay text: '{body_txt}'. "
-        f"{negative_constraint} Commercial studio lighting {ar_flag}"
+        f"{negative_constraint}{_appx} Commercial studio lighting {ar_flag}"
     )
     specs_cta = (
         f"Create an image: Sleek macro detail close-up photo of the sole and cushioning of "
         f"{brand} {safe_model_name} on {selected_env} background. Floating bold text '{custom_watermark}' "
         f"and soft CTA: '{cta_txt}'. "
-        f"{negative_constraint} Commercial studio lighting {ar_flag}"
+        f"{negative_constraint}{_appx} Commercial studio lighting {ar_flag}"
     )
     soft_cta = (
         f"Create an image: Clean minimal product still of {brand} {safe_model_name} in {colorway} "
         f"colorway ({key_materials}) on {selected_env} with soft negative space. "
         f"Floating bold watermark '{custom_watermark}' and soft CTA: '{cta_txt}'. "
-        f"{negative_constraint} Commercial studio lighting {ar_flag}"
+        f"{negative_constraint}{_appx} Commercial studio lighting {ar_flag}"
     )
 
     # roles: (role_i18n_key, prompt)
@@ -609,6 +614,7 @@ def clear_all_fields():
     st.session_state["loaded_slide5_prompt"] = ""
     st.session_state["show_loaded_pack"] = False
     st.session_state["goal_val"] = "auto"
+    st.session_state["appearance_val"] = "eu"
     st.session_state["active_insight"] = ""
     st.session_state["last_export_zip"] = None
     st.session_state["uploader_key"] = st.session_state.get("uploader_key", 0) + 1
@@ -654,6 +660,8 @@ def apply_history_entry(entry: dict):
     st.session_state["loaded_slide5_prompt"] = entry.get("slide5_prompt", "") or ""
     g = (entry.get("goal") or "auto").strip().lower()
     st.session_state["goal_val"] = g if g in GOAL_KEYS else "auto"
+    ap = (entry.get("appearance") or "eu").strip().lower()
+    st.session_state["appearance_val"] = ap if ap in APPEARANCE_KEYS else "eu"
     st.session_state["show_loaded_pack"] = True
     # Rebuild export ZIP from loaded history pack
     _slides = [
@@ -717,6 +725,7 @@ if "loaded_slide4_prompt" not in st.session_state: st.session_state["loaded_slid
 if "loaded_slide5_prompt" not in st.session_state: st.session_state["loaded_slide5_prompt"] = ""
 if "show_loaded_pack" not in st.session_state: st.session_state["show_loaded_pack"] = False
 if "goal_val" not in st.session_state: st.session_state["goal_val"] = "auto"
+if "appearance_val" not in st.session_state: st.session_state["appearance_val"] = "eu"
 if "active_insight" not in st.session_state: st.session_state["active_insight"] = ""
 if "last_export_zip" not in st.session_state: st.session_state["last_export_zip"] = None
 if "last_export_name" not in st.session_state: st.session_state["last_export_name"] = "content_pack.zip"
@@ -881,6 +890,25 @@ if app_mode == "content":
     _aspect_c = st.selectbox(t("aspect_label", lang), _ar_options_c, index=_ar_idx_c, key="content_aspect_select")
     st.session_state["aspect_ratio_val"] = _aspect_c
 
+    _appearance_labels_c = {
+        "auto": t("appearance_auto", lang),
+        "eu": t("appearance_eu", lang),
+        "diverse": t("appearance_diverse", lang),
+        "no_face": t("appearance_no_face", lang),
+    }
+    st.caption(t("appearance_help", lang))
+    _cur_ap_c = st.session_state.get("appearance_val", "eu")
+    if _cur_ap_c not in APPEARANCE_KEYS:
+        _cur_ap_c = "eu"
+    _picked_ap_c = st.selectbox(
+        t("appearance_label", lang),
+        [_appearance_labels_c[k] for k in APPEARANCE_KEYS],
+        index=APPEARANCE_KEYS.index(_cur_ap_c),
+        key="content_appearance_select",
+    )
+    _label_to_ap_c = {v: k for k, v in _appearance_labels_c.items()}
+    st.session_state["appearance_val"] = _label_to_ap_c.get(_picked_ap_c, "eu")
+
     _sc_opts = [4, 5, 6]
     _cur_sc = st.session_state.get("content_slide_count_val", 5)
     if _cur_sc not in _sc_opts:
@@ -915,6 +943,7 @@ if app_mode == "content":
                 slide_count=int(st.session_state.get("content_slide_count_val", 5)),
                 aspect_ratio=st.session_state.get("aspect_ratio_val", "1:1 (Square)"),
                 insight_context=st.session_state.get("active_insight", "") or "",
+                appearance=st.session_state.get("appearance_val", "eu"),
                 models=["gemini-3.6-flash", "gemini-2.5-flash"],
                 warn=_warn,
             )
@@ -945,6 +974,7 @@ if app_mode == "content":
                 "topic_en": _result.get("topic_en"),
                 "slide_count": _result.get("slide_count"),
                 "aspect_ratio": st.session_state.get("aspect_ratio_val", "1:1 (Square)"),
+                "appearance": st.session_state.get("appearance_val", "eu"),
                 "meta_caption": _result.get("ig_caption", ""),
                 "tiktok_caption": _result.get("tiktok_caption", ""),
                 "hashtags_meta": "",
@@ -1122,6 +1152,30 @@ else:
     st.session_state["goal_val"] = _selected_goal
     _effective_goal = _selected_goal
 
+
+# 5c. MODEL APPEARANCE (creative control for image prompts)
+_appearance_labels = {
+    "auto": t("appearance_auto", lang),
+    "eu": t("appearance_eu", lang),
+    "diverse": t("appearance_diverse", lang),
+    "no_face": t("appearance_no_face", lang),
+}
+st.caption(t("appearance_help", lang))
+_cur_appearance = st.session_state.get("appearance_val", "eu")
+if _cur_appearance not in APPEARANCE_KEYS:
+    _cur_appearance = "eu"
+_appearance_idx = APPEARANCE_KEYS.index(_cur_appearance)
+_picked_appearance_label = st.selectbox(
+    t("appearance_label", lang),
+    [_appearance_labels[k] for k in APPEARANCE_KEYS],
+    index=_appearance_idx,
+    key="appearance_select_label",
+)
+_label_to_appearance = {v: k for k, v in _appearance_labels.items()}
+st.session_state["appearance_val"] = _label_to_appearance.get(_picked_appearance_label, "eu")
+_effective_appearance = st.session_state["appearance_val"]
+_appearance_extra = appearance_clause(_effective_appearance)
+
 col_fmt, col_ar = st.columns(2)
 with col_fmt:
     _fmt_options = ["Single Layout Ad (1 Εικόνα)", "Carousel Pack (multi-slide)"]
@@ -1199,9 +1253,10 @@ if st.button(
                         ad_texts[key] = ad_texts[key].lower().replace(word, "signature pro")
 
         negative_constraint = " STRICTLY NO text like 'Slide X of Y', NO carousel numbering, NO UI elements, NO page numbers. ONLY the requested overlay text."
+        _appearance_extra = appearance_clause(st.session_state.get("appearance_val", "eu"))
 
         if ad_format == "Single Layout Ad (1 Εικόνα)":
-            visual_prompt = f"""Create an image: Photorealistic vertical photograph of {brand} {safe_model_name} in {colorway} colorway ({key_materials}) placed on a smooth surface in the foreground, accompanied by {selected_props}. In the soft-focus upper background, {selected_problem}. Natural depth of field and continuous studio lighting. Render a top-left fabric tag reading '{selected_tag}' and a top-right badge reading '{selected_badge}'. Display headline text overlay '{ad_texts['hook']}', body text overlay '{ad_texts['body']}', and bottom watermark '{custom_watermark}' with soft CTA '{ad_texts['cta']}'. {negative_constraint} Photorealistic 8k, seamless single canvas {ar_flag}"""
+            visual_prompt = f"""Create an image: Photorealistic vertical photograph of {brand} {safe_model_name} in {colorway} colorway ({key_materials}) placed on a smooth surface in the foreground, accompanied by {selected_props}. In the soft-focus upper background, {selected_problem}. Natural depth of field and continuous studio lighting. Render a top-left fabric tag reading '{selected_tag}' and a top-right badge reading '{selected_badge}'. Display headline text overlay '{ad_texts['hook']}', body text overlay '{ad_texts['body']}', and bottom watermark '{custom_watermark}' with soft CTA '{ad_texts['cta']}'. {negative_constraint}{(' ' + _appearance_extra) if _appearance_extra else ''} Photorealistic 8k, seamless single canvas {ar_flag}"""
 
             st.markdown(t("prompt_single", lang))
             st.code(visual_prompt, language="text")
@@ -1225,6 +1280,7 @@ if st.button(
                 ad_texts=ad_texts,
                 negative_constraint=negative_constraint,
                 ar_flag=ar_flag,
+                appearance_extra=_appearance_extra,
             )
             slide_prompts = [p for _, p in carousel_roles]
             # Pad to 5 for history / session consistency
@@ -1325,6 +1381,7 @@ RAW DATA (JSON)
             "ad_texts": ad_texts,
             "lang": lang,
             "goal": st.session_state.get("goal_val", "auto"),
+            "appearance": st.session_state.get("appearance_val", "eu"),
         }
         hist_payload["slide_count"] = int(st.session_state.get("slide_count_val", 3)) if ad_format != "Single Layout Ad (1 Εικόνα)" else 1
         if ad_format == "Single Layout Ad (1 Εικόνα)":
