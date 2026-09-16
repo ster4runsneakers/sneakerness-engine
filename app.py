@@ -621,6 +621,40 @@ def load_weekly_insights(path: str | Path = "data/weekly_insights.json") -> dict
         return {}
 
 
+def _normalize_shoe_image_ext(ext: str | None = None, mime: str | None = None) -> str:
+    """Return jpg/png/webp for ZIP shoe.* filename."""
+    e = (ext or "").lstrip(".").lower()
+    if e == "jpeg":
+        e = "jpg"
+    if e in ("jpg", "png", "webp"):
+        return e
+    m = (mime or "").lower()
+    if "png" in m:
+        return "png"
+    if "webp" in m:
+        return "webp"
+    return "jpg"
+
+
+def _mime_for_shoe_ext(ext: str) -> str:
+    return {"jpg": "image/jpeg", "png": "image/png", "webp": "image/webp"}.get(ext, "image/jpeg")
+
+
+def _read_history_shoe_bytes(path_str: str | None) -> tuple[bytes | None, str | None, str | None]:
+    """Load shoe image bytes/ext/mime from a history image_path if present."""
+    if not path_str:
+        return None, None, None
+    p = Path(path_str)
+    if not p.is_file():
+        return None, None, None
+    try:
+        data = p.read_bytes()
+    except OSError:
+        return None, None, None
+    ext = _normalize_shoe_image_ext(p.suffix)
+    return data, ext, _mime_for_shoe_ext(ext)
+
+
 def build_pack_zip_bytes(
     *,
     brand: str,
@@ -638,8 +672,11 @@ def build_pack_zip_bytes(
     youtube_caption: str = "",
     visual_prompt: str = "",
     slide_prompts: list | None = None,
+    image_bytes: bytes | None = None,
+    image_ext: str | None = None,
+    image_mime: str | None = None,
 ) -> bytes:
-    """Build an in-memory ZIP export pack (stdlib only)."""
+    """Build an in-memory ZIP export pack (stdlib only). Includes shoe.* when image_bytes set."""
     slide_prompts = slide_prompts or []
     meta_body = f"{meta_caption or ''}\n\n{hashtags_meta or ''}".strip()
     buf = io.BytesIO()
@@ -668,6 +705,9 @@ def build_pack_zip_bytes(
             "specs": specs,
         }
         zf.writestr("meta.json", json.dumps(meta, ensure_ascii=False, indent=2))
+        if image_bytes:
+            ext = _normalize_shoe_image_ext(image_ext, image_mime)
+            zf.writestr(f"shoe.{ext}", image_bytes)
     return buf.getvalue()
 
 
@@ -702,6 +742,10 @@ def clear_all_fields():
     st.session_state["appearance_val"] = "eu"
     st.session_state["active_insight"] = ""
     st.session_state["last_export_zip"] = None
+    st.session_state["last_export_shoe"] = None
+    st.session_state["last_export_shoe_ext"] = None
+    st.session_state["last_export_shoe_mime"] = None
+    st.session_state["last_export_shoe_name"] = None
     st.session_state["uploader_key"] = st.session_state.get("uploader_key", 0) + 1
 
 
@@ -760,6 +804,7 @@ def apply_history_entry(entry: dict):
         _sc = int(entry.get("slide_count") or 3)
     except (TypeError, ValueError):
         _sc = 3
+    _hist_img_b, _hist_img_ext, _hist_img_mime = _read_history_shoe_bytes(entry.get("image_path"))
     st.session_state["last_export_zip"] = build_pack_zip_bytes(
         brand=entry.get("brand", "") or "",
         model_name=entry.get("model", "") or "",
@@ -776,10 +821,20 @@ def apply_history_entry(entry: dict):
         youtube_caption=entry.get("youtube_caption", "") or "",
         visual_prompt=entry.get("visual_prompt", "") or "",
         slide_prompts=[s for s in _slides if s],
+        image_bytes=_hist_img_b,
+        image_ext=_hist_img_ext,
+        image_mime=_hist_img_mime,
     )
+    st.session_state["last_export_shoe"] = _hist_img_b
+    st.session_state["last_export_shoe_ext"] = _hist_img_ext
+    st.session_state["last_export_shoe_mime"] = _hist_img_mime
     _bn = (entry.get("brand") or "pack").replace(" ", "_")
     _mn = (entry.get("model") or "export").replace(" ", "_")
     st.session_state["last_export_name"] = f"{_bn}_{_mn}_pack.zip"
+    if _hist_img_b and _hist_img_ext:
+        st.session_state["last_export_shoe_name"] = f"{_bn}_{_mn}_shoe.{_hist_img_ext}"
+    else:
+        st.session_state["last_export_shoe_name"] = None
     st.session_state["uploader_key"] = st.session_state.get("uploader_key", 0) + 1
 
 
@@ -1154,15 +1209,19 @@ def import_pack_bytes(data: bytes, filename: str = "") -> tuple[dict | None, byt
                     "prompts_txt": _read_txt("prompts.txt"),
                 }
                 img_exts = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp"}
+                # Prefer shoe.jpg / shoe.png written by export; else first image in ZIP
+                image_candidates = []
                 for cand in names:
                     low = cand.replace("\\", "/").split("/")[-1].lower()
                     for ext, mt in img_exts.items():
                         if low.endswith(ext) and not low.startswith("."):
-                            image_bytes = zf.read(cand)
-                            mime = mt
+                            image_candidates.append((low.startswith("shoe."), cand, mt))
                             break
-                    if image_bytes:
-                        break
+                image_candidates.sort(key=lambda x: (not x[0], x[1]))
+                if image_candidates:
+                    _, cand, mt = image_candidates[0]
+                    image_bytes = zf.read(cand)
+                    mime = mt
 
                 if not raw and not extras["prompts_txt"] and not extras["captions_meta_raw"]:
                     return None, None, None, "bad"
@@ -1241,6 +1300,10 @@ if "goal_val" not in st.session_state: st.session_state["goal_val"] = "auto"
 if "appearance_val" not in st.session_state: st.session_state["appearance_val"] = "eu"
 if "active_insight" not in st.session_state: st.session_state["active_insight"] = ""
 if "last_export_zip" not in st.session_state: st.session_state["last_export_zip"] = None
+if "last_export_shoe" not in st.session_state: st.session_state["last_export_shoe"] = None
+if "last_export_shoe_ext" not in st.session_state: st.session_state["last_export_shoe_ext"] = None
+if "last_export_shoe_mime" not in st.session_state: st.session_state["last_export_shoe_mime"] = None
+if "last_export_shoe_name" not in st.session_state: st.session_state["last_export_shoe_name"] = None
 if "last_export_name" not in st.session_state: st.session_state["last_export_name"] = "content_pack.zip"
 if "app_mode_val" not in st.session_state: st.session_state["app_mode_val"] = "product"
 if "content_topic_key" not in st.session_state: st.session_state["content_topic_key"] = "tips"
@@ -2026,6 +2089,21 @@ RAW DATA (JSON)
             _zip_visual = ""
             _zip_slides = [p for p in [slide1_prompt, slide2_prompt, slide3_prompt, slide4_prompt, slide5_prompt] if p]
             _zip_sc = int(st.session_state.get("slide_count_val", 3))
+        # Prefer freshly uploaded bytes; else history image file
+        _zip_img_b = img_bytes
+        _zip_img_mime = mime
+        _zip_img_ext = None
+        if _zip_img_b is None:
+            _zip_img_b, _zip_img_ext, _zip_img_mime = _read_history_shoe_bytes(
+                st.session_state.get("history_image_path")
+            )
+        else:
+            if _zip_img_mime and "png" in _zip_img_mime:
+                _zip_img_ext = "png"
+            elif _zip_img_mime and "webp" in _zip_img_mime:
+                _zip_img_ext = "webp"
+            else:
+                _zip_img_ext = "jpg"
         st.session_state["last_export_zip"] = build_pack_zip_bytes(
             brand=brand,
             model_name=model_name,
@@ -2042,15 +2120,21 @@ RAW DATA (JSON)
             youtube_caption=ad_texts.get("youtube_caption", ""),
             visual_prompt=_zip_visual,
             slide_prompts=_zip_slides,
+            image_bytes=_zip_img_b,
+            image_ext=_zip_img_ext,
+            image_mime=_zip_img_mime,
         )
-        st.session_state["last_export_name"] = f"{brand}_{model_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}_pack.zip".replace(" ", "_")
+        _ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        st.session_state["last_export_name"] = f"{brand}_{model_name}_{_ts}_pack.zip".replace(" ", "_")
+        st.session_state["last_export_shoe"] = _zip_img_b
+        st.session_state["last_export_shoe_ext"] = _zip_img_ext
+        st.session_state["last_export_shoe_mime"] = _zip_img_mime
+        if _zip_img_b and _zip_img_ext:
+            st.session_state["last_export_shoe_name"] = f"{brand}_{model_name}_{_ts}_shoe.{_zip_img_ext}".replace(" ", "_")
+        else:
+            st.session_state["last_export_shoe_name"] = None
 
-        st.download_button(
-            label=t("download_label", lang),
-            data=txt_content,
-            file_name=f"{brand}_{model_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
-            mime="text/plain"
-        )
+        # Recommended: ZIP (text + shoe). TXT kept for text-only.
         if st.session_state.get("last_export_zip"):
             st.download_button(
                 label=t("export_zip_label", lang),
@@ -2059,6 +2143,23 @@ RAW DATA (JSON)
                 mime="application/zip",
                 help=t("export_zip_help", lang),
                 key="export_zip_after_gen",
+            )
+        st.download_button(
+            label=t("download_label", lang),
+            data=txt_content,
+            file_name=f"{brand}_{model_name}_{_ts}.txt".replace(" ", "_"),
+            mime="text/plain",
+            help=t("download_txt_help", lang),
+            key="export_txt_after_gen",
+        )
+        if st.session_state.get("last_export_shoe"):
+            st.download_button(
+                label=t("download_shoe_label", lang),
+                data=st.session_state["last_export_shoe"],
+                file_name=st.session_state.get("last_export_shoe_name") or f"shoe.{st.session_state.get('last_export_shoe_ext') or 'jpg'}",
+                mime=st.session_state.get("last_export_shoe_mime") or "image/jpeg",
+                help=t("download_shoe_help", lang),
+                key="export_shoe_after_gen",
             )
 
 
@@ -2137,6 +2238,7 @@ if st.session_state.get("show_loaded_pack"):
             key="hist_yt_ta",
         )
 
+    st.caption(t("download_txt_help", lang))
     if st.session_state.get("last_export_zip"):
         st.download_button(
             label=t("export_zip_label", lang),
@@ -2145,5 +2247,14 @@ if st.session_state.get("show_loaded_pack"):
             mime="application/zip",
             help=t("export_zip_help", lang),
             key="export_zip_from_history",
+        )
+    if st.session_state.get("last_export_shoe"):
+        st.download_button(
+            label=t("download_shoe_label", lang),
+            data=st.session_state["last_export_shoe"],
+            file_name=st.session_state.get("last_export_shoe_name") or f"shoe.{st.session_state.get('last_export_shoe_ext') or 'jpg'}",
+            mime=st.session_state.get("last_export_shoe_mime") or "image/jpeg",
+            help=t("download_shoe_help", lang),
+            key="export_shoe_from_history",
         )
 
