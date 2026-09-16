@@ -426,54 +426,71 @@ def build_carousel_prompts(
     ar_flag,
     appearance_extra="",
 ):
-    """Build 2–5 Nano Banana carousel prompts with a clear story arc."""
+    """Build 2-5 Nano Banana carousel prompts with a clear story arc."""
     _appx = f" {appearance_extra}" if (appearance_extra or "").strip() else ""
+    _no_face = "No identifiable face" in (appearance_extra or "") or "no portrait framing" in (
+        appearance_extra or ""
+    ).lower()
+    brand_lock = (
+        f" Hero footwear must match: {brand} {safe_model_name} {colorway}. "
+        f"Clearly recognizable {brand} footwear, correct model silhouette and typical branding cues "
+        f"— do not substitute Nike/Adidas/generic. Soft trademark-safe: correct brand family "
+        f"silhouette/colors as provided; do not invent a different brand."
+    )
     hook_txt = ad_texts.get("slide1_text", ad_texts.get("hook", ""))
     product_txt = ad_texts.get("slide2_text", ad_texts.get("body", ""))
     cta_txt = ad_texts.get("slide3_text", ad_texts.get("cta", ""))
     body_txt = ad_texts.get("body", "")
 
-    hook = (
-        f"Create an image: Cinematic portrait of {selected_problem}. "
-        f"Natural dramatic studio lighting. High emotion. Bold top text overlay: '{hook_txt}'. "
-        f"{negative_constraint}{_appx} Photorealistic 8k {ar_flag}"
-    )
+    if _no_face:
+        hook = (
+            f"Create an image: Lifestyle footwear/legs scene for {selected_problem}. "
+            f"No face, no portrait framing — crop face out of frame; prioritize shoes, legs, hands, props. "
+            f"Natural dramatic studio lighting. Atmospheric mood. Bold top text overlay: '{hook_txt}'. "
+            f"{negative_constraint}{brand_lock}{_appx} Photorealistic 8k {ar_flag}"
+        )
+    else:
+        hook = (
+            f"Create an image: Cinematic lifestyle scene of {selected_problem}. "
+            f"Natural dramatic studio lighting. High emotion. Bold top text overlay: '{hook_txt}'. "
+            f"{negative_constraint}{brand_lock}{_appx} Photorealistic 8k {ar_flag}"
+        )
     product = (
         f"Create an image: Studio product photography of {brand} {safe_model_name} in {colorway} "
         f"colorway ({key_materials}) placed on a surface in {selected_env}. EDC props: {selected_props}. "
         f"Top-left tag '{selected_tag}', top-right badge '{selected_badge}'. Clean text overlay: '{product_txt}'. "
-        f"{negative_constraint}{_appx} Commercial studio lighting {ar_flag}"
+        f"{negative_constraint}{brand_lock}{_appx} Commercial studio lighting {ar_flag}"
     )
     product_cta = (
         f"Create an image: Studio product photography of {brand} {safe_model_name} in {colorway} "
         f"colorway ({key_materials}) placed on a surface in {selected_env}. EDC props: {selected_props}. "
         f"Top-left tag '{selected_tag}', top-right badge '{selected_badge}'. "
         f"Clean product showcase with soft CTA overlay: '{cta_txt}' and watermark '{custom_watermark}'. "
-        f"{negative_constraint}{_appx} Commercial studio lighting {ar_flag}"
+        f"{negative_constraint}{brand_lock}{_appx} Commercial studio lighting {ar_flag}"
     )
     lifestyle = (
         f"Create an image: Lifestyle environment scene in {selected_env} featuring EDC props: {selected_props}, "
         f"with {brand} {safe_model_name} in {colorway} colorway ({key_materials}) naturally placed in the scene. "
         f"Atmospheric natural light. Subtle text overlay: '{body_txt}'. "
-        f"{negative_constraint}{_appx} Photorealistic lifestyle photography 8k {ar_flag}"
+        f"{negative_constraint}{brand_lock}{_appx} Photorealistic lifestyle photography 8k {ar_flag}"
     )
     specs = (
         f"Create an image: Sleek macro detail close-up photo of the sole and cushioning of "
         f"{brand} {safe_model_name} on {selected_env} background. Highlight materials: {key_materials}. "
         f"Clean overlay text: '{body_txt}'. "
-        f"{negative_constraint}{_appx} Commercial studio lighting {ar_flag}"
+        f"{negative_constraint}{brand_lock}{_appx} Commercial studio lighting {ar_flag}"
     )
     specs_cta = (
         f"Create an image: Sleek macro detail close-up photo of the sole and cushioning of "
         f"{brand} {safe_model_name} on {selected_env} background. Floating bold text '{custom_watermark}' "
         f"and soft CTA: '{cta_txt}'. "
-        f"{negative_constraint}{_appx} Commercial studio lighting {ar_flag}"
+        f"{negative_constraint}{brand_lock}{_appx} Commercial studio lighting {ar_flag}"
     )
     soft_cta = (
         f"Create an image: Clean minimal product still of {brand} {safe_model_name} in {colorway} "
         f"colorway ({key_materials}) on {selected_env} with soft negative space. "
         f"Floating bold watermark '{custom_watermark}' and soft CTA: '{cta_txt}'. "
-        f"{negative_constraint}{_appx} Commercial studio lighting {ar_flag}"
+        f"{negative_constraint}{brand_lock}{_appx} Commercial studio lighting {ar_flag}"
     )
 
     # roles: (role_i18n_key, prompt)
@@ -1252,11 +1269,32 @@ if st.button(
                     if word in ad_texts[key].lower():
                         ad_texts[key] = ad_texts[key].lower().replace(word, "signature pro")
 
-        negative_constraint = " STRICTLY NO text like 'Slide X of Y', NO carousel numbering, NO UI elements, NO page numbers. ONLY the requested overlay text."
+        negative_constraint = (
+            " STRICTLY NO text like 'Slide X of Y', NO carousel numbering, NO carousel dots, "
+            "NO LEARN MORE buttons, NO app UI chrome, NO page numbers. "
+            "Do NOT invent badges/seals like OFFICIAL SELECTION / BESTSELLER / SNEAKERNESS "
+            "unless that exact text is requested in this prompt. "
+            "Do NOT auto-brand SNEAKERNESS.EU or sneakerness on the image unless the watermark "
+            "field in this prompt explicitly includes it — prefer product brand footwear only "
+            "plus watermark exactly as provided. "
+            "Overlay text must match the scene (work-shift / long-shifts wording only for "
+            "standing/work scenes; never on a running curb scene). "
+            "ONLY the requested overlay text."
+        )
         _appearance_extra = appearance_clause(st.session_state.get("appearance_val", "eu"))
+        _brand_lock = (
+            f" Hero footwear must match: {brand} {safe_model_name} {colorway}. "
+            f"Clearly recognizable {brand} footwear, correct model silhouette and typical "
+            f"branding cues — do not substitute Nike/Adidas/generic. Soft trademark-safe: "
+            f"correct brand family silhouette/colors as provided; do not invent a different brand."
+        )
 
         if ad_format == "Single Layout Ad (1 Εικόνα)":
-            visual_prompt = f"""Create an image: Photorealistic vertical photograph of {brand} {safe_model_name} in {colorway} colorway ({key_materials}) placed on a smooth surface in the foreground, accompanied by {selected_props}. In the soft-focus upper background, {selected_problem}. Natural depth of field and continuous studio lighting. Render a top-left fabric tag reading '{selected_tag}' and a top-right badge reading '{selected_badge}'. Display headline text overlay '{ad_texts['hook']}', body text overlay '{ad_texts['body']}', and bottom watermark '{custom_watermark}' with soft CTA '{ad_texts['cta']}'. {negative_constraint}{(' ' + _appearance_extra) if _appearance_extra else ''} Photorealistic 8k, seamless single canvas {ar_flag}"""
+            _no_face = "No identifiable face" in (_appearance_extra or "")
+            if _no_face:
+                visual_prompt = f"""Create an image: Photorealistic lifestyle/product photograph prioritizing footwear of {brand} {safe_model_name} in {colorway} colorway ({key_materials}) on a smooth surface in the foreground with {selected_props}. Soft-focus upper background suggests {selected_problem} without showing an identifiable face (crop above waist / face out of frame; shoes, legs, hands, props only). Natural depth of field and continuous studio lighting. Render a top-left fabric tag reading '{selected_tag}' and a top-right badge reading '{selected_badge}'. Display headline text overlay '{ad_texts['hook']}', body text overlay '{ad_texts['body']}', and bottom watermark '{custom_watermark}' with soft CTA '{ad_texts['cta']}'. {negative_constraint}{_brand_lock}{(' ' + _appearance_extra) if _appearance_extra else ''} Photorealistic 8k, seamless single canvas {ar_flag}"""
+            else:
+                visual_prompt = f"""Create an image: Photorealistic vertical photograph of {brand} {safe_model_name} in {colorway} colorway ({key_materials}) placed on a smooth surface in the foreground, accompanied by {selected_props}. In the soft-focus upper background, {selected_problem}. Natural depth of field and continuous studio lighting. Render a top-left fabric tag reading '{selected_tag}' and a top-right badge reading '{selected_badge}'. Display headline text overlay '{ad_texts['hook']}', body text overlay '{ad_texts['body']}', and bottom watermark '{custom_watermark}' with soft CTA '{ad_texts['cta']}'. {negative_constraint}{_brand_lock}{(' ' + _appearance_extra) if _appearance_extra else ''} Photorealistic 8k, seamless single canvas {ar_flag}"""
 
             st.markdown(t("prompt_single", lang))
             st.code(visual_prompt, language="text")

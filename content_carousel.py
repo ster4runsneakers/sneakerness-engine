@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import time
 from datetime import datetime
 from pathlib import Path
@@ -77,20 +78,24 @@ _FIXED_WEEKLY_EL = [
 
 APPEARANCE_KEYS = ["auto", "eu", "diverse", "no_face"]
 
-# English clauses injected into image prompts (Gemini/Grok). Soft creative control only.
+# English clauses injected into image prompts (Gemini/Grok).
 APPEARANCE_CLAUSES = {
     "auto": "",
     "eu": (
-        "person appearance: light-to-olive Mediterranean/European adult, natural look; "
-        "do not default to unrelated ethnicity"
+        "If a person body is visible (legs/torso from the waist down or partial figure only): "
+        "person appearance light-to-olive Mediterranean/European adult, natural look; "
+        "do not default to unrelated ethnicity. If no person body is shown, ignore skin/ethnicity language."
     ),
     "diverse": (
-        "person appearance: naturally diverse adults appropriate to everyday EU street/"
-        "footwear content; vary across slides; avoid stereotypes"
+        "If a person body is visible (legs/torso from the waist down or partial figure only): "
+        "person appearance naturally diverse adults appropriate to everyday EU street/"
+        "footwear content; vary across slides; avoid stereotypes. "
+        "If no person body is shown, ignore skin/ethnicity language."
     ),
     "no_face": (
-        "prefer no identifiable face (or face out of frame / cropped); "
-        "focus on shoes, legs, hands, lifestyle props"
+        "CRITICAL: No identifiable face, no portrait framing. Crop above waist or face fully "
+        "out of frame. Composition must prioritize footwear/legs/hands/props only. "
+        "Do NOT describe facial features or head-and-shoulders portrait."
     ),
 }
 
@@ -101,19 +106,45 @@ def appearance_clause(key: str) -> str:
     return APPEARANCE_CLAUSES.get(k, "")
 
 
+def _sanitize_no_face_prompt(prompt: str) -> str:
+    """Rewrite common portrait/face framing so models do not ignore a trailing no_face clause."""
+    if not prompt:
+        return prompt or ""
+    out = prompt
+    replacements = [
+        (r"\bCinematic portrait of\b", "Lifestyle footwear/legs scene of"),
+        (r"\bcinematic portrait of\b", "lifestyle footwear/legs scene of"),
+        (r"\bportrait of a\b", "lifestyle scene of a"),
+        (r"\bPortrait of a\b", "Lifestyle scene of a"),
+        (r"\bhead-and-shoulders\b", "waist-down crop"),
+        (r"\bheadshot\b", "product/lifestyle frame"),
+        (r"\bface close-up\b", "footwear close-up"),
+        (r"\blooking at (the )?camera\b", "out of frame"),
+        (r"\bclose-up (of )?(a )?face\b", "close-up of footwear"),
+    ]
+    for pat, repl in replacements:
+        out = re.sub(pat, repl, out, flags=re.IGNORECASE)
+    return out
+
+
 def append_appearance_clause(prompt: str, appearance: str = "auto") -> str:
     """Append appearance clause to an image prompt; insert before trailing --ar flag."""
-    clause = appearance_clause(appearance)
-    if not clause or not (prompt or "").strip():
+    key = (appearance or "auto").strip().lower()
+    clause = appearance_clause(key)
+    if not (prompt or "").strip():
         return prompt or ""
-    if clause in prompt:
-        return prompt
-    import re
-
-    m = re.search(r"(\s*--ar\s+\S+)\s*$", prompt)
+    out = prompt
+    if key == "no_face":
+        out = _sanitize_no_face_prompt(out)
+    if not clause:
+        return out
+    if clause in out:
+        return out
+    m = re.search(r"(\s*--ar\s+\S+)\s*$", out)
     if m:
-        return (prompt[: m.start()].rstrip() + " " + clause + m.group(1)).strip()
-    return (prompt.rstrip() + " " + clause).strip()
+        return (out[: m.start()].rstrip() + " " + clause + m.group(1)).strip()
+    return (out.rstrip() + " " + clause).strip()
+
 
 
 def topic_label(key: str, lang: str = "el") -> str:
@@ -363,12 +394,21 @@ def generate_content_carousel(
     _appearance_clause = appearance_clause(_appearance_key)
     appearance_block = ""
     if _appearance_clause:
-        appearance_block = (
-            "\nPERSON / MODEL APPEARANCE (apply to EVERY slide image_prompt; soft creative "
-            "control for brand consistency across Gemini/Grok — professional, non-stereotyped):\n"
-            f"{_appearance_clause}\n"
-            "Include this guidance naturally in each image_prompt (English).\n"
-        )
+        if _appearance_key == "no_face":
+            appearance_block = (
+                "\nHARD APPEARANCE CONSTRAINT (apply to EVERY slide image_prompt):\n"
+                f"{_appearance_clause}\n"
+                "WRITE each image_prompt WITHOUT words like: portrait, face close-up, looking at camera, "
+                "headshot, head-and-shoulders, facial features, smiling face. "
+                "Use lifestyle/product framing instead: footwear, legs, hands, props, environments.\n"
+            )
+        else:
+            appearance_block = (
+                "\nPERSON / MODEL APPEARANCE (apply ONLY if a person body is visible from the legs/"
+                "waist; soft creative control for brand consistency; do not force a face into frame):\n"
+                f"{_appearance_clause}\n"
+                "Include this guidance naturally in each image_prompt (English).\n"
+            )
 
     models_to_try = models or ["gemini-3.6-flash", "gemini-2.5-flash"]
 
@@ -394,7 +434,14 @@ def generate_content_carousel(
         "what that slide's image_prompt depicts; the body must state the practical usefulness "
         "of that visual (what the viewer learns and why the tip helps). "
         "When a person/model appearance guidance is provided in the user prompt, reflect it "
-        "consistently in every image_prompt."
+        "consistently in every image_prompt. "
+        "HARD IMAGE RULES for every image_prompt: NEVER render Slide X of Y, LEARN MORE buttons, "
+        "carousel dots, app UI chrome, or invented badges/seals (OFFICIAL SELECTION, BESTSELLER, "
+        "SNEAKERNESS) unless the user prompt explicitly requests that exact text. "
+        "NEVER auto-brand SNEAKERNESS.EU / sneakerness on the image unless an explicit watermark/"
+        "domain string is provided in the prompt — prefer product/scene only. "
+        "Overlay text must match the scene (work-shift wording only for standing/work scenes). "
+        "If no_face: never write portrait/face/headshot language; prioritize shoes/legs/hands/props."
     )
 
     script_prompt = f"""Create an educational Instagram/TikTok CONTENT CAROUSEL (not a product ad) about:
@@ -414,8 +461,11 @@ CRITICAL CONSTRAINTS:
    Encode usefulness IN the body (do not invent extra JSON fields).
 6. Each slide needs short on-screen title + short body (readable on phone).
 7. Each slide needs an image generation prompt in Nano Banana / Midjourney style: soft-discovery aesthetic, photorealistic or clean editorial, calm lighting, no hard-sell product packaging UI, no celebrity faces.
-8. Optional short on-image overlay: image_prompt MAY include the SAME short title (or a 2-5 word overlay matching the title) as clean typography on the image. Prefer soft-discovery aesthetic. Keep NO "Slide X of Y", NO carousel numbering, NO UI chrome, NO hard sell.
+8. Optional short on-image overlay: image_prompt MAY include the SAME short title (or a 2-5 word overlay matching the title) as clean typography on the image. Prefer soft-discovery aesthetic. Keep NO "Slide X of Y", NO carousel numbering, NO carousel dots, NO LEARN MORE buttons, NO app UI chrome, NO invented OFFICIAL/BESTSELLER/SNEAKERNESS seals, NO hard sell.
 9. Append aspect flag exactly as: {ar_flag} at the end of every image_prompt.
+10. NEVER auto-brand SNEAKERNESS.EU or sneakerness on the image unless an explicit watermark/domain is provided in this prompt — prefer product/scene framing only.
+11. Overlay text must match the depicted scene (do not put work-shift / "long shifts" wording on a running curb scene; keep work wording only for standing/work scenes).
+12. If HARD APPEARANCE / no_face is active: write image_prompt as lifestyle/product framing with shoes/legs/hands/props — never portrait, face close-up, looking at camera, or headshot language.
 {insight_block}{appearance_block}
 Return strict JSON:
 {{
