@@ -174,7 +174,7 @@ def record_generate(session_state: Any) -> None:
 
 def try_unlock(session_state: Any, code: str) -> bool:
     expected = get_pro_access_code()
-    if (code or "").strip() != expected:
+    if (code or "").strip().upper() != str(expected).strip().upper():
         return False
     session_state["usage_pro"] = True
     device_id = ensure_device_id(session_state)
