@@ -454,9 +454,12 @@ def watermark_image_clause(watermark: str) -> str:
 
     Default: no website / brand-store / SNEAKERNESS.EU text on the image.
     If user provides a domain string: REQUIRED phone-readable bottom-right watermark
-    with that exact text — clearly readable on a phone without zoom (~3–5% of image
+    rendered EXACTLY ONCE with that exact user string only — no tiny/micro duplicate,
+    no shortened copy (e.g. do not also add "sneakerness" when user typed sneakerness.eu),
+    no extra corner mark. Clearly readable on a phone without zoom (~3–5% of image
     height, clean sans-serif, good contrast; subtle dark/light shadow OK), ~2–3% margin
     from edges — not a giant headline, not Explore CTA, not dominating the shoe.
+    Overlay/CTA texts must NOT contain website/domain (watermark is the only on-image site text).
     Captions (meta/tiktok/pinterest/youtube) must include the domain when set.
     """
     w = (watermark or "").strip()
@@ -466,11 +469,15 @@ def watermark_image_clause(watermark: str) -> str:
             "text on the image."
         )
     return (
-        f" REQUIRED: render exact watermark text '{w}' as clearly phone-readable text "
-        f"in the bottom-right corner (~3–5% of image height, clean sans-serif, good "
-        f"contrast; subtle dark/light shadow OK), leaving ~2–3% margin from the edges — "
-        f"must be readable on a phone without zoom; no other site URLs, no Explore CTA "
-        f"on image, not a giant headline, not dominating the shoe."
+        f" REQUIRED: render watermark EXACTLY ONCE — exact user string '{w}' only "
+        f"(do not also add a shortened/brand-name copy such as 'sneakerness' if the user "
+        f"typed a full domain; ban any second tiny/micro duplicate or extra corner mark) "
+        f"as clearly phone-readable text in the bottom-right corner (~3–5% of image height, "
+        f"clean sans-serif, good contrast; subtle dark/light shadow OK), leaving ~2–3% "
+        f"margin from the edges — must be readable on a phone without zoom; no other site "
+        f"URLs, no Explore CTA on image, not a giant headline, not dominating the shoe. "
+        f"Overlay/CTA texts must NOT contain any website/domain — the watermark is the "
+        f"only on-image site text."
     )
 
 def build_carousel_prompts(
@@ -1879,11 +1886,15 @@ if st.button(
             "Do NOT invent badges/seals like OFFICIAL SELECTION / BESTSELLER / SNEAKERNESS "
             "unless that exact text is requested in this prompt. "
             "By default NO website / brand-store / SNEAKERNESS.EU text on the image. "
-            "If a watermark domain is provided in this prompt: REQUIRED — render that exact "
-            "string as clearly phone-readable text in the bottom-right corner (~3–5% of image "
-            "height, clean sans-serif, good contrast; subtle dark/light shadow OK), leaving "
-            "~2–3% margin from the edges — readable on a phone without zoom; no giant headline, "
-            "not dominating the shoe, no 'Explore… at …' site CTA sentence on the image. "
+            "If a watermark domain is provided in this prompt: REQUIRED — render watermark "
+            "EXACTLY ONCE using that exact user string only (ban any second tiny/micro duplicate, "
+            "shortened copy, or extra corner mark; do not also add \"sneakerness\" when the user "
+            "typed a full domain) as clearly phone-readable text in the bottom-right corner "
+            "(~3–5% of image height, clean sans-serif, good contrast; subtle dark/light shadow OK), "
+            "leaving ~2–3% margin from the edges — readable on a phone without zoom; no giant "
+            "headline, not dominating the shoe, no 'Explore… at …' site CTA sentence on the image. "
+            "Overlay/CTA texts must NOT contain any website/domain — the watermark is the only "
+            "on-image site text. "
             "Overlay text must match the scene: ban work-shift / 'long shifts' overlay wording "
             "when the scene is running / track / curb-after-run; keep shift wording only for "
             "standing/work scenes. "

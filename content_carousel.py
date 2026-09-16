@@ -440,10 +440,14 @@ def generate_content_carousel(
         "carousel dots, app UI chrome, or invented badges/seals (OFFICIAL SELECTION, BESTSELLER, "
         "SNEAKERNESS) unless the user prompt explicitly requests that exact text. "
         "NEVER auto-brand SNEAKERNESS.EU / sneakerness on the image by default. "
-        "If an explicit watermark/domain string is provided: REQUIRED — render that exact "
-        "text as clearly phone-readable bottom-right watermark (~3–5% of image height, clean "
-        "sans-serif, good contrast; subtle dark/light shadow OK), ~2–3% margin from edges — "
-        "readable on a phone without zoom; no giant headline, not dominating the shoe, no Explore CTA on image. "
+        "If an explicit watermark/domain string is provided: REQUIRED — render watermark "
+        "EXACTLY ONCE using that exact user string only (ban any second tiny/micro duplicate, "
+        "shortened copy, or extra corner mark; do not also add \"sneakerness\" when the user "
+        "typed a full domain) as clearly phone-readable bottom-right watermark (~3–5% of image "
+        "height, clean sans-serif, good contrast; subtle dark/light shadow OK), ~2–3% margin "
+        "from edges — readable on a phone without zoom; no giant headline, not dominating the "
+        "shoe, no Explore CTA on image. Overlay/CTA texts must NOT contain any website/domain — "
+        "the watermark is the only on-image site text. "
         "When watermark/domain is provided, MUST include it once naturally in ig/tiktok/pinterest/youtube captions; "
         "do not force site into every image_prompt. "
         "Overlay text must match the scene: ban work-shift / long-shifts wording when the scene "
@@ -470,7 +474,7 @@ CRITICAL CONSTRAINTS:
 7. Each slide needs an image generation prompt in Nano Banana / Midjourney style: soft-discovery aesthetic, photorealistic or clean editorial, calm lighting, no hard-sell product packaging UI, no celebrity faces.
 8. Optional short on-image overlay: image_prompt MAY include the SAME short title (or a 2-5 word overlay matching the title) as clean typography on the image. Prefer soft-discovery aesthetic. Keep NO "Slide X of Y", NO carousel numbering, NO carousel dots, NO LEARN MORE buttons, NO app UI chrome, NO invented OFFICIAL/BESTSELLER/SNEAKERNESS seals, NO hard sell.
 9. Append aspect flag exactly as: {ar_flag} at the end of every image_prompt.
-10. By default NEVER put SNEAKERNESS.EU / sneakerness / any website on the image. If an explicit watermark/domain is provided in this prompt: REQUIRED — render that exact string as clearly phone-readable bottom-right watermark (~3–5% of image height, clean sans-serif, good contrast; subtle dark/light shadow OK), ~2–3% margin from edges — readable on a phone without zoom; no giant headline, not dominating the shoe, no Explore CTA sentence on image. MUST include the domain once naturally in ig/tiktok/pinterest/youtube captions when provided; do not force site into every image_prompt.
+10. By default NEVER put SNEAKERNESS.EU / sneakerness / any website on the image. If an explicit watermark/domain is provided in this prompt: REQUIRED — render watermark EXACTLY ONCE using that exact user string only (ban any second tiny/micro duplicate, shortened copy, or extra corner mark; do not also add "sneakerness" when the user typed a full domain) as clearly phone-readable bottom-right watermark (~3–5% of image height, clean sans-serif, good contrast; subtle dark/light shadow OK), ~2–3% margin from edges — readable on a phone without zoom; no giant headline, not dominating the shoe, no Explore CTA sentence on image. Overlay/CTA texts must NOT contain any website/domain — the watermark is the only on-image site text. MUST include the domain once naturally in ig/tiktok/pinterest/youtube captions when provided; do not force site into every image_prompt.
 11. Overlay text must match the depicted scene (do not put work-shift / "long shifts" wording on a running / track / curb-after-run scene; keep work wording only for standing/work scenes).
 12. If HARD APPEARANCE / no_face is active: crop strictly below the chin; no partial face at frame edge; write image_prompt as lifestyle/product framing with shoes/legs/hands/props - never portrait, face close-up, looking at camera, or headshot language.
 {insight_block}{appearance_block}
