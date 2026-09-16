@@ -874,9 +874,240 @@ def _normalize_import_entry(raw: dict, extras: dict | None = None) -> dict:
     return entry
 
 
+
+def _split_export_sections(text: str) -> dict[str, str]:
+    """Split ===== HEADER ===== blocks into {HEADER_UPPER: body}."""
+    import re
+    text = text or ""
+    parts = re.split(r"(?m)^={3,}\s*\n([^\n]+?)\s*\n={3,}\s*$", text)
+    out: dict[str, str] = {}
+    for i in range(1, len(parts), 2):
+        header = (parts[i] or "").strip().upper()
+        body = (parts[i + 1] if i + 1 < len(parts) else "").strip()
+        if header:
+            out[header] = body
+    return out
+
+
+def _parse_nano_banana_section(body: str) -> dict:
+    """Parse NANO BANANA VISUAL PROMPT body: single prompt or Slide N: blocks."""
+    import re
+    body = (body or "").strip()
+    out = {
+        "visual_prompt": "",
+        "slide1_prompt": "",
+        "slide2_prompt": "",
+        "slide3_prompt": "",
+        "slide4_prompt": "",
+        "slide5_prompt": "",
+    }
+    if not body:
+        return out
+    parts = re.split(r"(?mi)^Slide\s*(\d)\s*:\s*$", body)
+    if len(parts) == 1:
+        out["visual_prompt"] = body
+        return out
+    for i in range(1, len(parts), 2):
+        try:
+            n = int(parts[i])
+        except (TypeError, ValueError):
+            continue
+        slide_body = (parts[i + 1] if i + 1 < len(parts) else "").strip()
+        if 1 <= n <= 5:
+            out[f"slide{n}_prompt"] = slide_body
+    return out
+
+
+def _section_body(sections: dict[str, str], *needles: str) -> str:
+    """Return first section body whose header contains all needles (casefold)."""
+    needles_u = [n.upper() for n in needles]
+    for header, body in sections.items():
+        h = header.upper()
+        if all(n in h for n in needles_u):
+            return body
+    return ""
+
+
+def _parse_content_export_txt(text: str) -> dict | None:
+    """Restore content_result from CONTENT CAROUSEL TXT export."""
+    import re
+    if "CONTENT CAROUSEL" not in (text or "").upper():
+        return None
+    sections = _split_export_sections(text)
+    raw_json = _section_body(sections, "RAW JSON")
+    if not raw_json:
+        for header, body in sections.items():
+            if "RAW" in header.upper() and "JSON" in header.upper():
+                raw_json = body
+                break
+    if raw_json:
+        try:
+            data = json.loads(raw_json)
+            if isinstance(data, dict) and (data.get("slides") or data.get("ig_caption") or data.get("tiktok_caption")):
+                return data
+        except Exception:
+            pass
+
+    slides = []
+    for m in re.finditer(
+        r"(?is)---\s*SLIDE\s*(\d+)\s*---\s*(.*?)(?=---\s*SLIDE\s*\d+\s*---|={3,}|$)",
+        text,
+    ):
+        block = m.group(2) or ""
+        title_m = re.search(r"(?im)^Title:\s*(.*)$", block)
+        body_m = re.search(r"(?im)^Body:\s*(.*)$", block)
+        prompt = ""
+        pm = re.search(r"(?is)Image prompt:\s*(.*?)(?=\n\n|\Z)", block)
+        if pm:
+            prompt = (pm.group(1) or "").strip()
+        slides.append(
+            {
+                "title": (title_m.group(1).strip() if title_m else ""),
+                "body": (body_m.group(1).strip() if body_m else ""),
+                "image_prompt": prompt,
+            }
+        )
+
+    topic_key = ""
+    topic_en = ""
+    tk = re.search(r"(?im)^Topic key:\s*(.*)$", text)
+    te = re.search(r"(?im)^Topic:\s*(.*)$", text)
+    if tk:
+        topic_key = tk.group(1).strip()
+    if te:
+        topic_en = te.group(1).strip()
+
+    result = {
+        "topic_key": topic_key,
+        "topic_en": topic_en,
+        "slides": slides,
+        "slide_count": len(slides) if slides else 0,
+        "ig_caption": _section_body(sections, "INSTAGRAM CAPTION"),
+        "tiktok_caption": _section_body(sections, "TIKTOK CAPTION"),
+        "pinterest_caption": _section_body(sections, "PINTEREST"),
+        "youtube_caption": _section_body(sections, "YOUTUBE"),
+    }
+    if not slides and not any(result.get(k) for k in ("ig_caption", "tiktok_caption", "pinterest_caption", "youtube_caption")):
+        return None
+    return result
+
+
+def _parse_product_export_txt(text: str) -> dict | None:
+    """Parse product pack TXT (NANO BANANA / captions / RAW DATA JSON) into history entry."""
+    sections = _split_export_sections(text)
+    raw: dict = {}
+    raw_body = ""
+    for header, body in sections.items():
+        if "RAW" in header.upper() and "JSON" in header.upper():
+            raw_body = body
+            break
+    if raw_body:
+        try:
+            parsed = json.loads(raw_body)
+            if isinstance(parsed, dict):
+                raw = parsed
+        except Exception:
+            raw = {}
+
+    extras: dict = {}
+    nano = _section_body(sections, "NANO BANANA") or _section_body(sections, "VISUAL PROMPT")
+    if nano:
+        extras.update(_parse_nano_banana_section(nano))
+
+    fb = ""
+    for header, body in sections.items():
+        h = header.upper()
+        if "FACEBOOK" in h or ("INSTAGRAM" in h and "POST" in h):
+            fb = body
+            break
+    if fb:
+        extras["captions_meta_raw"] = fb
+        cap, tags = _split_meta_caption_body(fb)
+        extras["meta_caption"] = cap
+        extras["hashtags_meta"] = tags
+
+    for header, body in sections.items():
+        h = header.upper()
+        if "TIKTOK" in h:
+            extras["tiktok_caption"] = body
+        elif "PINTEREST" in h:
+            extras["pinterest_caption"] = body
+        elif "YOUTUBE" in h:
+            extras["youtube_caption"] = body
+
+    entry = _normalize_import_entry(raw, extras)
+    useful = (
+        entry.get("brand")
+        or entry.get("model")
+        or entry.get("meta_caption")
+        or entry.get("visual_prompt")
+        or any(entry.get(f"slide{i}_prompt") for i in range(1, 6))
+        or entry.get("tiktok_caption")
+        or entry.get("pinterest_caption")
+        or entry.get("youtube_caption")
+        or entry.get("specs")
+    )
+    if not useful:
+        return None
+    return entry
+
+
+def _import_from_export_txt(text: str) -> tuple[dict | None, bytes | None, str | None, str]:
+    """Parse downloaded product/content TXT export into import_pack_bytes result."""
+    import re
+    text = text or ""
+    if "CONTENT CAROUSEL" in text.upper():
+        content = _parse_content_export_txt(text)
+        if content:
+            return (
+                {
+                    "_kind": "content",
+                    "content_result": content,
+                    "content_txt": text,
+                },
+                None,
+                None,
+                "",
+            )
+        extras = {
+            "visual_prompt": "",
+            "slide1_prompt": "",
+            "slide2_prompt": "",
+            "slide3_prompt": "",
+            "slide4_prompt": "",
+            "slide5_prompt": "",
+        }
+        for m in re.finditer(
+            r"(?is)---\s*SLIDE\s*(\d+)\s*---\s*(.*?)(?=---\s*SLIDE\s*\d+\s*---|={3,}|$)",
+            text,
+        ):
+            try:
+                n = int(m.group(1))
+            except (TypeError, ValueError):
+                continue
+            block = m.group(2) or ""
+            pm = re.search(r"(?is)Image prompt:\s*(.*?)(?=\n\n|\Z)", block)
+            if pm and 1 <= n <= 5:
+                extras[f"slide{n}_prompt"] = (pm.group(1) or "").strip()
+        sections = _split_export_sections(text)
+        extras["meta_caption"] = _section_body(sections, "INSTAGRAM CAPTION")
+        extras["tiktok_caption"] = _section_body(sections, "TIKTOK CAPTION")
+        extras["pinterest_caption"] = _section_body(sections, "PINTEREST")
+        extras["youtube_caption"] = _section_body(sections, "YOUTUBE")
+        entry = _normalize_import_entry({}, extras)
+        if any(entry.get(f"slide{i}_prompt") for i in range(1, 6)) or entry.get("meta_caption"):
+            return entry, None, None, ""
+        return None, None, None, "bad"
+
+    entry = _parse_product_export_txt(text)
+    if entry:
+        return entry, None, None, ""
+    return None, None, None, "bad"
+
+
 def import_pack_bytes(data: bytes, filename: str = "") -> tuple[dict | None, bytes | None, str | None, str]:
     """
-    Parse uploaded ZIP or JSON into a history-shaped entry.
+    Parse uploaded ZIP, JSON, or TXT export into a history-shaped entry (or content pack).
     Returns (entry, image_bytes, mime_type, error_message).
     error_message empty on success.
     """
@@ -942,7 +1173,19 @@ def import_pack_bytes(data: bytes, filename: str = "") -> tuple[dict | None, byt
                     return None, None, None, "bad"
                 return entry, image_bytes, mime, ""
         else:
-            raw = json.loads(data.decode("utf-8"))
+            text = data.decode("utf-8", errors="replace")
+            stripped = text.strip()
+            is_txt_name = name.endswith(".txt")
+            looks_export = (
+                "NANO BANANA" in text.upper()
+                or "CONTENT CAROUSEL" in text.upper()
+                or "RAW DATA (JSON)" in text.upper()
+                or "RAW JSON" in text.upper()
+                or text.lstrip().startswith("=====")
+            )
+            if is_txt_name or (looks_export and not stripped.startswith("{") and not stripped.startswith("[")):
+                return _import_from_export_txt(text)
+            raw = json.loads(text)
             if not isinstance(raw, dict):
                 return None, None, None, "bad"
             entry = _normalize_import_entry(raw, {})
@@ -1047,7 +1290,7 @@ with st.sidebar:
     st.markdown("---")
     st.file_uploader(
         t("import_pack_label", lang),
-        type=["zip", "json"],
+        type=["zip", "json", "txt"],
         help=t("import_pack_help", lang),
         key="import_pack_uploader",
     )
@@ -1057,14 +1300,30 @@ with st.sidebar:
         if _err or not _entry:
             st.error(t("import_bad", lang))
         else:
-            # Persist into history for this session/server lifetime; restore image if present
-            try:
-                _saved = add_entry(_entry, image_bytes=_img_b, mime_type=_mime)
-                if _saved.get("image_path"):
-                    _entry["image_path"] = _saved["image_path"]
-            except Exception:
-                pass
-            apply_history_entry(_entry)
+            if _entry.get("_kind") == "content":
+                _cr = _entry.get("content_result") or {}
+                st.session_state["content_result"] = _cr
+                st.session_state["content_txt"] = _entry.get("content_txt") or build_content_txt(_cr)
+                st.session_state["app_mode_val"] = "content"
+                if _cr.get("topic_key"):
+                    st.session_state["content_topic_key"] = _cr.get("topic_key")
+                if _cr.get("topic_en"):
+                    st.session_state["content_topic_override"] = _cr.get("topic_en")
+                try:
+                    _sc = int(_cr.get("slide_count") or len(_cr.get("slides") or []) or 5)
+                except (TypeError, ValueError):
+                    _sc = 5
+                if _sc in (4, 5, 6):
+                    st.session_state["content_slide_count_val"] = _sc
+            else:
+                # Persist into history for this session/server lifetime; restore image if present
+                try:
+                    _saved = add_entry(_entry, image_bytes=_img_b, mime_type=_mime)
+                    if _saved.get("image_path"):
+                        _entry["image_path"] = _saved["image_path"]
+                except Exception:
+                    pass
+                apply_history_entry(_entry)
             st.session_state["_import_pack_done_name"] = getattr(_imp, "name", None)
             st.success(t("import_ok", lang))
             st.rerun()
