@@ -776,6 +776,191 @@ def apply_history_entry(entry: dict):
     st.session_state["last_export_name"] = f"{_bn}_{_mn}_pack.zip"
     st.session_state["uploader_key"] = st.session_state.get("uploader_key", 0) + 1
 
+
+def _parse_prompts_txt(text: str) -> dict:
+    """Split prompts.txt into visual_prompt or slideN_prompt fields."""
+    import re
+    text = (text or "").strip()
+    out = {
+        "visual_prompt": "",
+        "slide1_prompt": "",
+        "slide2_prompt": "",
+        "slide3_prompt": "",
+        "slide4_prompt": "",
+        "slide5_prompt": "",
+    }
+    if not text:
+        return out
+    parts = re.split(r"(?m)^===\s*slide(\d)\s*===\s*$", text)
+    if len(parts) == 1:
+        out["visual_prompt"] = text
+        return out
+    for i in range(1, len(parts), 2):
+        try:
+            n = int(parts[i])
+        except (TypeError, ValueError):
+            continue
+        body = (parts[i + 1] if i + 1 < len(parts) else "").strip()
+        if 1 <= n <= 5:
+            out[f"slide{n}_prompt"] = body
+    return out
+
+
+def _split_meta_caption_body(body: str) -> tuple[str, str]:
+    """captions_meta.txt is caption + blank line + hashtags."""
+    body = (body or "").strip()
+    if not body:
+        return "", ""
+    if "\n\n" in body:
+        cap, tags = body.split("\n\n", 1)
+        return cap.strip(), tags.strip()
+    return body, ""
+
+
+def _normalize_import_entry(raw: dict, extras: dict | None = None) -> dict:
+    """Map meta.json / history JSON (+ optional ZIP text extras) into apply_history_entry shape."""
+    extras = extras or {}
+    entry: dict = {}
+    entry["brand"] = (raw.get("brand") or extras.get("brand") or "").strip()
+    entry["model"] = (raw.get("model") or raw.get("model_name") or extras.get("model") or "").strip()
+    entry["colorway"] = (raw.get("colorway") or extras.get("colorway") or "").strip()
+    entry["specs"] = (raw.get("specs") or extras.get("specs") or "").strip()
+    entry["goal"] = (raw.get("goal") or extras.get("goal") or "auto")
+    entry["lang"] = raw.get("lang") or extras.get("lang") or "el"
+    entry["appearance"] = raw.get("appearance") or extras.get("appearance") or "eu"
+
+    aspect = raw.get("aspect_ratio") or raw.get("aspect") or extras.get("aspect_ratio") or "1:1 (Square)"
+    entry["aspect_ratio"] = aspect
+
+    try:
+        sc = int(raw.get("slide_count") if raw.get("slide_count") is not None else extras.get("slide_count") or 3)
+    except (TypeError, ValueError):
+        sc = 3
+    entry["slide_count"] = sc
+
+    meta_cap = (raw.get("meta_caption") or extras.get("meta_caption") or "").strip()
+    hashtags = (raw.get("hashtags_meta") or extras.get("hashtags_meta") or "").strip()
+    if not meta_cap and extras.get("captions_meta_raw"):
+        meta_cap, parsed_tags = _split_meta_caption_body(extras["captions_meta_raw"])
+        if not hashtags:
+            hashtags = parsed_tags
+    entry["meta_caption"] = meta_cap
+    entry["hashtags_meta"] = hashtags
+    entry["tiktok_caption"] = (raw.get("tiktok_caption") or extras.get("tiktok_caption") or "").strip()
+    entry["pinterest_caption"] = (raw.get("pinterest_caption") or extras.get("pinterest_caption") or "").strip()
+    entry["youtube_caption"] = (raw.get("youtube_caption") or extras.get("youtube_caption") or "").strip()
+
+    for k in ("visual_prompt", "slide1_prompt", "slide2_prompt", "slide3_prompt", "slide4_prompt", "slide5_prompt"):
+        entry[k] = (raw.get(k) or extras.get(k) or "").strip()
+    if not any(entry[k] for k in ("visual_prompt", "slide1_prompt", "slide2_prompt", "slide3_prompt", "slide4_prompt", "slide5_prompt")):
+        if extras.get("prompts_txt"):
+            entry.update(_parse_prompts_txt(extras["prompts_txt"]))
+
+    for k in ("env_desc", "props_desc", "problem_desc", "watermark", "selected_tag", "selected_badge", "ad_format", "image_path"):
+        if raw.get(k) is not None:
+            entry[k] = raw.get(k)
+
+    if not entry.get("ad_format"):
+        has_slides = any(entry.get(f"slide{i}_prompt") for i in range(1, 6))
+        if has_slides or (entry.get("slide_count") or 0) >= 2:
+            entry["ad_format"] = "Carousel Pack (multi-slide)"
+        else:
+            entry["ad_format"] = "Single Layout Ad (1 Εικόνα)"
+
+    if raw.get("id"):
+        entry["id"] = raw["id"]
+    if raw.get("created_at"):
+        entry["created_at"] = raw["created_at"]
+    return entry
+
+
+def import_pack_bytes(data: bytes, filename: str = "") -> tuple[dict | None, bytes | None, str | None, str]:
+    """
+    Parse uploaded ZIP or JSON into a history-shaped entry.
+    Returns (entry, image_bytes, mime_type, error_message).
+    error_message empty on success.
+    """
+    name = (filename or "").lower()
+    image_bytes = None
+    mime = None
+    try:
+        if name.endswith(".zip") or (len(data) >= 2 and data[:2] == b"PK"):
+            with zipfile.ZipFile(io.BytesIO(data), mode="r") as zf:
+                names = zf.namelist()
+                meta_name = None
+                for cand in names:
+                    base = cand.replace("\\", "/").split("/")[-1].lower()
+                    if base == "meta.json":
+                        meta_name = cand
+                        break
+                raw: dict = {}
+                if meta_name:
+                    parsed = json.loads(zf.read(meta_name).decode("utf-8"))
+                    if not isinstance(parsed, dict):
+                        return None, None, None, "bad"
+                    raw = parsed
+
+                def _read_txt(basename: str) -> str:
+                    for cand in names:
+                        if cand.replace("\\", "/").split("/")[-1].lower() == basename.lower():
+                            try:
+                                return zf.read(cand).decode("utf-8", errors="replace")
+                            except Exception:
+                                return ""
+                    return ""
+
+                extras = {
+                    "captions_meta_raw": _read_txt("captions_meta.txt"),
+                    "tiktok_caption": _read_txt("captions_tiktok.txt"),
+                    "pinterest_caption": _read_txt("captions_pinterest.txt"),
+                    "youtube_caption": _read_txt("captions_youtube.txt"),
+                    "prompts_txt": _read_txt("prompts.txt"),
+                }
+                img_exts = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp"}
+                for cand in names:
+                    low = cand.replace("\\", "/").split("/")[-1].lower()
+                    for ext, mt in img_exts.items():
+                        if low.endswith(ext) and not low.startswith("."):
+                            image_bytes = zf.read(cand)
+                            mime = mt
+                            break
+                    if image_bytes:
+                        break
+
+                if not raw and not extras["prompts_txt"] and not extras["captions_meta_raw"]:
+                    return None, None, None, "bad"
+                entry = _normalize_import_entry(raw, extras)
+                useful = (
+                    entry.get("brand")
+                    or entry.get("model")
+                    or entry.get("meta_caption")
+                    or entry.get("visual_prompt")
+                    or any(entry.get(f"slide{i}_prompt") for i in range(1, 6))
+                    or entry.get("specs")
+                )
+                if not useful:
+                    return None, None, None, "bad"
+                return entry, image_bytes, mime, ""
+        else:
+            raw = json.loads(data.decode("utf-8"))
+            if not isinstance(raw, dict):
+                return None, None, None, "bad"
+            entry = _normalize_import_entry(raw, {})
+            useful = (
+                entry.get("brand")
+                or entry.get("model")
+                or entry.get("meta_caption")
+                or entry.get("visual_prompt")
+                or any(entry.get(f"slide{i}_prompt") for i in range(1, 6))
+                or entry.get("specs")
+            )
+            if not useful:
+                return None, None, None, "bad"
+            return entry, None, None, ""
+    except Exception:
+        return None, None, None, "bad"
+
+
 if "brand_val" not in st.session_state: st.session_state["brand_val"] = ""
 if "model_val" not in st.session_state: st.session_state["model_val"] = ""
 if "colorway_val" not in st.session_state: st.session_state["colorway_val"] = ""
@@ -855,6 +1040,35 @@ with st.sidebar:
             if st.button(t("history_delete", lang), use_container_width=True, key="history_delete_btn"):
                 delete_entry(id_by_label[selected_label])
                 st.rerun()
+
+# 3b2. IMPORT PACK FROM PC
+with st.sidebar:
+
+    st.markdown("---")
+    st.file_uploader(
+        t("import_pack_label", lang),
+        type=["zip", "json"],
+        help=t("import_pack_help", lang),
+        key="import_pack_uploader",
+    )
+    _imp = st.session_state.get("import_pack_uploader")
+    if _imp is not None and st.session_state.get("_import_pack_done_name") != getattr(_imp, "name", None):
+        _entry, _img_b, _mime, _err = import_pack_bytes(_imp.getvalue(), getattr(_imp, "name", "") or "")
+        if _err or not _entry:
+            st.error(t("import_bad", lang))
+        else:
+            # Persist into history for this session/server lifetime; restore image if present
+            try:
+                _saved = add_entry(_entry, image_bytes=_img_b, mime_type=_mime)
+                if _saved.get("image_path"):
+                    _entry["image_path"] = _saved["image_path"]
+            except Exception:
+                pass
+            apply_history_entry(_entry)
+            st.session_state["_import_pack_done_name"] = getattr(_imp, "name", None)
+            st.success(t("import_ok", lang))
+            st.rerun()
+
 
 
 # 3c. WEEKLY INSIGHTS (sidebar)
