@@ -127,11 +127,12 @@ if "lang" not in st.session_state:
 
 # Language switcher (sidebar top) — before other UI so lang is ready
 with st.sidebar:
-    _lang_options = ["English", "Ελληνικά"]
-    _lang_codes = {"English": "en", "Ελληνικά": "el"}
-    _code_to_label = {"en": "English", "el": "Ελληνικά"}
+    _EL_LABEL = "\u0395\u03bb\u03bb\u03b7\u03bd\u03b9\u03ba\u03ac"  # Ελληνικά
+    _lang_options = ["English", _EL_LABEL]
+    _lang_codes = {"English": "en", _EL_LABEL: "el"}
+    _code_to_label = {"en": "English", "el": _EL_LABEL}
     _cur = st.session_state.get("lang", "el")
-    _cur_label = _code_to_label.get(_cur, "Ελληνικά")
+    _cur_label = _code_to_label.get(_cur, _EL_LABEL)
     _picked = st.selectbox(
         t("language_label", st.session_state.get("lang", "el")),
         _lang_options,
@@ -508,6 +509,32 @@ _CONTENT_CAPTION_KEYS = (
     "youtube_caption",
 )
 _CONTENT_WIDGET_KEYS = ("c_ig_cap", "c_tt_cap", "c_pin_cap", "c_yt_cap")
+_PRODUCT_CAPTION_WIDGET_BASES = ("hist_meta_ta", "hist_tt_ta", "hist_pin_ta", "hist_yt_ta")
+
+
+def _pop_product_caption_widgets() -> None:
+    """Clear bare + lang-scoped product caption text_area keys (el/en)."""
+    for base in _PRODUCT_CAPTION_WIDGET_BASES:
+        st.session_state.pop(base, None)
+        st.session_state.pop(f"{base}_el", None)
+        st.session_state.pop(f"{base}_en", None)
+
+
+def _pop_content_caption_widgets(n_slides: int | None = None) -> None:
+    """Clear bare + lang-scoped content caption/slide widget keys."""
+    for base in _CONTENT_WIDGET_KEYS:
+        st.session_state.pop(base, None)
+        st.session_state.pop(f"{base}_el", None)
+        st.session_state.pop(f"{base}_en", None)
+    if n_slides is None:
+        cr = st.session_state.get("content_result")
+        n_slides = len((cr or {}).get("slides") or []) if isinstance(cr, dict) else 0
+        n_slides = max(int(n_slides or 0), 8)
+    for i in range(1, int(n_slides) + 1):
+        for base in (f"c_title_{i}", f"c_body_{i}"):
+            st.session_state.pop(base, None)
+            st.session_state.pop(f"{base}_el", None)
+            st.session_state.pop(f"{base}_en", None)
 
 
 def _extract_caption_dict(ad_texts: dict | None) -> dict:
@@ -517,6 +544,38 @@ def _extract_caption_dict(ad_texts: dict | None) -> dict:
 
 def _other_lang(lang: str) -> str:
     return "en" if (lang or "el").strip().lower() == "el" else "el"
+
+
+def _caption_blob(ad_texts: dict | None) -> str:
+    ad_texts = ad_texts or {}
+    parts = []
+    for k in _CAPTION_FIELD_KEYS:
+        parts.append(str(ad_texts.get(k) or ""))
+    return "\n".join(parts)
+
+
+def _greek_letter_ratio(text: str) -> float:
+    """Share of Greek letters (α-ω / Α-Ω) among alphabetic chars."""
+    letters = [c for c in (text or "") if c.isalpha()]
+    if not letters:
+        return 0.0
+    greek = sum(1 for c in letters if ("\u03b1" <= c <= "\u03c9") or ("\u0391" <= c <= "\u03a9"))
+    return greek / len(letters)
+
+
+def _captions_look_wrong_lang(ad_texts: dict | None, expected_lang: str) -> bool:
+    """Heuristic: EN cache Greek-heavy, or EL cache English-only."""
+    blob = _caption_blob(ad_texts)
+    letters = [c for c in blob if c.isalpha()]
+    if len(letters) < 24:
+        return False
+    ratio = _greek_letter_ratio(blob)
+    expected = (expected_lang or "el").strip().lower()
+    if expected == "en":
+        return ratio > 0.3
+    if expected == "el":
+        return ratio < 0.05
+    return False
 
 
 def apply_captions_for_lang(lang: str) -> bool:
@@ -530,8 +589,7 @@ def apply_captions_for_lang(lang: str) -> bool:
     for k in _CAPTION_FIELD_KEYS:
         st.session_state[f"loaded_{k}"] = cache.get(k, "") or ""
     st.session_state["results_lang"] = lang
-    for _wk in ("hist_meta_ta", "hist_tt_ta", "hist_pin_ta", "hist_yt_ta"):
-        st.session_state.pop(_wk, None)
+    _pop_product_caption_widgets()
     return True
 
 
@@ -574,7 +632,38 @@ def ensure_product_captions_for_lang(lang: str, *, allow_regenerate: bool = True
             insight_context=insight,
         )
     store_product_caption_side(lang, ad_texts)
+    if _captions_look_wrong_lang(ad_texts, lang):
+        ad_texts = safe_generate_ad_copy(
+            brand,
+            model,
+            colorway,
+            specs,
+            watermark,
+            lang=lang,
+            goal=goal,
+            insight_context=insight,
+        )
+        store_product_caption_side(lang, ad_texts)
     return apply_captions_for_lang(lang)
+
+
+def repair_product_caption_side_if_bad(lang: str, *, brand, model_name, colorway, key_materials, custom_watermark, goal, insight_context) -> None:
+    """If cached captions for lang look wrong-language, regenerate that side once silently."""
+    lang = (lang or "el").strip().lower()
+    if lang not in ("el", "en"):
+        lang = "el"
+    cache = st.session_state.get(f"captions_{lang}")
+    if not isinstance(cache, dict):
+        return
+    if not _captions_look_wrong_lang(cache, lang):
+        return
+    ad_texts = safe_generate_ad_copy(
+        brand, model_name, colorway, key_materials, custom_watermark,
+        lang=lang,
+        goal=goal,
+        insight_context=insight_context,
+    )
+    store_product_caption_side(lang, ad_texts)
 
 
 def _extract_content_captions(result: dict | None) -> dict:
@@ -634,12 +723,7 @@ def apply_content_for_lang(lang: str) -> bool:
     cr["lang"] = lang
     st.session_state["content_result"] = cr
     st.session_state["content_results_lang"] = lang
-    for _wk in _CONTENT_WIDGET_KEYS:
-        st.session_state.pop(_wk, None)
-    n = len(cr.get("slides") or [])
-    for i in range(1, n + 1):
-        st.session_state.pop(f"c_title_{i}", None)
-        st.session_state.pop(f"c_body_{i}", None)
+    _pop_content_caption_widgets(n_slides=len(cr.get("slides") or []))
     try:
         st.session_state["content_txt"] = build_content_txt(cr)
         st.session_state["content_zip"] = build_content_zip_bytes(
@@ -1827,8 +1911,7 @@ def apply_history_entry(entry: dict):
     st.session_state["last_export_txt"] = None
     st.session_state["last_export_txt_name"] = None
     st.session_state["last_export_path"] = None
-    for _wk in ("hist_meta_ta", "hist_tt_ta", "hist_pin_ta", "hist_yt_ta"):
-        st.session_state.pop(_wk, None)
+    _pop_product_caption_widgets()
     st.session_state["uploader_key"] = st.session_state.get("uploader_key", 0) + 1
 
 
@@ -2298,6 +2381,8 @@ if st.session_state.pop("_lang_switch_pending", False):
         ensure_product_captions_for_lang(_ui_lang)
     if isinstance(st.session_state.get("content_result"), dict):
         ensure_content_for_lang(_ui_lang)
+    st.session_state["caption_ui_epoch"] = int(st.session_state.get("caption_ui_epoch") or 0) + 1
+    st.rerun()
 if "uploader_key" not in st.session_state: st.session_state["uploader_key"] = 0
 if "watermark_val" not in st.session_state: st.session_state["watermark_val"] = ""
 if "selected_tag_val" not in st.session_state: st.session_state["selected_tag_val"] = AUTHENTICITY_TAGS[0]
@@ -2708,13 +2793,19 @@ if app_mode == "content":
             pass
         st.info(t("content_saved_info", lang, path=_out))
 
+    if isinstance(st.session_state.get("content_result"), dict):
+        ensure_content_for_lang(lang, allow_regenerate=True)
     _cr = st.session_state.get("content_result")
     if _cr:
         st.markdown(t("content_results_title", lang))
         for _i, _slide in enumerate(_cr.get("slides") or [], start=1):
             st.write(t("content_slide_heading", lang, n=_i))
-            st.text_input(t("content_title_label", lang), value=_slide.get("title", ""), key=f"c_title_{_i}", disabled=False)
-            st.text_area(t("content_body_label", lang), value=_slide.get("body", ""), height=80, key=f"c_body_{_i}")
+            _tk = f"c_title_{_i}_{lang}"
+            _bk = f"c_body_{_i}_{lang}"
+            st.session_state[_tk] = _slide.get("title", "") or ""
+            st.session_state[_bk] = _slide.get("body", "") or ""
+            st.text_input(t("content_title_label", lang), key=_tk, disabled=False)
+            st.text_area(t("content_body_label", lang), height=80, key=_bk)
             st.caption(t("content_prompt_label", lang))
             st.code(_slide.get("image_prompt", ""), language="text")
         st.markdown(t("content_captions_section", lang))
@@ -2726,13 +2817,21 @@ if app_mode == "content":
             t("tab_video", lang, lang_name=t("lang_name", lang)),
         ])
         with _c_tabs[0]:
-            st.text_area(t("content_ig_label", lang), value=_cr.get("ig_caption", ""), height=140, key="c_ig_cap")
+            _k = f"c_ig_cap_{lang}"
+            st.session_state[_k] = _cr.get("ig_caption", "") or ""
+            st.text_area(t("content_ig_label", lang), height=140, key=_k)
         with _c_tabs[1]:
-            st.text_area(t("content_tiktok_label", lang), value=_cr.get("tiktok_caption", ""), height=100, key="c_tt_cap")
+            _k = f"c_tt_cap_{lang}"
+            st.session_state[_k] = _cr.get("tiktok_caption", "") or ""
+            st.text_area(t("content_tiktok_label", lang), height=100, key=_k)
         with _c_tabs[2]:
-            st.text_area(t("content_pinterest_label", lang), value=_cr.get("pinterest_caption", ""), height=140, key="c_pin_cap")
+            _k = f"c_pin_cap_{lang}"
+            st.session_state[_k] = _cr.get("pinterest_caption", "") or ""
+            st.text_area(t("content_pinterest_label", lang), height=140, key=_k)
         with _c_tabs[3]:
-            st.text_area(t("content_youtube_label", lang), value=_cr.get("youtube_caption", ""), height=120, key="c_yt_cap")
+            _k = f"c_yt_cap_{lang}"
+            st.session_state[_k] = _cr.get("youtube_caption", "") or ""
+            st.text_area(t("content_youtube_label", lang), height=120, key=_k)
         with _c_tabs[4]:
             _cvb = _cr.get("video_beats") or st.session_state.get("content_video_beats")
             if not (isinstance(_cvb, dict) and _cvb.get("beats")):
@@ -3069,6 +3168,26 @@ if st.button(
             store_product_caption_side(_cap_other_lang, ad_texts_other)
         except Exception:
             pass
+        repair_product_caption_side_if_bad(
+            lang,
+            brand=brand,
+            model_name=model_name,
+            colorway=colorway,
+            key_materials=key_materials,
+            custom_watermark=custom_watermark,
+            goal=_effective_goal,
+            insight_context=st.session_state.get("active_insight", "") or "",
+        )
+        repair_product_caption_side_if_bad(
+            _cap_other_lang,
+            brand=brand,
+            model_name=model_name,
+            colorway=colorway,
+            key_materials=key_materials,
+            custom_watermark=custom_watermark,
+            goal=_effective_goal,
+            insight_context=st.session_state.get("active_insight", "") or "",
+        )
         apply_captions_for_lang(lang)
 
         _wm_clean = (custom_watermark or "").strip()
@@ -3346,14 +3465,14 @@ RAW DATA (JSON)
         st.session_state["last_export_txt_name"] = f"{brand}_{model_name}_{_ts}.txt".replace(" ", "_")
         st.session_state["last_export_path"] = file_path
         # Reset persistent results widgets so new captions show after regenerate
-        for _wk in ("hist_meta_ta", "hist_tt_ta", "hist_pin_ta", "hist_yt_ta"):
-            st.session_state.pop(_wk, None)
+        _pop_product_caption_widgets()
         st.session_state["show_loaded_pack"] = True
         st.rerun()
 
 
 # Persistent results (generate / history / import) — survives download-button reruns
 if st.session_state.get("show_loaded_pack"):
+    ensure_product_captions_for_lang(lang, allow_regenerate=True)
     st.markdown("---")
     st.markdown(t("results_section", lang))
     if st.session_state.get("loaded_visual_prompt"):
@@ -3400,32 +3519,36 @@ if st.session_state.get("show_loaded_pack"):
             f"{st.session_state.get('loaded_meta_caption', '')}\n\n"
             f"{st.session_state.get('loaded_hashtags_meta', '')}"
         ).strip()
+        _k = f"hist_meta_ta_{lang}"
+        st.session_state[_k] = meta_loaded
         st.text_area(
             t("caption_meta_label", lang, lang_name=t("lang_name", lang)),
-            value=meta_loaded,
             height=180,
-            key="hist_meta_ta",
+            key=_k,
         )
     with tab_h2:
+        _k = f"hist_tt_ta_{lang}"
+        st.session_state[_k] = st.session_state.get("loaded_tiktok_caption", "") or ""
         st.text_area(
             t("caption_tiktok_label", lang, lang_name=t("lang_name", lang)),
-            value=st.session_state.get("loaded_tiktok_caption", ""),
             height=120,
-            key="hist_tt_ta",
+            key=_k,
         )
     with tab_h3:
+        _k = f"hist_pin_ta_{lang}"
+        st.session_state[_k] = st.session_state.get("loaded_pinterest_caption", "") or ""
         st.text_area(
             t("caption_pinterest_label", lang, lang_name=t("lang_name", lang)),
-            value=st.session_state.get("loaded_pinterest_caption", ""),
             height=180,
-            key="hist_pin_ta",
+            key=_k,
         )
     with tab_h4:
+        _k = f"hist_yt_ta_{lang}"
+        st.session_state[_k] = st.session_state.get("loaded_youtube_caption", "") or ""
         st.text_area(
             t("caption_youtube_label", lang, lang_name=t("lang_name", lang)),
-            value=st.session_state.get("loaded_youtube_caption", ""),
             height=160,
-            key="hist_yt_ta",
+            key=_k,
         )
     with tab_h5:
         _hv = st.session_state.get("loaded_video_beats")
