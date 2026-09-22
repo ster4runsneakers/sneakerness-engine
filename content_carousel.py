@@ -724,6 +724,17 @@ def build_content_txt(result: dict[str, Any]) -> str:
                 lines.append(f"--- BEAT {b.get('index')} ---")
                 lines.append(b.get("prompt_en") or "")
                 lines.append("")
+    vu = result.get("video_unified")
+    if isinstance(vu, dict) and vu.get("prompt_en"):
+        lines.append("========================================")
+        lines.append("GROK VIDEO UNIFIED (EN)")
+        lines.append("========================================")
+        try:
+            from video_prompts import format_unified_video_txt
+            lines.append(format_unified_video_txt(vu, topic=result.get("topic_en") or ""))
+        except Exception:
+            lines.append(vu.get("prompt_en") or "")
+            lines.append("")
     lines.append("========================================")
     lines.append("RAW JSON")
     lines.append("========================================")
@@ -765,6 +776,18 @@ def build_content_zip_bytes(result: dict[str, Any], *, aspect_ratio: str = "") -
             meta_vb = vb
         else:
             meta_vb = None
+        vu = result.get("video_unified")
+        meta_vu = None
+        if isinstance(vu, dict) and vu.get("prompt_en"):
+            try:
+                from video_prompts import format_unified_video_txt
+                zf.writestr(
+                    "video_unified.txt",
+                    format_unified_video_txt(vu, topic=result.get("topic_en") or ""),
+                )
+            except Exception:
+                pass
+            meta_vu = vu
         meta = {
             "type": "content",
             "topic_key": result.get("topic_key"),
@@ -775,5 +798,7 @@ def build_content_zip_bytes(result: dict[str, Any], *, aspect_ratio: str = "") -
         }
         if meta_vb:
             meta["video_beats"] = meta_vb
+        if meta_vu:
+            meta["video_unified"] = meta_vu
         zf.writestr("meta.json", json.dumps(meta, ensure_ascii=False, indent=2))
     return buf.getvalue()

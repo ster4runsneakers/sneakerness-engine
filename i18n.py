@@ -178,7 +178,7 @@ STRINGS = {
 
 
         "tab_video": "Video / Grok ({lang_name})",
-        "video_section_help": "Paste-ready Grok Video beats (English). Beat 1 = Generate, Beat 2+ = Extend. Summaries below follow UI language.",
+        "video_section_help": "Default: one unified Grok Video prompt (~16s). Optional: Beats (Generate + Extend). English prompts; summaries follow UI language.",
         "video_beat_label": "Beat {n} — {role}",
         "video_howto": "{howto}",
         "video_download": "Download video prompts (.txt)",
@@ -196,6 +196,23 @@ STRINGS = {
         "video_role_specs_cta": "Macro + end",
         "video_role_cta": "Calm hold / CTA",
         "video_role_content": "Story beat",
+
+
+        "video_mode_label": "Video prompt mode",
+        "video_mode_unified": "Unified video prompt",
+        "video_mode_beats": "Beats (Generate + Extend)",
+        "video_unified_help": "One English prompt for a single Grok Video Generate (~16s, 9:16). Upload carousel photos in order, or build from existing slide prompts.",
+        "video_unified_upload_caption": "Upload carousel photos in order (1→N).",
+        "video_unified_upload_label": "Carousel slides (2–5 images)",
+        "video_unified_generate": "Generate unified video prompt",
+        "video_unified_from_slides": "Build unified from slide prompts",
+        "video_unified_summary_label": "How to use:",
+        "video_unified_prompt_label": "English unified prompt (paste once into Grok Video):",
+        "video_unified_download": "Download unified video prompt (.txt)",
+        "video_unified_need_images": "Upload 2–5 images, or use “Build unified from slide prompts”.",
+        "video_unified_need_slides": "No slide prompts in session yet — generate a carousel first, or upload photos.",
+        "video_unified_vision_note": "Optional: slide descriptions from vision (does not use Free/Pro image-generate quota).",
+        "video_unified_ready": "Unified prompt ready ({n} slides, source: {source}).",
 
         "save_where_help": "Also saved under the app folder: output/ (txt) and History in the sidebar. On Streamlit Cloud, download the ZIP/TXT — cloud disk is temporary.",
     },
@@ -371,7 +388,7 @@ STRINGS = {
 
 
         "tab_video": "Video / Grok ({lang_name})",
-        "video_section_help": "Έτοιμα beats για Grok Video (Αγγλικά για επικόλληση). Beat 1 = Generate, Beat 2+ = Extend. Οι περίληψεις ακολουθούν τη γλώσσα UI.",
+        "video_section_help": "Προεπιλογή: ένα ενιαίο Grok Video prompt (~16s). Προαιρετικά: Beats (Generate + Extend). Αγγλικά prompts· οι περίληψεις ακολουθούν τη γλώσσα UI.",
         "video_beat_label": "Beat {n} — {role}",
         "video_howto": "{howto}",
         "video_download": "Λήψη video prompts (.txt)",
@@ -389,6 +406,23 @@ STRINGS = {
         "video_role_specs_cta": "Macro + τέλος",
         "video_role_cta": "Ήρεμο κράτημα / CTA",
         "video_role_content": "Story beat",
+
+
+        "video_mode_label": "Λειτουργία video prompt",
+        "video_mode_unified": "Ενιαίο video prompt",
+        "video_mode_beats": "Beats (Generate + Extend)",
+        "video_unified_help": "Ένα αγγλικό prompt για ένα Generate στο Grok Video (~16s, 9:16). Ανέβασε φωτό καρουζέλ με τη σειρά, ή φτιάξε από τα υπάρχοντα slide prompts.",
+        "video_unified_upload_caption": "Ανέβασε τις φωτο του καρουζέλ με τη σειρά (1→N).",
+        "video_unified_upload_label": "Slides καρουζέλ (2–5 εικόνες)",
+        "video_unified_generate": "Δημιούργησε ενιαίο video prompt",
+        "video_unified_from_slides": "Φτιάξε ενιαίο από τα slide prompts",
+        "video_unified_summary_label": "Πώς να το χρησιμοποιήσεις:",
+        "video_unified_prompt_label": "Ενιαίο αγγλικό prompt (επικόλληση μία φορά στο Grok Video):",
+        "video_unified_download": "Λήψη ενιαίου video prompt (.txt)",
+        "video_unified_need_images": "Ανέβασε 2–5 εικόνες, ή πάτα «Φτιάξε ενιαίο από τα slide prompts».",
+        "video_unified_need_slides": "Δεν υπάρχουν ακόμα slide prompts — κάνε generate καρουζέλ πρώτα, ή ανέβασε φωτό.",
+        "video_unified_vision_note": "Προαιρετικά: περιγραφές slides από vision (δεν μετράει στο Free/Pro image-generate quota).",
+        "video_unified_ready": "Έτοιμο ενιαίο prompt ({n} slides, πηγή: {source}).",
 
         "save_where_help": "Αποθήκευση και στον φάκελο της εφαρμογής: output/ (txt) και Ιστορικό στο sidebar. Στο Streamlit Cloud κατέβασε ZIP/TXT — ο δίσκος εκεί είναι προσωρινός.",
     },

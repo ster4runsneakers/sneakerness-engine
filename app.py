@@ -34,7 +34,13 @@ from content_carousel import (
     build_content_zip_bytes,
 )
 import video_prompts
-from video_prompts import build_grok_video_beats, format_video_prompts_txt, ensure_video_beats
+from video_prompts import (
+    build_grok_video_beats,
+    build_unified_grok_video_prompt,
+    format_video_prompts_txt,
+    format_unified_video_txt,
+    ensure_video_beats,
+)
 
 st.set_page_config(page_title="Sneaker Image Studio", page_icon="👟", layout="centered")
 
@@ -1538,6 +1544,8 @@ def build_pack_zip_bytes(
     image_mime: str | None = None,
     video_prompts_txt: str = "",
     video_beats: dict | None = None,
+    video_unified: dict | None = None,
+    video_unified_txt: str = "",
 ) -> bytes:
     """Build an in-memory ZIP export pack (stdlib only). Includes shoe.* when image_bytes set."""
     slide_prompts = slide_prompts or []
@@ -1555,6 +1563,17 @@ def build_pack_zip_bytes(
             )
         if _vtxt:
             zf.writestr("video_prompts.txt", _vtxt)
+        _utxt = (video_unified_txt or "").strip()
+        if not _utxt and video_unified and isinstance(video_unified, dict) and video_unified.get("prompt_en"):
+            _utxt = format_unified_video_txt(
+                video_unified, brand=brand, model=model_name, colorway=colorway
+            )
+        if _utxt:
+            zf.writestr("video_unified.txt", _utxt)
+        if video_unified and isinstance(video_unified, dict) and video_unified.get("prompt_en"):
+            meta_video_unified = video_unified
+        else:
+            meta_video_unified = None
         if visual_prompt:
             prompts_txt = visual_prompt
         else:
@@ -1576,6 +1595,8 @@ def build_pack_zip_bytes(
         }
         if video_beats:
             meta["video_beats"] = video_beats
+        if meta_video_unified:
+            meta["video_unified"] = meta_video_unified
         zf.writestr("meta.json", json.dumps(meta, ensure_ascii=False, indent=2))
         if image_bytes:
             ext = _normalize_shoe_image_ext(image_ext, image_mime)
@@ -1621,6 +1642,360 @@ def render_video_beats_ui(video_pack: dict, *, lang: str, key_prefix: str = "vid
         mime="text/plain",
         key=f"{key_prefix}_video_dl",
     )
+
+
+
+def _session_slide_prompts(max_n: int = 5) -> list[str]:
+    """Collect loaded_slideN_prompt / content slide image_prompts from session."""
+    out = []
+    for i in range(1, max_n + 1):
+        p = (st.session_state.get(f"loaded_slide{i}_prompt") or "").strip()
+        if p:
+            out.append(p)
+    if out:
+        return out
+    cr = st.session_state.get("content_result")
+    if isinstance(cr, dict):
+        for s in cr.get("slides") or []:
+            if isinstance(s, dict) and (s.get("image_prompt") or "").strip():
+                out.append(s.get("image_prompt") or "")
+            elif isinstance(s, dict) and (s.get("title") or s.get("body")):
+                out.append(f"{s.get('title') or ''} {s.get('body') or ''}".strip())
+    return out
+
+
+def describe_slides_with_gemini(uploaded_files, *, client_obj=None) -> list[str]:
+    """Optional one-shot Gemini vision: 1-line EN description per slide (order preserved).
+
+    Does not touch Free/Pro product generate quota — vision-only describe.
+    Returns [] on failure / no API.
+    """
+    files = list(uploaded_files or [])
+    if not files:
+        return []
+    c = client_obj or globals().get("client")
+    if c is None:
+        return []
+    try:
+        parts = [
+            (
+                "Describe each sneaker/carousel photo in order as ONE short English line "
+                "(max ~20 words) focused on footwear framing, angle, and setting. "
+                f"Return exactly {len(files)} lines, numbered 1..{len(files)}, nothing else."
+            )
+        ]
+        for f in files:
+            raw = f.getvalue() if hasattr(f, "getvalue") else f.read()
+            mime = getattr(f, "type", None) or "image/jpeg"
+            parts.append(types.Part.from_bytes(data=raw, mime_type=mime))
+        resp = None
+        for _model in ("gemini-2.5-flash", "gemini-3.6-flash", "gemini-2.0-flash"):
+            try:
+                resp = c.models.generate_content(model=_model, contents=parts)
+                break
+            except Exception:
+                continue
+        if resp is None:
+            return []
+        text = (getattr(resp, "text", None) or "").strip()
+        if not text:
+            return []
+        lines = []
+        for line in text.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            # strip leading "1." / "1)" 
+            import re as _re
+            line = _re.sub(r"^\d+[\.)\-:\s]+", "", line).strip()
+            if line:
+                lines.append(line)
+        if len(lines) >= len(files):
+            return lines[: len(files)]
+        while len(lines) < len(files):
+            lines.append(f"carousel slide {len(lines)+1} footwear frame")
+        return lines
+    except Exception:
+        return []
+
+
+
+def _refresh_export_zip_with_unified(unified: dict, *, lang: str) -> None:
+    """Rebuild last_export_zip so video_unified.txt is included after on-tab generate."""
+    if not (isinstance(unified, dict) and unified.get("prompt_en")):
+        return
+    if not st.session_state.get("show_loaded_pack"):
+        return
+    if st.session_state.get("last_export_zip") is None:
+        return
+    try:
+        _slides = [
+            st.session_state.get("loaded_slide1_prompt", "") or "",
+            st.session_state.get("loaded_slide2_prompt", "") or "",
+            st.session_state.get("loaded_slide3_prompt", "") or "",
+            st.session_state.get("loaded_slide4_prompt", "") or "",
+            st.session_state.get("loaded_slide5_prompt", "") or "",
+        ]
+        st.session_state["last_export_zip"] = build_pack_zip_bytes(
+            brand=st.session_state.get("brand_val", "") or "",
+            model_name=st.session_state.get("model_val", "") or "",
+            colorway=st.session_state.get("colorway_val", "") or "",
+            goal=st.session_state.get("goal_val", "auto"),
+            lang=lang,
+            aspect_ratio=st.session_state.get("aspect_ratio_val") or "1:1 (Square)",
+            slide_count=st.session_state.get("slide_count_val") or 3,
+            specs=st.session_state.get("specs_val", "") or "",
+            meta_caption=st.session_state.get("loaded_meta_caption", "") or "",
+            hashtags_meta=st.session_state.get("loaded_hashtags_meta", "") or "",
+            tiktok_caption=st.session_state.get("loaded_tiktok_caption", "") or "",
+            pinterest_caption=st.session_state.get("loaded_pinterest_caption", "") or "",
+            youtube_caption=st.session_state.get("loaded_youtube_caption", "") or "",
+            visual_prompt=st.session_state.get("loaded_visual_prompt", "") or "",
+            slide_prompts=[s for s in _slides if s],
+            image_bytes=st.session_state.get("last_export_shoe"),
+            image_ext=st.session_state.get("last_export_shoe_ext"),
+            image_mime=st.session_state.get("last_export_shoe_mime"),
+            video_beats=st.session_state.get("loaded_video_beats"),
+            video_unified=unified,
+        )
+    except Exception:
+        pass
+
+
+def render_video_unified_ui(*, lang: str, key_prefix: str = "vid", product_mode: bool = True) -> None:
+    """Unified single Grok Video prompt UI (default Video tab mode)."""
+    st.caption(t("video_unified_help", lang))
+    st.caption(t("video_unified_upload_caption", lang))
+    uploads = st.file_uploader(
+        t("video_unified_upload_label", lang),
+        type=["png", "jpg", "jpeg", "webp"],
+        accept_multiple_files=True,
+        key=f"{key_prefix}_unified_carousel_upload",
+    )
+    col_a, col_b = st.columns(2)
+    with col_a:
+        gen_upload = st.button(
+            t("video_unified_generate", lang),
+            key=f"{key_prefix}_unified_gen_upload",
+        )
+    with col_b:
+        gen_slides = st.button(
+            t("video_unified_from_slides", lang),
+            key=f"{key_prefix}_unified_gen_slides",
+        )
+
+    brand = st.session_state.get("brand_val", "") or ""
+    model = st.session_state.get("model_val", "") or ""
+    colorway = st.session_state.get("colorway_val", "") or ""
+    specs = st.session_state.get("specs_val", "") or ""
+    env = st.session_state.get("env_desc_en") or st.session_state.get("env_desc_val", "") or ""
+    props = st.session_state.get("props_desc_en") or st.session_state.get("props_desc_val", "") or ""
+    problem = st.session_state.get("problem_desc_en") or st.session_state.get("problem_desc_val", "") or ""
+    watermark = st.session_state.get("watermark_val", "") or ""
+    appearance = st.session_state.get("appearance_val", "eu") or "eu"
+    goal = st.session_state.get("goal_val", "auto") or "auto"
+    topic = ""
+    slide_texts = None
+    cr = st.session_state.get("content_result")
+    if isinstance(cr, dict) and not product_mode:
+        topic = cr.get("topic_en") or ""
+        slide_texts = cr.get("slides") or []
+        brand = brand or ""
+        model = model or ""
+
+    state_key = "loaded_video_unified" if product_mode else "content_video_unified"
+
+    if gen_upload:
+        files = list(uploads or [])
+        if len(files) < 2 or len(files) > 5:
+            st.warning(t("video_unified_need_images", lang))
+        else:
+            st.caption(t("video_unified_vision_note", lang))
+            hints = describe_slides_with_gemini(files)
+            unified = build_unified_grok_video_prompt(
+                brand=brand,
+                model=model,
+                colorway=colorway,
+                specs=specs,
+                env=env,
+                props=props,
+                problem=problem,
+                watermark=watermark,
+                appearance=appearance,
+                goal=goal if product_mode else "content",
+                slide_hints=hints or None,
+                slide_prompts=_session_slide_prompts() or None,
+                slide_texts=slide_texts,
+                slide_count=len(files),
+                lang=lang,
+                topic=topic,
+                product_mode=product_mode,
+                source="upload",
+            )
+            st.session_state[state_key] = unified
+            # Also mirror to loaded_video_unified for ZIP convenience in product mode
+            if product_mode:
+                st.session_state["loaded_video_unified"] = unified
+                _refresh_export_zip_with_unified(unified, lang=lang)
+            else:
+                cr = st.session_state.get("content_result")
+                if isinstance(cr, dict):
+                    cr = dict(cr)
+                    cr["video_unified"] = unified
+                    st.session_state["content_result"] = cr
+                    try:
+                        st.session_state["content_txt"] = build_content_txt(cr)
+                        st.session_state["content_zip"] = build_content_zip_bytes(
+                            cr, aspect_ratio=st.session_state.get("aspect_ratio_val", "1:1 (Square)")
+                        )
+                    except Exception:
+                        pass
+            st.success(
+                t(
+                    "video_unified_ready",
+                    lang,
+                    n=unified.get("slide_count") or len(files),
+                    source="upload",
+                )
+            )
+
+    if gen_slides:
+        sps = _session_slide_prompts()
+        if slide_texts and not sps:
+            # content titles/bodies alone are enough
+            pass
+        if not sps and not slide_texts:
+            st.warning(t("video_unified_need_slides", lang))
+        else:
+            n = len(sps) if sps else len(slide_texts or [])
+            n = max(2, min(5, n or 3))
+            unified = build_unified_grok_video_prompt(
+                brand=brand,
+                model=model,
+                colorway=colorway,
+                specs=specs,
+                env=env,
+                props=props,
+                problem=problem,
+                watermark=watermark,
+                appearance=appearance,
+                goal=goal if product_mode else "content",
+                slide_prompts=sps or None,
+                slide_texts=slide_texts,
+                slide_count=n,
+                lang=lang,
+                topic=topic,
+                product_mode=product_mode,
+                source="slides",
+            )
+            st.session_state[state_key] = unified
+            if product_mode:
+                st.session_state["loaded_video_unified"] = unified
+                _refresh_export_zip_with_unified(unified, lang=lang)
+            else:
+                cr = st.session_state.get("content_result")
+                if isinstance(cr, dict):
+                    cr = dict(cr)
+                    cr["video_unified"] = unified
+                    st.session_state["content_result"] = cr
+                    try:
+                        st.session_state["content_txt"] = build_content_txt(cr)
+                        st.session_state["content_zip"] = build_content_zip_bytes(
+                            cr, aspect_ratio=st.session_state.get("aspect_ratio_val", "1:1 (Square)")
+                        )
+                    except Exception:
+                        pass
+            st.success(
+                t(
+                    "video_unified_ready",
+                    lang,
+                    n=unified.get("slide_count") or n,
+                    source="slides",
+                )
+            )
+
+    unified = st.session_state.get(state_key)
+    if isinstance(unified, dict) and unified.get("prompt_en"):
+        howto = unified.get("howto_el") if lang == "el" else unified.get("howto_en")
+        st.info(howto or "")
+        st.write(f"{t('video_unified_summary_label', lang)} {unified.get('summary_el') or ''}")
+        st.caption(t("video_duration_hint", lang, hint=unified.get("duration_hint") or "~16s · 9:16"))
+        st.caption(t("video_unified_prompt_label", lang))
+        st.code(unified.get("prompt_en") or "", language="text")
+        utxt = format_unified_video_txt(
+            unified,
+            brand=brand,
+            model=model,
+            colorway=colorway,
+            topic=topic,
+        )
+        st.download_button(
+            label=t("video_unified_download", lang),
+            data=utxt,
+            file_name="video_unified.txt",
+            mime="text/plain",
+            key=f"{key_prefix}_unified_dl",
+        )
+
+
+def render_video_tab_ui(*, lang: str, key_prefix: str = "vid", product_mode: bool = True, video_pack=None) -> None:
+    """Video tab: mode switch (unified default) + unified or beats UI."""
+    if "video_prompt_mode" not in st.session_state:
+        st.session_state["video_prompt_mode"] = "unified"
+    mode_opts = ["unified", "beats"]
+    labels = {
+        "unified": t("video_mode_unified", lang),
+        "beats": t("video_mode_beats", lang),
+    }
+    # Keep widget value synced with canonical session key
+    st.radio(
+        t("video_mode_label", lang),
+        options=mode_opts,
+        format_func=lambda k: labels.get(k, k),
+        key="video_prompt_mode",
+        horizontal=True,
+    )
+    mode = st.session_state.get("video_prompt_mode") or "unified"
+    if mode == "beats":
+        pack = video_pack
+        if not (isinstance(pack, dict) and pack.get("beats")):
+            if product_mode:
+                pack = rebuild_video_beats_from_context(
+                    brand=st.session_state.get("brand_val", ""),
+                    model=st.session_state.get("model_val", ""),
+                    colorway=st.session_state.get("colorway_val", ""),
+                    specs=st.session_state.get("specs_val", ""),
+                    env=st.session_state.get("env_desc_en") or st.session_state.get("env_desc_val", ""),
+                    props=st.session_state.get("props_desc_en") or st.session_state.get("props_desc_val", ""),
+                    problem=st.session_state.get("problem_desc_en") or st.session_state.get("problem_desc_val", ""),
+                    watermark=st.session_state.get("watermark_val", ""),
+                    appearance=st.session_state.get("appearance_val", "eu"),
+                    goal=st.session_state.get("goal_val", "auto"),
+                    ad_format=st.session_state.get("ad_format_val", ""),
+                    slide_count=st.session_state.get("slide_count_val", 3),
+                    lang=lang,
+                )
+                st.session_state["loaded_video_beats"] = pack
+            else:
+                cr = st.session_state.get("content_result") or {}
+                pack = build_grok_video_beats(
+                    brand="",
+                    model="",
+                    colorway="",
+                    specs="",
+                    watermark=st.session_state.get("watermark_val", ""),
+                    appearance=st.session_state.get("appearance_val", "eu"),
+                    goal="content",
+                    mode="content",
+                    slide_count=cr.get("slide_count") or len(cr.get("slides") or []) or 3,
+                    slide_texts=cr.get("slides") or [],
+                    lang=lang,
+                    topic=cr.get("topic_en") or "",
+                )
+                st.session_state["content_video_beats"] = pack
+        render_video_beats_ui(pack, lang=lang, key_prefix=key_prefix)
+    else:
+        render_video_unified_ui(lang=lang, key_prefix=key_prefix, product_mode=product_mode)
 
 
 def rebuild_video_beats_from_context(
@@ -1716,6 +2091,8 @@ def clear_all_fields():
     st.session_state["loaded_slide4_prompt"] = ""
     st.session_state["loaded_slide5_prompt"] = ""
     st.session_state["loaded_video_beats"] = None
+    st.session_state["loaded_video_unified"] = None
+    st.session_state["content_video_unified"] = None
     st.session_state["show_loaded_pack"] = False
     st.session_state["goal_val"] = "auto"
     st.session_state["appearance_val"] = "eu"
@@ -1898,6 +2275,7 @@ def apply_history_entry(entry: dict):
         image_ext=_hist_img_ext,
         image_mime=_hist_img_mime,
         video_beats=st.session_state.get("loaded_video_beats"),
+        video_unified=st.session_state.get("loaded_video_unified"),
     )
     st.session_state["last_export_shoe"] = _hist_img_b
     st.session_state["last_export_shoe_ext"] = _hist_img_ext
@@ -2405,6 +2783,9 @@ if "loaded_slide3_prompt" not in st.session_state: st.session_state["loaded_slid
 if "loaded_slide4_prompt" not in st.session_state: st.session_state["loaded_slide4_prompt"] = ""
 if "loaded_slide5_prompt" not in st.session_state: st.session_state["loaded_slide5_prompt"] = ""
 if "loaded_video_beats" not in st.session_state: st.session_state["loaded_video_beats"] = None
+if "loaded_video_unified" not in st.session_state: st.session_state["loaded_video_unified"] = None
+if "content_video_unified" not in st.session_state: st.session_state["content_video_unified"] = None
+if "video_prompt_mode" not in st.session_state: st.session_state["video_prompt_mode"] = "unified"
 if "show_loaded_pack" not in st.session_state: st.session_state["show_loaded_pack"] = False
 if "goal_val" not in st.session_state: st.session_state["goal_val"] = "auto"
 if "appearance_val" not in st.session_state: st.session_state["appearance_val"] = "eu"
@@ -2711,6 +3092,31 @@ if app_mode == "content":
             topic=_result.get("topic_en") or "",
         )
         _result["video_beats"] = _cvb
+        try:
+            _c_unified = build_unified_grok_video_prompt(
+                brand="",
+                model="",
+                colorway="",
+                specs="",
+                watermark=st.session_state.get("watermark_val", ""),
+                appearance=st.session_state.get("appearance_val", "eu"),
+                goal="content",
+                slide_texts=_result.get("slides") or [],
+                slide_prompts=[
+                    (s.get("image_prompt") or "")
+                    for s in (_result.get("slides") or [])
+                    if isinstance(s, dict)
+                ] or None,
+                slide_count=_result.get("slide_count") or len(_result.get("slides") or []) or 3,
+                lang=lang,
+                topic=_result.get("topic_en") or "",
+                product_mode=False,
+                source="slides",
+            )
+            _result["video_unified"] = _c_unified
+            st.session_state["content_video_unified"] = _c_unified
+        except Exception:
+            pass
         st.session_state["content_result"] = _result
         st.session_state["content_video_beats"] = _cvb
         # Bilingual content captions + slide title/body (image_prompt stays EN from primary)
@@ -2835,24 +3241,16 @@ if app_mode == "content":
             st.session_state[_k] = _cr.get("youtube_caption", "") or ""
             st.text_area(t("content_youtube_label", lang), height=120, key=_k)
         with _c_tabs[4]:
+            # Keep beats available for beats mode; unified is default via mode switch
             _cvb = _cr.get("video_beats") or st.session_state.get("content_video_beats")
-            if not (isinstance(_cvb, dict) and _cvb.get("beats")):
-                _cvb = build_grok_video_beats(
-                    brand="",
-                    model="",
-                    colorway="",
-                    specs="",
-                    watermark=st.session_state.get("watermark_val", ""),
-                    appearance=st.session_state.get("appearance_val", "eu"),
-                    goal="content",
-                    mode="content",
-                    slide_count=_cr.get("slide_count") or len(_cr.get("slides") or []) or 3,
-                    slide_texts=_cr.get("slides") or [],
-                    lang=lang,
-                    topic=_cr.get("topic_en") or "",
-                )
+            if isinstance(_cvb, dict) and _cvb.get("beats"):
                 st.session_state["content_video_beats"] = _cvb
-            render_video_beats_ui(_cvb, lang=lang, key_prefix="content")
+            render_video_tab_ui(
+                lang=lang,
+                key_prefix="content",
+                product_mode=False,
+                video_pack=_cvb,
+            )
         if st.session_state.get("content_txt"):
             st.download_button(
                 label=t("content_download_txt", lang),
@@ -3286,6 +3684,31 @@ if st.button(
             lang=lang,
         )
         st.session_state["loaded_video_beats"] = video_beats
+        # Default unified prompt from carousel roles / slide prompts (no quota)
+        try:
+            _sps = [p for p in [slide1_prompt, slide2_prompt, slide3_prompt, slide4_prompt, slide5_prompt] if p]
+            _sc_u = len(_sps) if _sps else (3 if _video_mode == "single" else int(_video_sc or 3))
+            if _video_mode == "single":
+                _sc_u = 3
+            st.session_state["loaded_video_unified"] = build_unified_grok_video_prompt(
+                brand=brand,
+                model=safe_model_name,
+                colorway=colorway,
+                specs=key_materials,
+                env=selected_env,
+                props=selected_props,
+                problem=selected_problem,
+                watermark=custom_watermark,
+                appearance=st.session_state.get("appearance_val", "eu"),
+                goal=st.session_state.get("goal_val", "auto"),
+                slide_prompts=_sps or None,
+                slide_count=max(2, min(5, _sc_u)),
+                lang=lang,
+                product_mode=True,
+                source="slides",
+            )
+        except Exception:
+            pass
 
         meta_post = f"{ad_texts.get('meta_caption', '')}\n\n{ad_texts.get('hashtags_meta', '')}"
         tiktok_post = ad_texts.get('tiktok_caption', '')
@@ -3325,7 +3748,7 @@ YOUTUBE CAPTION ({lang_tag})
 GROK VIDEO BEATS (EN prompts)
 ========================================
 {format_video_prompts_txt(video_beats, brand=brand, model=model_name, colorway=colorway)}
-========================================
+{(('========================================\nGROK VIDEO UNIFIED (EN)\n========================================\n' + format_unified_video_txt(st.session_state.get('loaded_video_unified') or {}, brand=brand, model=model_name, colorway=colorway) + '\n') if isinstance(st.session_state.get('loaded_video_unified'), dict) and (st.session_state.get('loaded_video_unified') or {}).get('prompt_en') else '')}========================================
 RAW DATA (JSON)
 ========================================
 {json.dumps(ad_texts, ensure_ascii=False, indent=2)}
@@ -3455,6 +3878,7 @@ RAW DATA (JSON)
             image_ext=_zip_img_ext,
             image_mime=_zip_img_mime,
             video_beats=video_beats,
+            video_unified=st.session_state.get("loaded_video_unified"),
         )
         _ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         st.session_state["last_export_name"] = f"{brand}_{model_name}_{_ts}_pack.zip".replace(" ", "_")
@@ -3555,25 +3979,12 @@ if st.session_state.get("show_loaded_pack"):
             key=_k,
         )
     with tab_h5:
-        _hv = st.session_state.get("loaded_video_beats")
-        if not (isinstance(_hv, dict) and _hv.get("beats")):
-            _hv = rebuild_video_beats_from_context(
-                brand=st.session_state.get("brand_val", ""),
-                model=st.session_state.get("model_val", ""),
-                colorway=st.session_state.get("colorway_val", ""),
-                specs=st.session_state.get("specs_val", ""),
-                env=st.session_state.get("env_desc_en") or st.session_state.get("env_desc_val", ""),
-                props=st.session_state.get("props_desc_en") or st.session_state.get("props_desc_val", ""),
-                problem=st.session_state.get("problem_desc_en") or st.session_state.get("problem_desc_val", ""),
-                watermark=st.session_state.get("watermark_val", ""),
-                appearance=st.session_state.get("appearance_val", "eu"),
-                goal=st.session_state.get("goal_val", "auto"),
-                ad_format=st.session_state.get("ad_format_val", ""),
-                slide_count=st.session_state.get("slide_count_val", 3),
-                lang=lang,
-            )
-            st.session_state["loaded_video_beats"] = _hv
-        render_video_beats_ui(_hv, lang=lang, key_prefix="results")
+        render_video_tab_ui(
+            lang=lang,
+            key_prefix="results",
+            product_mode=True,
+            video_pack=st.session_state.get("loaded_video_beats"),
+        )
 
     if st.session_state.get("last_export_path"):
         st.info(t("saved_info", lang, path=st.session_state["last_export_path"]))

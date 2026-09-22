@@ -423,6 +423,265 @@ def build_grok_video_beats(
     }
 
 
+
+
+UNIFIED_HOWTO_EN = (
+    "Paste this ONE English prompt into Grok Video as a single Generate "
+    "(~16s, 9:16). Timed beats inside the prompt (0-5s / 5-11s / 11-16s) "
+    "are one continuous story — do NOT use Extend for each beat."
+)
+
+UNIFIED_HOWTO_EL = (
+    "Επικόλλησε αυτό το ΕΝΑ αγγλικό prompt στο Grok Video ως ένα Generate "
+    "(~16s, 9:16). Τα timed beats μέσα στο prompt (0-5s / 5-11s / 11-16s) "
+    "είναι μία συνεχής ιστορία — ΜΗΝ κάνεις Extend για κάθε beat."
+)
+
+
+def _anatomy_video_clause() -> str:
+    return (
+        "ANATOMY & COMPOSITION SAFETY: max one person (prefer product + camera motion only); "
+        "coherent anatomy — exactly two arms, two legs, two feet, limbs attached; "
+        "person supported on ground/bench — never floating; shoes worn on that person OR "
+        "product still-life with no people; BAN multi-person foot chaos, extra/detached limbs, "
+        "merged bodies, disembodied feet."
+    )
+
+
+def _time_windows(n: int) -> list[tuple[str, str]]:
+    """Return (label, role-ish focus key) timing windows for n slides, totaling ~16s."""
+    if n <= 1:
+        return [("0-16s", "product")]
+    if n == 2:
+        return [("0-8s", "hook"), ("8-16s", "product_cta")]
+    if n == 3:
+        return [("0-5s", "hook"), ("5-11s", "product"), ("11-16s", "specs_cta")]
+    if n == 4:
+        return [("0-4s", "hook"), ("4-8s", "product"), ("8-12s", "specs"), ("12-16s", "cta")]
+    # 5+
+    return [
+        ("0-3s", "hook"),
+        ("3-6s", "lifestyle"),
+        ("6-10s", "product"),
+        ("10-13s", "specs"),
+        ("13-16s", "cta"),
+    ]
+
+
+def _slide_hint_arc(n: int, hints: Optional[list] = None, slide_prompts: Optional[list] = None) -> list[str]:
+    """Build ordered per-slide visual hints (EN), preserving upload order."""
+    roles = list(CAROUSEL_ROLE_ARCS.get(n if n in CAROUSEL_ROLE_ARCS else 3, CAROUSEL_ROLE_ARCS[3]))
+    while len(roles) < n:
+        roles.append("content")
+    out: list[str] = []
+    hints = list(hints or [])
+    sps = list(slide_prompts or [])
+    generic = {
+        "hook": "wide establishing lifestyle / environment with the pair readable",
+        "lifestyle": "knees-down on-foot, exactly two feet FORWARD light walk",
+        "product": "clean 3/4 product hero, slow push-in",
+        "product_cta": "3/4 hero settling into calm hold",
+        "specs": "macro midsole/outsole slow glide",
+        "specs_cta": "macro detail then ease to calm hold",
+        "cta": "calm flat-lay or side hold for ending",
+        "content": "gentle educational footwear beat",
+        "start": "product hero already in frame with camera-only push-in",
+        "deepen": "closer orbit / tilt to sole detail",
+        "end": "calm hold ending still",
+    }
+    for i in range(n):
+        role = roles[i] if i < len(roles) else "content"
+        h = ""
+        if i < len(hints) and _clean(hints[i]):
+            h = _clean(hints[i])
+        elif i < len(sps) and _clean(sps[i]):
+            # Take a short cue from existing slide prompt text (first ~140 chars, strip Create an image:)
+            raw = _clean(sps[i])
+            raw = raw.replace("Create an image:", "").strip()
+            h = (raw[:160] + ("…" if len(raw) > 160 else "")).strip()
+        else:
+            # Generic arc by position
+            if i == 0:
+                h = "slide 1 hero — " + generic.get(role, generic["hook"])
+            elif i == n - 1:
+                h = f"slide {i+1} lifestyle/CTA close — " + generic.get(role, generic["cta"])
+            else:
+                h = f"slide {i+1} detail — " + generic.get(role, generic["product"])
+        out.append(h)
+    return out
+
+
+def build_unified_grok_video_prompt(
+    brand: str = "",
+    model: str = "",
+    colorway: str = "",
+    specs: str = "",
+    env: str = "",
+    props: str = "",
+    problem: str = "",
+    watermark: str = "",
+    appearance: str = "eu",
+    goal: str = "auto",
+    slide_hints: Optional[list] = None,
+    slide_prompts: Optional[list] = None,
+    slide_texts: Optional[list] = None,
+    slide_count: int = 3,
+    duration_s: int = 16,
+    aspect: str = "9:16",
+    lang: str = "el",
+    topic: str = "",
+    product_mode: bool = True,
+    source: str = "slides",
+) -> dict[str, Any]:
+    """Build ONE continuous English Grok Video prompt (~16s) with timed beats inside.
+
+    Returns dict: prompt_en, summary_el, howto_el, howto_en, slide_count, source, duration_hint.
+    """
+    _ = props
+    try:
+        n = int(slide_count)
+    except (TypeError, ValueError):
+        n = 3
+    if slide_hints:
+        n = max(n, len([h for h in slide_hints if _clean(h)]))
+    if slide_texts:
+        n = max(n, len(slide_texts))
+    if n < 2:
+        n = 2
+    if n > 5:
+        n = 5
+
+    # Prefer explicit hints; else derive from slide_texts titles/bodies; else slide_prompts
+    hints: list[str] = []
+    if slide_hints:
+        hints = [_clean(h) for h in slide_hints if _clean(h)]
+    elif slide_texts:
+        for item in slide_texts:
+            if isinstance(item, dict):
+                title = _clean(item.get("title"))
+                body = _clean(item.get("body"))
+                hints.append(" — ".join(x for x in (title, body) if x) or "story beat")
+            else:
+                hints.append(_clean(item) or "story beat")
+    hints = _slide_hint_arc(n, hints=hints or None, slide_prompts=slide_prompts)
+
+    windows = _time_windows(n)
+    # Align window count to n
+    if len(windows) != n:
+        windows = _time_windows(n)[:n]
+
+    pair = " ".join(x for x in (_clean(brand), _clean(model), _clean(colorway)) if x)
+    scene = _env_hint(env, problem, goal)
+
+    parts: list[str] = []
+    parts.append(
+        f"Photorealistic commercial video, {aspect} vertical, ONE continuous ~{duration_s}s shot/story "
+        f"(not three separate ads). Generate once — timed segments below are beats INSIDE this single video."
+    )
+    parts.append(_safe_motion_rules())
+    parts.append(_anatomy_video_clause())
+    parts.append(_appearance_video_clause(appearance))
+    parts.append(_no_chrome())
+    parts.append(
+        "Shoe lock every moment — never morph into a different pair; "
+        "NEVER empty static shoes then jump to a runner; prefer product + camera motion "
+        "(push-in, gentle orbit, slight tilt) or already-on-feet with exactly 2 feet FORWARD only "
+        "(no reverse, no spins)."
+    )
+
+    if product_mode and (_clean(brand) or _clean(model)):
+        parts.append(_shoe_lock(brand, model, colorway))
+        parts.append(_specs_hint(specs).strip())
+        parts.append(f"Setting family: {scene}.")
+    else:
+        topic_bit = _clean(topic) or "educational sneaker care / footwear tips"
+        parts.append(
+            f"Educational footwear story about: {topic_bit}. "
+            "Generic authentic sneakers OK — soft trademark-safe; no Nike/Adidas logo inventing."
+        )
+
+    # Timed visual story through uploaded / slide frames in order
+    beat_bits: list[str] = []
+    for i, ((win, role), hint) in enumerate(zip(windows, hints), start=1):
+        motion = _motion_for_role(
+            role, brand=brand, model=model, colorway=colorway, product_mode=product_mode
+        )
+        is_final = i == n
+        wm = _watermark_clause(watermark, final_beat=is_final)
+        beat_bits.append(
+            f"{win}: visual story of frame {i}/{n} — {hint}. {motion} {wm}"
+        )
+    parts.append(" ".join(beat_bits))
+    parts.append(
+        "Continuity as ONE continuous camera story flowing through these frames in order — "
+        "same lighting family, same exact pair, cinematic, sharp, no morphing shoes, no UI chrome."
+    )
+    if _clean(watermark):
+        parts.append("Watermark only in the final seconds if set; keep earlier frames clean.")
+    else:
+        parts.append("No watermark, no domain text on screen.")
+
+    prompt_en = " ".join(p.strip() for p in parts if p and str(p).strip())
+
+    if (lang or "el").lower() == "el":
+        summary_el = (
+            f"Ενιαίο ~{duration_s}s video ({n} καρέ σε σειρά). "
+            f"Επικόλλησε μία φορά στο Grok Video → Generate ({aspect}). "
+            f"Η ιστορία ρέει 1→{n} μέσα στο ίδιο prompt (timed beats)."
+        )
+    else:
+        summary_el = (
+            f"Unified ~{duration_s}s video ({n} frames in order). "
+            f"Paste once into Grok Video → Generate ({aspect}). "
+            f"Story flows 1→{n} inside one prompt (timed beats)."
+        )
+
+    return {
+        "prompt_en": prompt_en,
+        "summary_el": summary_el,
+        "howto_el": UNIFIED_HOWTO_EL,
+        "howto_en": UNIFIED_HOWTO_EN,
+        "slide_count": n,
+        "source": _clean(source) or "slides",
+        "duration_hint": f"~{duration_s}s · {aspect}",
+        "slide_hints": hints,
+    }
+
+
+def format_unified_video_txt(
+    unified: dict[str, Any],
+    *,
+    brand: str = "",
+    model: str = "",
+    colorway: str = "",
+    topic: str = "",
+) -> str:
+    """Plain-text export for download / ZIP (video_unified.txt)."""
+    if not isinstance(unified, dict):
+        return ""
+    lines = [
+        "Sneakerness — Grok Video UNIFIED prompt (single Generate)",
+        "How to use: paste the English prompt below once into Grok Video → Generate (~16s, 9:16).",
+        "Do NOT Extend per beat — timed segments are inside this one prompt.",
+        "",
+    ]
+    product = " ".join(x for x in (_clean(brand), _clean(model), _clean(colorway)) if x)
+    if product:
+        lines.append(f"Product: {product}")
+    if _clean(topic):
+        lines.append(f"Topic: {_clean(topic)}")
+    lines.append(f"Duration: {unified.get('duration_hint') or '~16s · 9:16'}")
+    lines.append(f"Slides: {unified.get('slide_count') or ''}")
+    lines.append(f"Source: {unified.get('source') or ''}")
+    lines.append(f"Howto: {unified.get('howto_en') or UNIFIED_HOWTO_EN}")
+    lines.append("")
+    lines.append("========== UNIFIED PROMPT (EN) ==========")
+    lines.append("")
+    lines.append(_clean(unified.get("prompt_en")))
+    lines.append("")
+    return "\n".join(lines).rstrip() + "\n"
+
+
 def ensure_video_beats(
     existing: Any,
     **kwargs,
