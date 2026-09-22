@@ -259,53 +259,73 @@ def _fallback_carousel(
     slide_count: int,
     ar_flag: str,
     appearance: str = "auto",
+    lang: str = "en",
 ) -> dict[str, Any]:
     """Deterministic soft-discovery fallback if Gemini fails.
 
     Slides form one continuous mini-story; each body teaches from that slide's image
-    and states why the visual/tip is useful.
+    and states why the visual/tip is useful. UI copy follows lang; image_prompt stays EN.
     """
+    lang = (lang or "en").strip().lower()
     # Continuous arc: hook problem/scene -> steps that continue -> soft CTA/takeaway
+    # Each tuple: (title_en, body_en, title_el, body_el, image_prompt_en)
     templates = [
         (
             "Tired feet after long days?",
             "That end-of-day ache often starts with shoes that never get a quick check. Spotting the problem in this quiet scene is the first useful step.",
+            "Κουρασμένα πόδια μετά από μεγάλες μέρες;",
+            "Ο πόνος στο τέλος της ημέρας συχνά ξεκινά από παπούτσια που δεν ελέγχονται ποτέ γρήγορα. Το να δεις το πρόβλημα σε αυτή την ήσυχη σκηνή είναι το πρώτο χρήσιμο βήμα.",
             f"Soft editorial photo of empty everyday sneakers by a window at dusk, calm tired-day mood, educational, no logos as hero text, no celebrities. Clean short typography overlay matching the title: Tired feet after long days? Soft-discovery, not an ad. Photorealistic 8k {ar_flag}",
         ),
         (
             "Start with a two-hour check",
             "After two hours on your feet, notice midsole compression, upper creases, and toe pinch. This close-up check shows what to fix next — before soreness becomes a habit.",
+            "Ξεκίνα με έλεγχο στις δύο ώρες",
+            "Μετά από δύο ώρες όρθιος, πρόσεξε συμπίεση midsole, τσακίσεις upper και πίεση στα δάχτυλα. Αυτός ο κοντινός έλεγχος δείχνει τι να διορθώσεις μετά — πριν ο πόνος γίνει συνήθεια.",
             f"Close-up lifestyle still of sneaker midsole and upper on a clean desk, natural light, Kinfolk aesthetic, educational. Clean short typography overlay matching: Start with a two-hour check. Soft-discovery, not hard sell. Photorealistic 8k {ar_flag}",
         ),
         (
             "Clean gently, dry slowly",
             "Once the pair is worth keeping, use a soft brush and mild soap where safe, then air-dry away from radiators. Gentle cleaning protects materials so cushioning lasts longer.",
+            "Καθάρισε απαλά, στέγνωσε αργά",
+            "Όταν το ζευγάρι αξίζει να το κρατήσεις, χρησιμοποίησε μαλακή βούρτσα και ήπιο σαπούνι όπου είναι ασφαλές, μετά άφησέ τα να στεγνώσουν μακριά από καλοριφέρ. Ο απαλός καθαρισμός προστατεύει τα υλικά ώστε η απορρόφηση να διαρκεί περισσότερο.",
             f"Hands gently brushing a sneaker with a soft brush, towels nearby, calm tutorial feel, no brand hard-sell. Clean short typography overlay matching: Clean gently, dry slowly. Photorealistic 8k {ar_flag}",
         ),
         (
             "Rotate and let foam rebound",
             "Alternating pairs between wear days lets midsole foam rebound and keeps odor down. Resting shoes on the shelf is a free comfort upgrade you can see.",
+            "Εναλλαγή και άσε τον αφρό να επανέλθει",
+            "Η εναλλαγή ζευγαριών ανάμεσα στις μέρες χρήσης αφήνει τον αφρό midsole να επανέλθει και μειώνει τις οσμές. Η ξεκούραση στο ράφι είναι δωρεάν αναβάθμιση άνεσης που φαίνεται.",
             f"Two pairs of everyday sneakers side by side on a shelf, soft daylight, organized storage, educational still life. Clean short typography overlay matching: Rotate and let foam rebound. Photorealistic 8k {ar_flag}",
         ),
         (
             "Match material to the day",
             "Mesh breathes on warm walks, suede needs rain care, foam cushions standing hours. Matching what you see in the shoe to how you use it breaks the same tired-feet loop.",
+            "Ταίριαξε υλικό με την ημέρα",
+            "Το mesh αναπνέει σε ζεστές βόλτες, το σουέτ χρειάζεται φροντίδα στη βροχή, ο αφρός απορροφά ώρες όρθιας στάσης. Το να ταιριάζεις αυτό που βλέπεις στο παπούτσι με το πώς το χρησιμοποιείς σπάει τον ίδιο κύκλο κουρασμένων ποδιών.",
             f"Macro texture still of mesh and suede in one calm frame, soft studio light, educational product photography. Clean short typography overlay matching: Match material to the day. Photorealistic 8k {ar_flag}",
         ),
         (
             "Save this tip for later",
             "You now have a simple loop: check, care, rotate, match materials. Save this carousel and follow for the next calm footwear tip.",
+            "Αποθήκευσε αυτή τη συμβουλή για αργότερα",
+            "Τώρα έχεις έναν απλό κύκλο: έλεγχος, φροντίδα, εναλλαγή, ταίριασμα υλικών. Αποθήκευσε αυτό το carousel και ακολούθησε για την επόμενη ήρεμη συμβουλή υποδημάτων.",
             f"Minimal flat-lay of sneakers with notebook and coffee, negative space for soft CTA, calm discovery mood, no celebrity, no hard sell. Clean short typography overlay matching: Save this tip for later. Photorealistic 8k {ar_flag}",
         ),
     ]
     slides = []
     for i in range(slide_count):
-        title, body, prompt = templates[i % len(templates)]
+        title_en, body_en, title_el, body_el, prompt = templates[i % len(templates)]
         if i == 0:
-            title = "A calmer way to think about sneakers"
-            body = (
+            title_en = "A calmer way to think about sneakers"
+            body_en = (
                 f"Today's focus: {topic_en}. This opening scene sets a common problem you can ease "
                 "with small soft habits — no hard sell."
+            )
+            title_el = "Ένας πιο ήρεμος τρόπος να σκέφτεσαι τα sneakers"
+            body_el = (
+                f"Το σημερινό θέμα: {topic_en}. Αυτή η εναρκτήρια σκηνή δείχνει ένα συνηθισμένο πρόβλημα "
+                "που μπορείς να απαλύνεις με μικρές ήπιες συνήθειες — χωρίς hard sell."
             )
             prompt = (
                 f"Soft editorial photo of empty everyday sneakers by a window, calm morning light, "
@@ -314,21 +334,49 @@ def _fallback_carousel(
                 f"Photorealistic 8k {ar_flag}"
             )
         elif i == slide_count - 1:
-            title = "Follow for the next tip"
-            body = (
+            title_en = "Follow for the next tip"
+            body_en = (
                 "Takeaway: small checks and gentle care compound. "
                 "Explore more calm footwear advice anytime — soft discovery, not an ad."
+            )
+            title_el = "Ακολούθησε για την επόμενη συμβουλή"
+            body_el = (
+                "Συμπέρασμα: οι μικροί έλεγχοι και η απαλή φροντίδα αθροίζονται. "
+                "Εξερεύνησε περισσότερες ήρεμες συμβουλές υποδημάτων όποτε θες — soft discovery, όχι διαφήμιση."
             )
             prompt = (
                 f"Minimal flat-lay of sneakers with notebook and coffee, negative space for soft CTA, "
                 f"calm discovery mood, no celebrity, no hard sell. Clean short typography overlay matching: "
                 f"Follow for the next tip. Photorealistic 8k {ar_flag}"
             )
+        title = title_el if lang == "el" else title_en
+        body = body_el if lang == "el" else body_en
         slides.append({
             "title": title,
             "body": body,
             "image_prompt": append_appearance_clause(prompt, appearance),
         })
+    if lang == "el":
+        return {
+            "slides": slides,
+            "ig_caption": (
+                f"Ήπια σειρά συμβουλών: {topic_en}. Αποθήκευσέ το για αργότερα — εκπαιδευτικό, όχι πωλητικό. "
+                "#Sneakerness #SneakerCare #SoftDiscovery"
+            ),
+            "tiktok_caption": (
+                f"{topic_en} — γρήγορο εκπαιδευτικό carousel. Ακολούθησε για την επόμενη συμβουλή. "
+                "#Sneakerness #SneakerTips #FootwearEducation #FYP"
+            ),
+            "pinterest_caption": (
+                f"Εκπαιδευτικές συμβουλές sneakers: {topic_en}. Soft-discovery για καθημερινή άνεση και φροντίδα "
+                "υποδημάτων — αποθήκευσε αυτό το pin. #Sneakerness #SneakerCare #FootwearTips #SoftDiscovery"
+            ),
+            "youtube_caption": (
+                f"{topic_en} — ήρεμες συμβουλές υποδημάτων\n"
+                f"Ένα σύντομο εκπαιδευτικό carousel για {topic_en}. Soft discovery, όχι διαφήμιση. "
+                "Ακολούθησε για την επόμενη συμβουλή. #Sneakerness #SneakerTips"
+            ),
+        }
     return {
         "slides": slides,
         "ig_caption": (
@@ -360,11 +408,16 @@ def generate_content_carousel(
     aspect_ratio: str = "1:1 (Square)",
     insight_context: str = "",
     appearance: str = "eu",
+    lang: str = "en",
     models: Optional[list[str]] = None,
     warn: Optional[Callable[[str], None]] = None,
 ) -> dict[str, Any]:
     """
-    Call Gemini to produce ENGLISH-ONLY educational carousel content.
+    Call Gemini to produce educational carousel content.
+
+    When lang=el: slide titles/bodies and all four captions are Greek;
+    image_prompt fields stay ENGLISH for Gemini/Grok/Nano Banana.
+    When lang=en: everything English as before.
 
     Returns dict with:
       slides: [{title, body, image_prompt}, ...]
@@ -392,6 +445,10 @@ def generate_content_carousel(
     if _appearance_key not in APPEARANCE_KEYS:
         _appearance_key = "auto"
     _appearance_clause = appearance_clause(_appearance_key)
+    _lang = (lang or "en").strip().lower()
+    if _lang not in ("en", "el"):
+        _lang = "en"
+    _ui_is_el = _lang == "el"
     appearance_block = ""
     if _appearance_clause:
         if _appearance_key == "no_face":
@@ -421,10 +478,18 @@ def generate_content_carousel(
             + "\n"
         )
 
+    _lang_rule = (
+        "DUAL-LANGUAGE OUTPUT: slide title and body MUST be natural Greek (Ελληνικά); "
+        "ig_caption, tiktok_caption, pinterest_caption, youtube_caption MUST be natural Greek; "
+        "EVERY image_prompt MUST stay ENGLISH ONLY (for image models). "
+        if _ui_is_el else
+        "ALL output must be ENGLISH ONLY (titles, bodies, captions, and image prompts). "
+    )
     sys_instruction = (
         "You are an expert educational footwear content writer in the style of calm "
         "discovery accounts (like sneakers.loft vibe): soft tips, not ads. "
-        "ALL output must be ENGLISH ONLY. NEVER use celebrity athlete names. "
+        + _lang_rule +
+        "NEVER use celebrity athlete names. "
         "NEVER use hard-sell verbs (buy, shop, order, purchase). "
         "Prefer soft CTAs: follow for next tip, save this, explore more. "
         "CRITICAL STORY RULE: titles and bodies across all slides MUST read as ONE continuous "
@@ -455,11 +520,28 @@ def generate_content_carousel(
         "If no_face: never write portrait/face/headshot language; prioritize shoes/legs/hands/props."
     )
 
+    _copy_lang_rule = (
+        "Slide title + body + all four captions MUST be natural Greek (Ελληνικά). "
+        "image_prompt MUST remain ENGLISH ONLY for image generation models."
+        if _ui_is_el
+        else "ALL OUTPUT MUST BE IN ENGLISH ONLY (titles, bodies, captions, image prompts)."
+    )
+    _json_title = "short on-screen title EL (Greek)" if _ui_is_el else "short on-screen title EN"
+    _json_body = (
+        "short body EL (Greek) — continues the story AND states why the image/tip is useful"
+        if _ui_is_el
+        else "short body EN — continues the story AND states why the image/tip is useful"
+    )
+    _json_ig = "optional Instagram caption EL (Greek) + light hashtags" if _ui_is_el else "optional Instagram caption EN + light hashtags"
+    _json_tt = "optional TikTok caption EL (Greek) + FYP hashtags" if _ui_is_el else "optional TikTok caption EN + FYP hashtags"
+    _json_pin = "optional Pinterest pin description EL (Greek) - 2-4 discovery/SEO sentences; optional 3-5 hashtags" if _ui_is_el else "optional Pinterest pin description EN - 2-4 discovery/SEO sentences; optional 3-5 hashtags"
+    _json_yt = "optional YouTube Shorts/community caption EL (Greek) - strong hook first line; 2-4 sentences; soft CTA; fewer hashtags" if _ui_is_el else "optional YouTube Shorts/community caption EN - strong hook first line; 2-4 sentences; soft CTA; fewer hashtags"
+
     script_prompt = f"""Create an educational Instagram/TikTok CONTENT CAROUSEL (not a product ad) about:
 TOPIC: {topic_en}
 
 CRITICAL CONSTRAINTS:
-1. ALL OUTPUT MUST BE IN ENGLISH ONLY (titles, bodies, captions, image prompts).
+1. LANGUAGE: {_copy_lang_rule}
 2. Soft-discovery / educational advice feel - NOT hard sell. No "buy", "shop", "order", "purchase".
 3. STRICTLY NO celebrity names (no Jordan, Kobe, LeBron, Messi, Ronaldo, Curry, etc.).
 4. CONTINUOUS STORY ARC across exactly {slide_count} slides:
@@ -482,15 +564,15 @@ Return strict JSON:
 {{
   "slides": [
     {{
-      "title": "short on-screen title EN",
-      "body": "short body EN — continues the story AND states why the image/tip is useful",
-      "image_prompt": "full EN image gen prompt (optional clean title overlay) ending with {ar_flag}"
+      "title": "{_json_title}",
+      "body": "{_json_body}",
+      "image_prompt": "full EN image gen prompt (optional clean title overlay; overlay text may match the slide title language) ending with {ar_flag}"
     }}
   ],
-  "ig_caption": "optional Instagram caption EN + light hashtags",
-  "tiktok_caption": "optional TikTok caption EN + FYP hashtags",
-  "pinterest_caption": "optional Pinterest pin description EN - 2-4 discovery/SEO sentences; optional 3-5 hashtags",
-  "youtube_caption": "optional YouTube Shorts/community caption EN - strong hook first line; 2-4 sentences; soft CTA; fewer hashtags"
+  "ig_caption": "{_json_ig}",
+  "tiktok_caption": "{_json_tt}",
+  "pinterest_caption": "{_json_pin}",
+  "youtube_caption": "{_json_yt}"
 }}
 Exactly {slide_count} objects inside "slides".
 """
@@ -534,7 +616,7 @@ Exactly {slide_count} objects inside "slides".
                         }
                     )
                 while len(normalized) < slide_count:
-                    fb = _fallback_carousel(topic_en, slide_count, ar_flag, _appearance_key)
+                    fb = _fallback_carousel(topic_en, slide_count, ar_flag, _appearance_key, lang=_lang)
                     normalized.append(fb["slides"][len(normalized)])
                 return {
                     "slides": normalized[:slide_count],
@@ -547,6 +629,7 @@ Exactly {slide_count} objects inside "slides".
                     "slide_count": slide_count,
                     "ar_flag": ar_flag,
                     "appearance": _appearance_key,
+                    "lang": _lang,
                 }
         except Exception as e:
             if warn:
@@ -556,12 +639,13 @@ Exactly {slide_count} objects inside "slides".
                     pass
             time.sleep(1)
 
-    fb = _fallback_carousel(topic_en, slide_count, ar_flag, _appearance_key)
+    fb = _fallback_carousel(topic_en, slide_count, ar_flag, _appearance_key, lang=_lang)
     fb["topic_en"] = topic_en
     fb["appearance"] = _appearance_key
     fb["topic_key"] = topic_key
     fb["slide_count"] = slide_count
     fb["ar_flag"] = ar_flag
+    fb["lang"] = _lang
     return fb
 
 
@@ -569,7 +653,7 @@ def build_content_txt(result: dict[str, Any]) -> str:
     """Plain-text export for download."""
     lines = [
         "========================================",
-        "CONTENT CAROUSEL (EN)",
+        f"CONTENT CAROUSEL ({(result.get('lang') or 'en').upper()})",
         f"Topic key: {result.get('topic_key', '')}",
         f"Topic: {result.get('topic_en', '')}",
         f"Slides: {result.get('slide_count', len(result.get('slides') or []))}",
@@ -637,7 +721,7 @@ def build_content_zip_bytes(result: dict[str, Any], *, aspect_ratio: str = "") -
             "topic_en": result.get("topic_en"),
             "slide_count": result.get("slide_count"),
             "aspect": aspect_ratio,
-            "lang_output": "en",
+            "lang_output": result.get("lang") or "en",
         }
         zf.writestr("meta.json", json.dumps(meta, ensure_ascii=False, indent=2))
     return buf.getvalue()

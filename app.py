@@ -136,7 +136,12 @@ with st.sidebar:
         index=_lang_options.index(_cur_label) if _cur_label in _lang_options else 1,
         key="lang_select_label",
     )
-    st.session_state["lang"] = _lang_codes.get(_picked, "el")
+    _new_lang = _lang_codes.get(_picked, "el")
+    st.session_state["_lang_switch_pending"] = (
+        st.session_state.get("lang", "el") != _new_lang
+    )
+    st.session_state["_lang_switch_from"] = st.session_state.get("lang", "el")
+    st.session_state["lang"] = _new_lang
 
 lang = st.session_state["lang"]
 
@@ -703,16 +708,25 @@ SCENE_PACKS = {
             "env_desc": "quiet outdoor track at soft dawn mist with lane lines still damp from overnight dew",
             "props_desc": "GPS watch, race bib folded once, lightweight hydration flask, chalked starting block marks",
             "problem_desc": "close-up of runner calves mid-stride after tempo intervals, shoes planted on the curb for a breath",
+            "env_desc_el": "ήσυχος ανοιχτός στίβος σε απαλή ομίχλη αυγής με γραμμές διαδρόμων ακόμα υγρές από τη νυχτερινή δροσιά",
+            "props_desc_el": "ρολόι GPS, νούμερο αγώνα διπλωμένο μια φορά, ελαφρύ φλασκί ενυδάτωσης, σημάδια εκκίνησης με κιμωλία",
+            "problem_desc_el": "κοντινό πλάνο στις γάμπες δρομέα στη μέση του διασκελισμού μετά από tempo διαστήματα, παπούτσια ακουμπημένα στο πεζοδρόμιο για μια ανάσα",
         },
         {
             "env_desc": "city park loop path edged with autumn leaves and low morning sun through trees",
             "props_desc": "foam roller half-used, charcoal compression socks, energy gel wrappers, reflective vest",
             "problem_desc": "legs stretched on a park bench after a long easy run, one shoe loosened at the heel",
+            "env_desc_el": "μονοπάτι πάρκου στην πόλη με φθινοπωρινά φύλλα στα πλαϊνά και χαμηλό πρωινό ήλιο μέσα από τα δέντρα",
+            "props_desc_el": "foam roller μισοχρησιμοποιημένο, γκρι κάλτσες συμπίεσης, περιτυλίγματα ενεργειακών τζελ, ανακλαστικό γιλέκο",
+            "problem_desc_el": "πόδια τεντωμένα σε παγκάκι πάρκου μετά από μεγάλο εύκολο τρέξιμο, το ένα παπούτσι χαλαρωμένο στη φτέρνα",
         },
         {
             "env_desc": "race-day expo plaza outside a start corral with banners blurred in daylight",
             "props_desc": "safety pins, timing chip bag, throwaway warm-up layer, electrolyte tablet tube",
             "problem_desc": "feet shifting nervously in the start corral, shoes tied tight for race pace",
+            "env_desc_el": "πλατεία expo ημέρας αγώνα έξω από τον χώρο εκκίνησης με πανό θολά στο φως της ημέρας",
+            "props_desc_el": "παραμάνες ασφαλείας, σακουλάκι chip χρονομέτρησης, φθηνό ζεστό ρούχο για ζέσταμα, σωληνάριο ηλεκτρολυτών",
+            "problem_desc_el": "πόδια που κουνιούνται νευρικά στον χώρο εκκίνησης, παπούτσια δεμένα σφιχτά για ρυθμό αγώνα",
         },
     ],
     "trail": [
@@ -720,11 +734,17 @@ SCENE_PACKS = {
             "env_desc": "muddy singletrack climbing through pine forest with soft filtered canopy light",
             "props_desc": "trekking poles clipped together, trail map in a zip pouch, muddy gaiters, bear-bell clip",
             "problem_desc": "mud-caked shoes and calves paused on a rock after a steep ascent, no face needed",
+            "env_desc_el": "λασπωμένο μονοπάτι που ανεβαίνει μέσα από πευκόδασος με απαλό φιλτραρισμένο φως από την κόμη",
+            "props_desc_el": "μπαστούνια trekking κλιπ μαζί, χάρτης trail σε τσαντάκι με φερμουάρ, λασπωμένα γκέτες, κουδουνάκι αρκούδας",
+            "problem_desc_el": "παπούτσια και γάμπες γεμάτα λάσπη σταματημένα σε πέτρα μετά από απότομη ανάβαση, χωρίς πρόσωπο",
         },
         {
             "env_desc": "rocky alpine switchback with distant ridgeline and cool overcast sky",
             "props_desc": "hydration vest, protein bar, headlamp, compact first-aid tin",
             "problem_desc": "hikers legs braced on uneven stone, shoes gripping scree after a long descent",
+            "env_desc_el": "βραχώδης αλπική στροφή με μακρινή κορυφογραμμή και δροσερό συννεφιασμένο ουρανό",
+            "props_desc_el": "γιλέκο ενυδάτωσης, μπάρα πρωτεΐνης, φακός κεφαλής, μικρό κουτί πρώτων βοηθειών",
+            "problem_desc_el": "πόδια πεζοπόρου στηριγμένα σε ανώμαλη πέτρα, παπούτσια που πιάνουν σε σάρα μετά από μεγάλη κατάβαση",
         },
     ],
     "gym": [
@@ -732,11 +752,17 @@ SCENE_PACKS = {
             "env_desc": "neon-lit training floor with rubber mats, rack mirrors, and cool evening gym lighting",
             "props_desc": "chalk bowl, lifting straps, resistance bands, stainless water bottle",
             "problem_desc": "athlete feet planted under a squat rack between sets, shoes braced on the platform",
+            "env_desc_el": "πάτωμα προπόνησης με νέον φωτισμό, λαστιχένια στρώματα, καθρέφτες ρακών και δροσερό βραδινό φως γυμναστηρίου",
+            "props_desc_el": "μπολ με κιμωλία, ιμάντες άρσης, λάστιχα αντίστασης, ανοξείδωτο μπουκάλι νερού",
+            "problem_desc_el": "πόδια αθλητή ακουμπημένα κάτω από squat rack ανάμεσα σε σετ, παπούτσια στηριγμένα στην πλατφόρμα",
         },
         {
             "env_desc": "bright functional-training studio with kettlebells lined along a white wall",
             "props_desc": "jump rope, foam yoga block, sweat towel, heart-rate armband",
             "problem_desc": "legs mid-lunge on turf after HIIT, shoes dusty with chalk residue",
+            "env_desc_el": "φωτεινό στούντιο functional training με kettlebells στη σειρά κατά μήκος άσπρου τοίχου",
+            "props_desc_el": "σκοινάκι, foam μπλοκ γιόγκα, πετσέτα ιδρώτα, περιβραχιόνιο καρδιακών παλμών",
+            "problem_desc_el": "πόδια στη μέση ενός lunge σε χλοοτάπητα μετά από HIIT, παπούτσια σκονισμένα με υπόλειμμα κιμωλίας",
         },
     ],
     "street": [
@@ -744,11 +770,17 @@ SCENE_PACKS = {
             "env_desc": "boutique cobblestone side street with shopfront glass and warm late-afternoon light",
             "props_desc": "crossbody bag, Polaroid camera, folded denim jacket, iced matcha cup",
             "problem_desc": "stylish cropped legs leaning on a storefront ledge, sneakers as the hero silhouette",
+            "env_desc_el": "πλακόστρωτο πλαϊνό δρομάκι μπουτίκ με βιτρίνες και ζεστό απογευματινό φως",
+            "props_desc_el": "τσάντα χιαστή, κάμερα Polaroid, διπλωμένο τζιν μπουφάν, παγωμένο ποτήρι matcha",
+            "problem_desc_el": "κομψά κομμένα πόδια ακουμπημένα σε περβάζι βιτρίνας, τα sneakers ως ήρωας της σιλουέτας",
         },
         {
             "env_desc": "graffiti alley with soft bounce light from a neighboring cafe awning",
             "props_desc": "skateboard deck, wireless earbuds case, enamel pin card, chain wallet",
             "problem_desc": "street-style feet crossed on a curb, focusing on clean upper and sole stack",
+            "env_desc_el": "σοκάκι με graffiti και απαλό ανακλώμενο φως από τέντα γειτονικού καφέ",
+            "props_desc_el": "σανίδα skateboard, θήκη ασύρματων ακουστικών, κάρτα με καρφίτσα σμάλτου, πορτοφόλι με αλυσίδα",
+            "problem_desc_el": "πόδια street-style σταυρωμένα στο πεζοδρόμιο, εστίαση στο καθαρό πάνω μέρος και τη στοίβα της σόλας",
         },
     ],
     "commute": [
@@ -756,11 +788,17 @@ SCENE_PACKS = {
             "env_desc": "rainy metro platform with wet tiles reflecting overhead LEDs and distant train blur",
             "props_desc": "compact umbrella, transit card sleeve, dripping raincoat hem, reusable coffee thermos",
             "problem_desc": "commuter legs waiting on wet tiles, shoes beading rain after a soaked walk to the station",
+            "env_desc_el": "βροχερή αποβάθρα μετρό με υγρά πλακάκια που αντανακλούν LED και μακρινό θόλωμα τρένου",
+            "props_desc_el": "συμπαγής ομπρέλα, θήκη κάρτας μεταφοράς, στάζον στρίφωμα αδιάβροχου, επαναχρησιμοποιούμενο θερμός καφέ",
+            "problem_desc_el": "πόδια επιβάτη που περιμένουν σε υγρά πλακάκια, παπούτσια με σταγόνες βροχής μετά από μουσκεμένο περπάτημα μέχρι τον σταθμό",
         },
         {
             "env_desc": "busy crosswalk at dusk with puddles and yellow taxi streaks in bokeh",
             "props_desc": "folded newspaper, bike helmet, wet scarf, phone with cracked case",
             "problem_desc": "feet stepping through a shallow puddle at a red light, shoes taking the splash",
+            "env_desc_el": "πολυσύχναστη διάβαση στο σούρουπο με λακκούβες και κίτρινες γραμμές ταξί σε bokeh",
+            "props_desc_el": "διπλωμένη εφημερίδα, κράνος ποδηλάτου, βρεγμένο κασκόλ, τηλέφωνο με ραγισμένη θήκη",
+            "problem_desc_el": "πόδια που πατάνε μέσα από ρηχή λακκούβα σε κόκκινο φανάρι, παπούτσια που παίρνουν το πιτσίλισμα",
         },
     ],
     "work": [
@@ -768,11 +806,17 @@ SCENE_PACKS = {
             "env_desc": "busy cafe counter area with warm pendant lights and steam from the espresso machine",
             "props_desc": "order ticket spike, milk pitcher, bar towel, tip jar coins",
             "problem_desc": "barista shift legs behind the counter after hours of standing, work sneakers loosened",
+            "env_desc_el": "πολυσύχναστος χώρος πάγκου καφέ με ζεστά κρεμαστά φώτα και ατμό από τη μηχανή εσπρέσο",
+            "props_desc_el": "καρφί για παραγγελίες, κανάτα γάλακτος, πετσέτα μπαρ, κέρματα σε βάζο φιλοδωρημάτων",
+            "problem_desc_el": "πόδια βάρδιας barista πίσω από τον πάγκο μετά από ώρες όρθιος, τα work sneakers χαλαρωμένα",
         },
         {
             "env_desc": "retail shop floor aisle with soft overhead LEDs and clothing racks softly blurred",
             "props_desc": "price gun, folded stock boxes, name-badge lanyard, inventory tablet",
             "problem_desc": "retail associate legs pausing mid-aisle after a long standing shift, shoes still on",
+            "env_desc_el": "διάδρομος καταστήματος retail με απαλά overhead LED και ράφια ρούχων απαλά θολά",
+            "props_desc_el": "πιστόλι τιμών, διπλωμένα κουτιά στοκ, κορδόνι με κονκάρδα ονόματος, tablet αποθέματος",
+            "problem_desc_el": "πόδια υπαλλήλου retail που σταματούν στη μέση του διαδρόμου μετά από μεγάλη βάρδια όρθιος, παπούτσια ακόμα φορεμένα",
         },
     ],
     "travel": [
@@ -780,11 +824,17 @@ SCENE_PACKS = {
             "env_desc": "airport departure hall with polished floors, soft daylight from tall windows, and rolling suitcase blur",
             "props_desc": "boarding pass sleeve, compact neck pillow, passport holder, carry-on handle",
             "problem_desc": "traveler legs stretched beside a gate seat after a long walk through terminals",
+            "env_desc_el": "αίθουσα αναχωρήσεων αεροδρομίου με γυαλισμένα πατώματα, απαλό φως ημέρας από ψηλά παράθυρα και θόλωμα βαλίτσας που κυλάει",
+            "props_desc_el": "θήκη κάρτας επιβίβασης, συμπαγές μαξιλάρι αυχένα, θήκη διαβατηρίου, λαβή χειραποσκευής",
+            "problem_desc_el": "πόδια ταξιδιώτη τεντωμένα δίπλα σε κάθισμα πύλης μετά από μεγάλο περπάτημα στους τερματικούς",
         },
         {
             "env_desc": "train platform with morning haze and distant countryside rolling stock",
             "props_desc": "weekender duffel, paperback novel, bottle of water, luggage tag",
             "problem_desc": "feet resting on a hard platform bench during a layover, shoes still laced for walking",
+            "env_desc_el": "αποβάθρα τρένου με πρωινή ομίχλη και μακρινά βαγόνια στην ύπαιθρο",
+            "props_desc_el": "σακ βουαγιάζ weekender, μυθιστόρημα τσέπης, μπουκάλι νερού, ετικέτα αποσκευής",
+            "problem_desc_el": "πόδια ακουμπημένα σε σκληρό παγκάκι αποβάθρας σε ενδιάμεση στάση, παπούτσια ακόμα δεμένα για περπάτημα",
         },
     ],
     "recovery": [
@@ -792,11 +842,17 @@ SCENE_PACKS = {
             "env_desc": "quiet curb outside a running track after sunset with streetlamps just flickering on",
             "props_desc": "ice pack wrap, recovery drink can, sweaty singlet draped aside, massage ball",
             "problem_desc": "post-run legs on the curb, shoes half-off, focusing on tired feet without showing a face",
+            "env_desc_el": "ήσυχο πεζοδρόμιο έξω από στίβο μετά το ηλιοβασίλεμα με φανούς που μόλις ανάβουν",
+            "props_desc_el": "παγοκύστη, κουτάκι recovery ποτού, ιδρωμένο φανελάκι στην άκρη, μπάλα μασάζ",
+            "problem_desc_el": "πόδια μετά το τρέξιμο στο πεζοδρόμιο, παπούτσια μισοβγαλμένα, εστίαση σε κουρασμένα πέλματα χωρίς πρόσωπο",
         },
         {
             "env_desc": "sunny apartment balcony with a yoga mat rolled halfway and city rooftops beyond",
             "props_desc": "compression boots remote, protein shake, phone playing a stretch video, soft towel",
             "problem_desc": "recovery stretch on a mat, one shoe kicked aside, calves being rolled out",
+            "env_desc_el": "ηλιόλουστο μπαλκόνι διαμερίσματος με στρώμα γιόγκα μισοτυλιγμένο και ταράτσες πόλης στο βάθος",
+            "props_desc_el": "τηλεχειριστήριο μπότες συμπίεσης, πρωτεϊνικό shake, τηλέφωνο με βίντεο διατάσεων, απαλή πετσέτα",
+            "problem_desc_el": "διάταση recovery σε στρώμα, το ένα παπούτσι πεταμένο στην άκρη, γάμπες που κυλιούνται",
         },
     ],
     "basketball": [
@@ -804,11 +860,17 @@ SCENE_PACKS = {
             "env_desc": "indoor hardwood court with sharp overhead lights and painted free-throw arc",
             "props_desc": "basketball, towel on the baseline, ankle sleeve, sports drink bottle",
             "problem_desc": "player legs cutting hard near the key, shoes planted for a quick stop",
+            "env_desc_el": "κλειστό γήπεδο παρκέ με έντονα overhead φώτα και βαμμένο τόξο ελεύθερης βολής",
+            "props_desc_el": "μπάλα μπάσκετ, πετσέτα στη βασική γραμμή, μανίκι αστραγάλου, μπουκάλι αθλητικού ποτού",
+            "problem_desc_el": "πόδια παίκτη που κόβουν απότομα κοντά στο καλάθι, παπούτσια ακουμπημένα για γρήγορο στοπ",
         },
         {
             "env_desc": "outdoor asphalt half-court at golden hour with chain net softly clinking",
             "props_desc": "worn basketball, portable speaker, chalked score tally, water jug",
             "problem_desc": "pickup-game feet at the top of the key between possessions, dusty court shoes",
+            "env_desc_el": "εξωτερικό asfalt half-court στην χρυσή ώρα με αλυσίδα δίχτυ που κουδουνίζει απαλά",
+            "props_desc_el": "φθαρμένη μπάλα μπάσκετ, φορητό ηχείο, σκορ με κιμωλία, μπιτόνι νερού",
+            "problem_desc_el": "πόδια pickup αγώνα στην κορυφή της ρακέτας ανάμεσα σε κατοχές, σκονισμένα παπούτσια γηπέδου",
         },
     ],
     "lifestyle": [
@@ -816,11 +878,17 @@ SCENE_PACKS = {
             "env_desc": "sunlit loft interior with raw wood floor and large window light pooling on the boards",
             "props_desc": "vinyl record sleeve, ceramic mug of black coffee, house keys, linen tote",
             "problem_desc": "relaxed weekend legs on a low stool, sneakers as the quiet hero of the frame",
+            "env_desc_el": "ηλιόλουστο εσωτερικό loft με ακατέργαστο ξύλινο πάτωμα και μεγάλο φως παραθύρου που πέφτει στις σανίδες",
+            "props_desc_el": "εξώφυλλο δίσκου βινυλίου, κεραμική κούπα μαύρου καφέ, κλειδιά σπιτιού, λινή τσάντα tote",
+            "problem_desc_el": "χαλαρά πόδια Σαββατοκύριακου σε χαμηλό σκαμπό, τα sneakers ως ήσυχος ήρωας του κάδρου",
         },
         {
             "env_desc": "coastal boardwalk with soft sea breeze haze and pale wood planks",
             "props_desc": "sunglasses case, disposable camera, woven tote, cold sparkling water",
             "problem_desc": "leisurely walk pause on the boardwalk railing, focusing on shoes against weathered wood",
+            "env_desc_el": "παραθαλάσσιο boardwalk με απαλή θαλασσινή αύρα-ομίχλη και χλωμές ξύλινες σανίδες",
+            "props_desc_el": "θήκη γυαλιών ηλίου, κάμερα μιας χρήσης, πλεκτή τσάντα tote, κρύο ανθρακούχο νερό",
+            "problem_desc_el": "παύση σε χαλαρό περπάτημα στο κάγκελο του boardwalk, εστίαση στα παπούτσια πάνω σε φθαρμένο ξύλο",
         },
     ],
 }
@@ -883,6 +951,9 @@ def pick_scene_pack(brand: str = "", model: str = "", specs: str = "", rng=None,
         "env_desc": pack["env_desc"],
         "props_desc": pack["props_desc"],
         "problem_desc": pack["problem_desc"],
+        "env_desc_el": pack.get("env_desc_el") or pack["env_desc"],
+        "props_desc_el": pack.get("props_desc_el") or pack["props_desc"],
+        "problem_desc_el": pack.get("problem_desc_el") or pack["problem_desc"],
     }
 
 
@@ -903,11 +974,178 @@ def scene_matches_banned_defaults(env_desc: str = "", props_desc: str = "", prob
     return False
 
 
-def apply_scene_pack_to_session(pack: dict):
-    """Write env/props/problem into session_state widget values."""
-    st.session_state["env_desc_val"] = pack.get("env_desc", "") or ""
-    st.session_state["props_desc_val"] = pack.get("props_desc", "") or ""
-    st.session_state["problem_desc_val"] = pack.get("problem_desc", "") or ""
+def apply_scene_pack_to_session(pack: dict, lang: str = None):
+    """Write env/props/problem into session_state (visible UI lang + English shadows)."""
+    lang = (lang or st.session_state.get("lang", "el") or "el").strip().lower()
+    env_en = pack.get("env_desc", "") or ""
+    props_en = pack.get("props_desc", "") or ""
+    problem_en = pack.get("problem_desc", "") or ""
+    env_el = pack.get("env_desc_el") or env_en
+    props_el = pack.get("props_desc_el") or props_en
+    problem_el = pack.get("problem_desc_el") or problem_en
+    st.session_state["env_desc_en"] = env_en
+    st.session_state["props_desc_en"] = props_en
+    st.session_state["problem_desc_en"] = problem_en
+    if lang == "el":
+        st.session_state["env_desc_val"] = env_el
+        st.session_state["props_desc_val"] = props_el
+        st.session_state["problem_desc_val"] = problem_el
+    else:
+        st.session_state["env_desc_val"] = env_en
+        st.session_state["props_desc_val"] = props_en
+        st.session_state["problem_desc_val"] = problem_en
+
+
+def scene_fields_for_prompts():
+    """English scene strings for image prompt builders (never Greek)."""
+    env = (st.session_state.get("env_desc_en") or st.session_state.get("env_desc_val") or "").strip()
+    props = (st.session_state.get("props_desc_en") or st.session_state.get("props_desc_val") or "").strip()
+    problem = (st.session_state.get("problem_desc_en") or st.session_state.get("problem_desc_val") or "").strip()
+    return env, props, problem
+
+
+def _iter_all_scene_packs():
+    for packs in SCENE_PACKS.values():
+        for pack in packs:
+            yield pack
+
+
+def find_scene_pack_by_text(env_text: str = "", props_text: str = "", problem_text: str = ""):
+    """Match visible or EN pack text to a full bilingual pack, or None."""
+    env_t = (env_text or "").strip()
+    props_t = (props_text or "").strip()
+    problem_t = (problem_text or "").strip()
+    if not (env_t or props_t or problem_t):
+        return None
+    for pack in _iter_all_scene_packs():
+        en_env = (pack.get("env_desc") or "").strip()
+        en_props = (pack.get("props_desc") or "").strip()
+        en_problem = (pack.get("problem_desc") or "").strip()
+        el_env = (pack.get("env_desc_el") or "").strip()
+        el_props = (pack.get("props_desc_el") or "").strip()
+        el_problem = (pack.get("problem_desc_el") or "").strip()
+        if env_t and env_t not in (en_env, el_env):
+            continue
+        if props_t and props_t not in (en_props, el_props):
+            continue
+        if problem_t and problem_t not in (en_problem, el_problem):
+            continue
+        # Prefer matching at least env when provided
+        if env_t and env_t in (en_env, el_env):
+            return pack
+        if not env_t and (props_t or problem_t):
+            return pack
+    # Fallback: match env alone
+    if env_t:
+        for pack in _iter_all_scene_packs():
+            if env_t in ((pack.get("env_desc") or "").strip(), (pack.get("env_desc_el") or "").strip()):
+                return pack
+    return None
+
+
+def refresh_scene_fields_for_lang(new_lang: str, old_lang: str = None):
+    """On el↔en switch, refresh visible scene fields from known packs or EN shadows."""
+    new_lang = (new_lang or "el").strip().lower()
+    old_lang = (old_lang or "").strip().lower()
+    if old_lang and old_lang == new_lang:
+        return False
+    env_vis = st.session_state.get("env_desc_val", "") or ""
+    props_vis = st.session_state.get("props_desc_val", "") or ""
+    problem_vis = st.session_state.get("problem_desc_val", "") or ""
+    pack = find_scene_pack_by_text(env_vis, props_vis, problem_vis)
+    if pack:
+        apply_scene_pack_to_session(pack, lang=new_lang)
+        return True
+    # If EN shadows exist and look like pack EN, flip visible from shadows
+    env_en = st.session_state.get("env_desc_en", "") or ""
+    props_en = st.session_state.get("props_desc_en", "") or ""
+    problem_en = st.session_state.get("problem_desc_en", "") or ""
+    if env_en or props_en or problem_en:
+        pack2 = find_scene_pack_by_text(env_en, props_en, problem_en)
+        if pack2:
+            apply_scene_pack_to_session(pack2, lang=new_lang)
+            return True
+        # Custom text: keep EN shadows; show EN when lang=en, leave Greek custom as-is when el
+        if new_lang == "en":
+            st.session_state["env_desc_val"] = env_en or env_vis
+            st.session_state["props_desc_val"] = props_en or props_vis
+            st.session_state["problem_desc_val"] = problem_en or problem_vis
+            return True
+    return False
+
+
+def translate_scene_lines_to_greek(env_en: str, props_en: str, problem_en: str):
+    """Translate 3 English scene lines to natural Greek via Gemini. Returns dict or None."""
+    env_en = (env_en or "").strip()
+    props_en = (props_en or "").strip()
+    problem_en = (problem_en or "").strip()
+    if not (env_en or props_en or problem_en):
+        return None
+    # Prefer known pack mapping (no API)
+    pack = find_scene_pack_by_text(env_en, props_en, problem_en)
+    if pack and pack.get("env_desc_el"):
+        return {
+            "env_desc_el": pack.get("env_desc_el") or env_en,
+            "props_desc_el": pack.get("props_desc_el") or props_en,
+            "problem_desc_el": pack.get("problem_desc_el") or problem_en,
+        }
+    prompt = (
+        "Translate these 3 sneaker scene description lines to natural Greek. "
+        "Keep meaning and photographic detail. Return ONLY raw JSON with keys "
+        "env_desc_el, props_desc_el, problem_desc_el.\n\n"
+        f"env_desc: {env_en}\n"
+        f"props_desc: {props_en}\n"
+        f"problem_desc: {problem_en}\n"
+    )
+    models_to_try = ["gemini-3.6-flash", "gemini-2.5-flash"]
+    for model_item in models_to_try:
+        try:
+            res = client.models.generate_content(model=model_item, contents=prompt)
+            if not res or not res.text:
+                continue
+            clean_txt = res.text.strip()
+            if clean_txt.startswith("```json"):
+                clean_txt = clean_txt[7:]
+            if clean_txt.startswith("```"):
+                clean_txt = clean_txt[3:]
+            if clean_txt.endswith("```"):
+                clean_txt = clean_txt[:-3]
+            data = json.loads(clean_txt.strip())
+            if not isinstance(data, dict):
+                continue
+            return {
+                "env_desc_el": (data.get("env_desc_el") or env_en).strip(),
+                "props_desc_el": (data.get("props_desc_el") or props_en).strip(),
+                "problem_desc_el": (data.get("problem_desc_el") or problem_en).strip(),
+            }
+        except Exception:
+            time.sleep(0.5)
+    return None
+
+
+def store_scene_from_analyze(env_en: str, props_en: str, problem_en: str, lang: str = None):
+    """Store EN shadows always; set visible fields to EL when UI is Greek."""
+    lang = (lang or st.session_state.get("lang", "el") or "el").strip().lower()
+    env_en = env_en or ""
+    props_en = props_en or ""
+    problem_en = problem_en or ""
+    st.session_state["env_desc_en"] = env_en
+    st.session_state["props_desc_en"] = props_en
+    st.session_state["problem_desc_en"] = problem_en
+    if lang == "el":
+        tr = translate_scene_lines_to_greek(env_en, props_en, problem_en)
+        if tr:
+            st.session_state["env_desc_val"] = tr["env_desc_el"]
+            st.session_state["props_desc_val"] = tr["props_desc_el"]
+            st.session_state["problem_desc_val"] = tr["problem_desc_el"]
+        else:
+            st.session_state["env_desc_val"] = env_en
+            st.session_state["props_desc_val"] = props_en
+            st.session_state["problem_desc_val"] = problem_en
+    else:
+        st.session_state["env_desc_val"] = env_en
+        st.session_state["props_desc_val"] = props_en
+        st.session_state["problem_desc_val"] = problem_en
 
 
 
@@ -1036,7 +1274,7 @@ def clear_all_fields():
     st.session_state["colorway_val"] = ""
     st.session_state["specs_val"] = ""
     _pack = pick_scene_pack("", "", "", vibe=st.session_state.get("scene_vibe_val", "auto") or "auto")
-    apply_scene_pack_to_session(_pack)
+    apply_scene_pack_to_session(_pack, lang=st.session_state.get("lang", "el"))
     st.session_state["watermark_val"] = ""
     st.session_state["selected_tag_val"] = AUTHENTICITY_TAGS[0]
     st.session_state["selected_badge_val"] = CATEGORY_BADGES[0]
@@ -1073,9 +1311,25 @@ def apply_history_entry(entry: dict):
     st.session_state["model_val"] = entry.get("model", "") or ""
     st.session_state["colorway_val"] = entry.get("colorway", "") or ""
     st.session_state["specs_val"] = entry.get("specs", "") or ""
-    st.session_state["env_desc_val"] = entry.get("env_desc", "") or ""
-    st.session_state["props_desc_val"] = entry.get("props_desc", "") or ""
-    st.session_state["problem_desc_val"] = entry.get("problem_desc", "") or ""
+    _e = entry.get("env_desc", "") or ""
+    _p = entry.get("props_desc", "") or ""
+    _pr = entry.get("problem_desc", "") or ""
+    st.session_state["env_desc_val"] = _e
+    st.session_state["props_desc_val"] = _p
+    st.session_state["problem_desc_val"] = _pr
+    _e_en = entry.get("env_desc_en") or ""
+    _p_en = entry.get("props_desc_en") or ""
+    _pr_en = entry.get("problem_desc_en") or ""
+    if not (_e_en or _p_en or _pr_en):
+        _matched = find_scene_pack_by_text(_e, _p, _pr)
+        if _matched:
+            _e_en, _p_en, _pr_en = _matched["env_desc"], _matched["props_desc"], _matched["problem_desc"]
+        else:
+            # Legacy entries were English-only
+            _e_en, _p_en, _pr_en = _e, _p, _pr
+    st.session_state["env_desc_en"] = _e_en
+    st.session_state["props_desc_en"] = _p_en
+    st.session_state["problem_desc_en"] = _pr_en
     st.session_state["watermark_val"] = (entry.get("watermark") or "").strip()
     tag = entry.get("selected_tag") or AUTHENTICITY_TAGS[0]
     badge = entry.get("selected_badge") or CATEGORY_BADGES[0]
@@ -1592,11 +1846,23 @@ if "model_val" not in st.session_state: st.session_state["model_val"] = ""
 if "colorway_val" not in st.session_state: st.session_state["colorway_val"] = ""
 if "specs_val" not in st.session_state: st.session_state["specs_val"] = ""
 if "scene_vibe_val" not in st.session_state: st.session_state["scene_vibe_val"] = "auto"
-if "env_desc_val" not in st.session_state or "props_desc_val" not in st.session_state or "problem_desc_val" not in st.session_state:
+if (
+    "env_desc_val" not in st.session_state
+    or "props_desc_val" not in st.session_state
+    or "problem_desc_val" not in st.session_state
+    or "env_desc_en" not in st.session_state
+    or "props_desc_en" not in st.session_state
+    or "problem_desc_en" not in st.session_state
+):
     _init_pack = pick_scene_pack("", "", "", vibe=st.session_state.get("scene_vibe_val", "auto") or "auto")
-    if "env_desc_val" not in st.session_state: st.session_state["env_desc_val"] = _init_pack["env_desc"]
-    if "props_desc_val" not in st.session_state: st.session_state["props_desc_val"] = _init_pack["props_desc"]
-    if "problem_desc_val" not in st.session_state: st.session_state["problem_desc_val"] = _init_pack["problem_desc"]
+    apply_scene_pack_to_session(_init_pack, lang=st.session_state.get("lang", "el"))
+
+# Refresh visible scene text when UI language flips el↔en
+if st.session_state.pop("_lang_switch_pending", False):
+    refresh_scene_fields_for_lang(
+        st.session_state.get("lang", "el"),
+        st.session_state.get("_lang_switch_from", "el"),
+    )
 if "uploader_key" not in st.session_state: st.session_state["uploader_key"] = 0
 if "watermark_val" not in st.session_state: st.session_state["watermark_val"] = ""
 if "selected_tag_val" not in st.session_state: st.session_state["selected_tag_val"] = AUTHENTICITY_TAGS[0]
@@ -1886,6 +2152,7 @@ if app_mode == "content":
                 aspect_ratio=st.session_state.get("aspect_ratio_val", "1:1 (Square)"),
                 insight_context=st.session_state.get("active_insight", "") or "",
                 appearance=st.session_state.get("appearance_val", "eu"),
+                lang=lang,
                 models=["gemini-3.6-flash", "gemini-2.5-flash"],
                 warn=_warn,
             )
@@ -2011,9 +2278,12 @@ if st.button(t("analyze_button", lang)):
             st.session_state["model_val"] = data.get("model", "")
             st.session_state["colorway_val"] = data.get("colorway", "")
             st.session_state["specs_val"] = data.get("specs", "")
-            st.session_state["env_desc_val"] = data.get("env_desc", "")
-            st.session_state["props_desc_val"] = data.get("props_desc", "")
-            st.session_state["problem_desc_val"] = data.get("problem_desc", "")
+            store_scene_from_analyze(
+                data.get("env_desc", "") or "",
+                data.get("props_desc", "") or "",
+                data.get("problem_desc", "") or "",
+                lang=lang,
+            )
             st.rerun()
 
 # 5. INPUT FIELDS
@@ -2048,6 +2318,7 @@ with col_badge:
 
 st.markdown(t("scene_section", lang))
 st.caption(t("scene_help", lang))
+st.caption(t("scene_lang_note", lang))
 
 _vibe_labels = {
     "auto": t("vibe_auto", lang),
@@ -2081,7 +2352,7 @@ if st.button(t("shuffle_scene", lang), key="shuffle_scene_btn"):
         st.session_state.get("specs_val", ""),
         vibe=st.session_state.get("scene_vibe_val", "auto") or "auto",
     )
-    apply_scene_pack_to_session(_shuffle_pack)
+    apply_scene_pack_to_session(_shuffle_pack, lang=lang)
     st.rerun()
 
 selected_env = st.text_area(t("env_label", lang), value=st.session_state["env_desc_val"], height=70)
@@ -2092,6 +2363,21 @@ st.session_state["props_desc_val"] = selected_props
 
 selected_problem = st.text_area(t("problem_label", lang), value=st.session_state["problem_desc_val"], height=70)
 st.session_state["problem_desc_val"] = selected_problem
+
+# Keep EN shadows in sync when user edits a known pack or English text;
+# image prompts always use English via scene_fields_for_prompts().
+_pack_match = find_scene_pack_by_text(selected_env, selected_props, selected_problem)
+if _pack_match:
+    st.session_state["env_desc_en"] = _pack_match["env_desc"]
+    st.session_state["props_desc_en"] = _pack_match["props_desc"]
+    st.session_state["problem_desc_en"] = _pack_match["problem_desc"]
+elif lang != "el":
+    # Visible fields are English — treat edits as the prompt source.
+    st.session_state["env_desc_en"] = selected_env
+    st.session_state["props_desc_en"] = selected_props
+    st.session_state["problem_desc_en"] = selected_problem
+
+_prompt_env, _prompt_props, _prompt_problem = scene_fields_for_prompts()
 
 
 # 5b. GOAL / STORY TEMPLATES (hybrid — does not replace scene fields)
@@ -2259,6 +2545,8 @@ if st.button(
             "ONLY the requested overlay text."
         )
         _appearance_extra = appearance_clause(st.session_state.get("appearance_val", "eu"))
+        _ui_env, _ui_props, _ui_problem = selected_env, selected_props, selected_problem
+        selected_env, selected_props, selected_problem = scene_fields_for_prompts()
         _brand_lock = (
             f" Hero footwear must match: {brand} {safe_model_name} {colorway}. "
             f"Clearly recognizable {brand} footwear, correct model silhouette and typical "
@@ -2380,9 +2668,12 @@ RAW DATA (JSON)
             "model": model_name,
             "colorway": colorway,
             "specs": key_materials,
-            "env_desc": selected_env,
-            "props_desc": selected_props,
-            "problem_desc": selected_problem,
+            "env_desc": _ui_env,
+            "props_desc": _ui_props,
+            "problem_desc": _ui_problem,
+            "env_desc_en": selected_env,
+            "props_desc_en": selected_props,
+            "problem_desc_en": selected_problem,
             "watermark": custom_watermark,
             "ad_format": ad_format,
             "aspect_ratio": aspect_ratio,
