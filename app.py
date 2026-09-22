@@ -26,6 +26,7 @@ from content_carousel import (
     APPEARANCE_KEYS,
     appearance_clause,
     append_appearance_clause,
+    anatomy_safety_clause,
     topic_label,
     weekly_suggestions,
     generate_content_carousel,
@@ -233,7 +234,7 @@ CRITICAL IDENTIFICATION & DYNAMIC SCENE CREATION RULES:
 4. "specs": Technical specifications specific to this exact model (e.g., Vibram Megagrip outsole, dual-density EVA midsole, breathable mesh upper).
 5. "env_desc": Write a detailed, hyper-relevant 1-sentence English description of the IDEAL background environment tailored to this shoe's archetype.
 6. "props_desc": Write a 1-sentence English list of 3-4 EDC props placed on the surface next to the shoe that match its lifestyle/vibe.
-7. "problem_desc": Write a 1-sentence English description of a realistic human pain-point/problem scene matching this shoe's category. Prefer legs/feet/shoes framing; faces not required.
+7. "problem_desc": Write a 1-sentence English description of a realistic human pain-point/problem scene matching this shoe's category. Prefer product-only OR single-person legs/feet/shoes framing; faces not required. Never describe two people interacting with feet/legs/socks/shoes. Prefer both shoes worn on that one person, or shoes as a still-life with no people.
 
 HARD BANS (do NOT default to these unless the shoe truly matches that exact vibe, and even then invent a NEW wording):
 - tired worker sitting on stairs / sore feet with work boots
@@ -244,14 +245,14 @@ REQUIREMENTS:
 - env_desc, props_desc, and problem_desc MUST match the shoe archetype (road running, trail, gym, street fashion, rainy commute, barista/retail shift, airport travel, post-run recovery, basketball court, etc.).
 - Be DISTINCT from the banned defaults above.
 - Invent a NEW scene in the spirit of these short EXAMPLE packs — do NOT copy examples verbatim:
-  * Road running: outdoor track at dawn mist + GPS watch / race bib / flask — calves after tempo on the curb
-  * Trail: muddy pine singletrack + poles / map / gaiters — mud-caked shoes paused on a rock
-  * Gym: neon rubber-mat floor + chalk / straps / bands — feet planted under a squat rack
-  * Rainy commute: wet metro tiles + umbrella / transit card / thermos — shoes beading rain on the platform
-  * Boutique street: cobblestone shopfront light + crossbody / Polaroid / iced matcha — cropped stylish legs on a ledge
-  * Airport travel: departure hall daylight + boarding pass / neck pillow / carry-on — legs stretched at the gate
-  * Post-run recovery: curb outside a track at dusk + ice pack / recovery drink / massage ball — shoes half-off on the curb
-  * Cafe barista shift: warm pendant-lit counter + milk pitcher / tickets / bar towel — standing-shift legs behind the bar
+  * Road running: outdoor track at dawn mist + GPS watch / race bib / flask — ONE runner's calves after tempo, BOTH shoes on, pausing on the curb
+  * Trail: muddy pine singletrack + poles / map / gaiters — ONE hiker's mud-caked shoes paused on a rock (both shoes on)
+  * Gym: neon rubber-mat floor + chalk / straps / bands — ONE athlete's feet planted under a squat rack, both shoes on
+  * Rainy commute: wet metro tiles + umbrella / transit card / thermos — ONE commuter's shoes beading rain on the platform
+  * Boutique street: cobblestone shopfront light + crossbody / Polaroid / iced matcha — ONE person's cropped stylish legs on a ledge, both sneakers on
+  * Airport travel: departure hall daylight + boarding pass / neck pillow / carry-on — ONE traveler seated at the gate, both shoes on
+  * Post-run recovery: curb outside a track at dusk + ice pack / recovery drink / massage ball — ONE runner seated on the curb rubbing own calves, BOTH shoes still on (or product-only shoes beside the curb — no second person)
+  * Cafe barista shift: warm pendant-lit counter + milk pitcher / tickets / bar towel — ONE barista standing-shift legs behind the bar, both work sneakers on
 - Emphasize VARIETY across regenerations: same shoe analyzed again should be able to yield a different but still archetype-true scene.
 
 Return ONLY a valid, raw JSON object matching this schema:
@@ -262,7 +263,7 @@ Return ONLY a valid, raw JSON object matching this schema:
   "colorway": "Detected colorway...",
   "env_desc": "Custom environmental background description...",
   "props_desc": "Custom EDC props list...",
-  "problem_desc": "Custom human problem scene (legs/shoes OK, no face required)..."
+  "problem_desc": "Custom human problem scene (single person or product-only; legs/shoes OK; no face required; never two people handling feet)..."
 }"""
 
     contents = [
@@ -866,8 +867,9 @@ def build_carousel_prompts(
         hook = (
             f"Create an image: WIDE environment lifestyle scene for {selected_problem}. "
             f"COMPOSITION LOCK — Slide 1 HOOK: wide establishing shot / environment mood; "
-            f"shoe appears SMALLER in frame (not a product hero still-life); person-legs or "
-            f"empty scene atmosphere OK; NO full-pair product still-life on a bench. "
+            f"shoe appears SMALLER in frame (not a product hero still-life); single-subject or "
+            f"empty scene only (legs/shoes of at most one person OR empty atmosphere); "
+            f"NO full-pair product still-life on a bench. "
             f"No face, no portrait framing — crop strictly below the chin; no partial face at frame edge; prioritize shoes, legs, hands, props. "
             f"Natural dramatic studio lighting. Atmospheric mood. Bold top text overlay: '{hook_txt}'. "
             f"{_distinct} "
@@ -877,7 +879,7 @@ def build_carousel_prompts(
         hook = (
             f"Create an image: WIDE cinematic lifestyle environment of {selected_problem}. "
             f"COMPOSITION LOCK — Slide 1 HOOK: wide establishing shot; shoe smaller in frame "
-            f"or problem-focused mood; NOT a bench product still-life. "
+            f"or problem-focused mood; single subject or empty scene only; NOT a bench product still-life. "
             f"Natural dramatic studio lighting. High emotion. Bold top text overlay: '{hook_txt}'. "
             f"{_distinct} "
             f"{negative_constraint}{brand_lock}{_appx} Photorealistic 8k {ar_flag}"
@@ -907,8 +909,8 @@ def build_carousel_prompts(
     )
     lifestyle = (
         f"Create an image: ON-FOOT crop / lifestyle action in {selected_env} featuring EDC props: {selected_props}, "
-        f"with {brand} {safe_model_name} in {colorway} colorway ({key_materials}) naturally worn or mid-stride. "
-        f"COMPOSITION LOCK — LIFESTYLE: on-foot crop or mid-distance lifestyle (legs/shoes in motion); "
+        f"with {brand} {safe_model_name} in {colorway} colorway ({key_materials}) naturally worn or mid-stride by ONE person only. "
+        f"COMPOSITION LOCK — LIFESTYLE: on-foot crop or mid-distance lifestyle (legs/shoes of at most one person in motion); "
         f"NOT studio bench still-life, NOT 3/4 product hero, NOT macro sole fill. "
         f"Atmospheric natural light. Subtle text overlay: '{body_txt}'. "
         f"{_distinct} "
@@ -1009,18 +1011,18 @@ SCENE_PACKS = {
         {
             "env_desc": "quiet outdoor track at soft dawn mist with lane lines still damp from overnight dew",
             "props_desc": "GPS watch, race bib folded once, lightweight hydration flask, chalked starting block marks",
-            "problem_desc": "close-up of runner calves mid-stride after tempo intervals, shoes planted on the curb for a breath",
+            "problem_desc": "close-up of ONE runner's calves mid-stride after tempo intervals, BOTH shoes planted on the curb for a breath",
             "env_desc_el": "ήσυχος ανοιχτός στίβος σε απαλή ομίχλη αυγής με γραμμές διαδρόμων ακόμα υγρές από τη νυχτερινή δροσιά",
             "props_desc_el": "ρολόι GPS, νούμερο αγώνα διπλωμένο μια φορά, ελαφρύ φλασκί ενυδάτωσης, σημάδια εκκίνησης με κιμωλία",
-            "problem_desc_el": "κοντινό πλάνο στις γάμπες δρομέα στη μέση του διασκελισμού μετά από tempo διαστήματα, παπούτσια ακουμπημένα στο πεζοδρόμιο για μια ανάσα",
+            "problem_desc_el": "κοντινό πλάνο στις γάμπες ΕΝΟΣ δρομέα στη μέση του διασκελισμού μετά από tempo διαστήματα, ΚΑΙ ΤΑ ΔΥΟ παπούτσια ακουμπημένα στο πεζοδρόμιο για μια ανάσα",
         },
         {
             "env_desc": "city park loop path edged with autumn leaves and low morning sun through trees",
             "props_desc": "foam roller half-used, charcoal compression socks, energy gel wrappers, reflective vest",
-            "problem_desc": "legs stretched on a park bench after a long easy run, one shoe loosened at the heel",
+            "problem_desc": "ONE runner seated on a park bench after a long easy run, BOTH shoes still on their own feet, rubbing own tired calves",
             "env_desc_el": "μονοπάτι πάρκου στην πόλη με φθινοπωρινά φύλλα στα πλαϊνά και χαμηλό πρωινό ήλιο μέσα από τα δέντρα",
             "props_desc_el": "foam roller μισοχρησιμοποιημένο, γκρι κάλτσες συμπίεσης, περιτυλίγματα ενεργειακών τζελ, ανακλαστικό γιλέκο",
-            "problem_desc_el": "πόδια τεντωμένα σε παγκάκι πάρκου μετά από μεγάλο εύκολο τρέξιμο, το ένα παπούτσι χαλαρωμένο στη φτέρνα",
+            "problem_desc_el": "ΕΝΑΣ δρομέας καθισμένος σε παγκάκι πάρκου μετά από μεγάλο εύκολο τρέξιμο, ΚΑΙ ΤΑ ΔΥΟ παπούτσια ακόμα στα πόδια του, τρίβει τις δικές του κουρασμένες γάμπες",
         },
         {
             "env_desc": "race-day expo plaza outside a start corral with banners blurred in daylight",
@@ -1035,18 +1037,18 @@ SCENE_PACKS = {
         {
             "env_desc": "muddy singletrack climbing through pine forest with soft filtered canopy light",
             "props_desc": "trekking poles clipped together, trail map in a zip pouch, muddy gaiters, bear-bell clip",
-            "problem_desc": "mud-caked shoes and calves paused on a rock after a steep ascent, no face needed",
+            "problem_desc": "ONE hiker's mud-caked shoes and calves paused on a rock after a steep ascent, both shoes on, no face needed",
             "env_desc_el": "λασπωμένο μονοπάτι που ανεβαίνει μέσα από πευκόδασος με απαλό φιλτραρισμένο φως από την κόμη",
             "props_desc_el": "μπαστούνια trekking κλιπ μαζί, χάρτης trail σε τσαντάκι με φερμουάρ, λασπωμένα γκέτες, κουδουνάκι αρκούδας",
-            "problem_desc_el": "παπούτσια και γάμπες γεμάτα λάσπη σταματημένα σε πέτρα μετά από απότομη ανάβαση, χωρίς πρόσωπο",
+            "problem_desc_el": "παπούτσια και γάμπες ΕΝΟΣ πεζοπόρου γεμάτα λάσπη σταματημένα σε πέτρα μετά από απότομη ανάβαση, και τα δύο παπούτσια φορεμένα, χωρίς πρόσωπο",
         },
         {
             "env_desc": "rocky alpine switchback with distant ridgeline and cool overcast sky",
             "props_desc": "hydration vest, protein bar, headlamp, compact first-aid tin",
-            "problem_desc": "hikers legs braced on uneven stone, shoes gripping scree after a long descent",
+            "problem_desc": "ONE hiker's legs braced on uneven stone, both shoes gripping scree after a long descent",
             "env_desc_el": "βραχώδης αλπική στροφή με μακρινή κορυφογραμμή και δροσερό συννεφιασμένο ουρανό",
             "props_desc_el": "γιλέκο ενυδάτωσης, μπάρα πρωτεΐνης, φακός κεφαλής, μικρό κουτί πρώτων βοηθειών",
-            "problem_desc_el": "πόδια πεζοπόρου στηριγμένα σε ανώμαλη πέτρα, παπούτσια που πιάνουν σε σάρα μετά από μεγάλη κατάβαση",
+            "problem_desc_el": "πόδια ΕΝΟΣ πεζοπόρου στηριγμένα σε ανώμαλη πέτρα, και τα δύο παπούτσια που πιάνουν σε σάρα μετά από μεγάλη κατάβαση",
         },
     ],
     "gym": [
@@ -1079,10 +1081,10 @@ SCENE_PACKS = {
         {
             "env_desc": "graffiti alley with soft bounce light from a neighboring cafe awning",
             "props_desc": "skateboard deck, wireless earbuds case, enamel pin card, chain wallet",
-            "problem_desc": "street-style feet crossed on a curb, focusing on clean upper and sole stack",
+            "problem_desc": "ONE person's street-style feet crossed on a curb, BOTH shoes on, focusing on clean upper and sole stack",
             "env_desc_el": "σοκάκι με graffiti και απαλό ανακλώμενο φως από τέντα γειτονικού καφέ",
             "props_desc_el": "σανίδα skateboard, θήκη ασύρματων ακουστικών, κάρτα με καρφίτσα σμάλτου, πορτοφόλι με αλυσίδα",
-            "problem_desc_el": "πόδια street-style σταυρωμένα στο πεζοδρόμιο, εστίαση στο καθαρό πάνω μέρος και τη στοίβα της σόλας",
+            "problem_desc_el": "πόδια ΕΝΟΣ ατόμου street-style σταυρωμένα στο πεζοδρόμιο, ΚΑΙ ΤΑ ΔΥΟ παπούτσια φορεμένα, εστίαση στο καθαρό πάνω μέρος και τη στοίβα της σόλας",
         },
     ],
     "commute": [
@@ -1107,54 +1109,54 @@ SCENE_PACKS = {
         {
             "env_desc": "busy cafe counter area with warm pendant lights and steam from the espresso machine",
             "props_desc": "order ticket spike, milk pitcher, bar towel, tip jar coins",
-            "problem_desc": "barista shift legs behind the counter after hours of standing, work sneakers loosened",
+            "problem_desc": "ONE barista's legs behind the counter after hours of standing, BOTH work sneakers still on their own feet",
             "env_desc_el": "πολυσύχναστος χώρος πάγκου καφέ με ζεστά κρεμαστά φώτα και ατμό από τη μηχανή εσπρέσο",
             "props_desc_el": "καρφί για παραγγελίες, κανάτα γάλακτος, πετσέτα μπαρ, κέρματα σε βάζο φιλοδωρημάτων",
-            "problem_desc_el": "πόδια βάρδιας barista πίσω από τον πάγκο μετά από ώρες όρθιος, τα work sneakers χαλαρωμένα",
+            "problem_desc_el": "πόδια ΕΝΟΣ barista πίσω από τον πάγκο μετά από ώρες όρθιος, ΚΑΙ ΤΑ ΔΥΟ work sneakers ακόμα φορεμένα",
         },
         {
             "env_desc": "retail shop floor aisle with soft overhead LEDs and clothing racks softly blurred",
             "props_desc": "price gun, folded stock boxes, name-badge lanyard, inventory tablet",
-            "problem_desc": "retail associate legs pausing mid-aisle after a long standing shift, shoes still on",
+            "problem_desc": "ONE retail associate's legs pausing mid-aisle after a long standing shift, BOTH shoes still on their own feet",
             "env_desc_el": "διάδρομος καταστήματος retail με απαλά overhead LED και ράφια ρούχων απαλά θολά",
             "props_desc_el": "πιστόλι τιμών, διπλωμένα κουτιά στοκ, κορδόνι με κονκάρδα ονόματος, tablet αποθέματος",
-            "problem_desc_el": "πόδια υπαλλήλου retail που σταματούν στη μέση του διαδρόμου μετά από μεγάλη βάρδια όρθιος, παπούτσια ακόμα φορεμένα",
+            "problem_desc_el": "πόδια ΕΝΟΣ υπαλλήλου retail που σταματούν στη μέση του διαδρόμου μετά από μεγάλη βάρδια όρθιος, ΚΑΙ ΤΑ ΔΥΟ παπούτσια ακόμα φορεμένα",
         },
     ],
     "travel": [
         {
             "env_desc": "airport departure hall with polished floors, soft daylight from tall windows, and rolling suitcase blur",
             "props_desc": "boarding pass sleeve, compact neck pillow, passport holder, carry-on handle",
-            "problem_desc": "traveler legs stretched beside a gate seat after a long walk through terminals",
+            "problem_desc": "ONE traveler seated beside a gate seat after a long walk through terminals, BOTH shoes on their own feet",
             "env_desc_el": "αίθουσα αναχωρήσεων αεροδρομίου με γυαλισμένα πατώματα, απαλό φως ημέρας από ψηλά παράθυρα και θόλωμα βαλίτσας που κυλάει",
             "props_desc_el": "θήκη κάρτας επιβίβασης, συμπαγές μαξιλάρι αυχένα, θήκη διαβατηρίου, λαβή χειραποσκευής",
-            "problem_desc_el": "πόδια ταξιδιώτη τεντωμένα δίπλα σε κάθισμα πύλης μετά από μεγάλο περπάτημα στους τερματικούς",
+            "problem_desc_el": "ΕΝΑΣ ταξιδιώτης καθισμένος δίπλα σε κάθισμα πύλης μετά από μεγάλο περπάτημα στους τερματικούς, ΚΑΙ ΤΑ ΔΥΟ παπούτσια στα πόδια του",
         },
         {
             "env_desc": "train platform with morning haze and distant countryside rolling stock",
             "props_desc": "weekender duffel, paperback novel, bottle of water, luggage tag",
-            "problem_desc": "feet resting on a hard platform bench during a layover, shoes still laced for walking",
+            "problem_desc": "ONE traveler's feet resting on a hard platform bench during a layover, BOTH shoes still laced for walking",
             "env_desc_el": "αποβάθρα τρένου με πρωινή ομίχλη και μακρινά βαγόνια στην ύπαιθρο",
             "props_desc_el": "σακ βουαγιάζ weekender, μυθιστόρημα τσέπης, μπουκάλι νερού, ετικέτα αποσκευής",
-            "problem_desc_el": "πόδια ακουμπημένα σε σκληρό παγκάκι αποβάθρας σε ενδιάμεση στάση, παπούτσια ακόμα δεμένα για περπάτημα",
+            "problem_desc_el": "πόδια ΕΝΟΣ ταξιδιώτη ακουμπημένα σε σκληρό παγκάκι αποβάθρας σε ενδιάμεση στάση, ΚΑΙ ΤΑ ΔΥΟ παπούτσια ακόμα δεμένα για περπάτημα",
         },
     ],
     "recovery": [
         {
             "env_desc": "quiet curb outside a running track after sunset with streetlamps just flickering on",
             "props_desc": "ice pack wrap, recovery drink can, sweaty singlet draped aside, massage ball",
-            "problem_desc": "post-run legs on the curb, shoes half-off, focusing on tired feet without showing a face",
+            "problem_desc": "ONE runner seated on the curb after a run, BOTH shoes still on, rubbing own tired calves — or product-only shoes beside the curb; no second person",
             "env_desc_el": "ήσυχο πεζοδρόμιο έξω από στίβο μετά το ηλιοβασίλεμα με φανούς που μόλις ανάβουν",
             "props_desc_el": "παγοκύστη, κουτάκι recovery ποτού, ιδρωμένο φανελάκι στην άκρη, μπάλα μασάζ",
-            "problem_desc_el": "πόδια μετά το τρέξιμο στο πεζοδρόμιο, παπούτσια μισοβγαλμένα, εστίαση σε κουρασμένα πέλματα χωρίς πρόσωπο",
+            "problem_desc_el": "ΕΝΑΣ δρομέας καθισμένος στο πεζοδρόμιο μετά το τρέξιμο, ΚΑΙ ΤΑ ΔΥΟ παπούτσια ακόμα φορεμένα, τρίβει τις δικές του κουρασμένες γάμπες — ή μόνο τα παπούτσια δίπλα στο πεζοδρόμιο· χωρίς δεύτερο άτομο",
         },
         {
             "env_desc": "sunny apartment balcony with a yoga mat rolled halfway and city rooftops beyond",
             "props_desc": "compression boots remote, protein shake, phone playing a stretch video, soft towel",
-            "problem_desc": "recovery stretch on a mat, one shoe kicked aside, calves being rolled out",
+            "problem_desc": "ONE person on a mat doing a recovery stretch, BOTH shoes beside the mat as product still-life (no people handling feet), or both shoes on while they roll their own calves",
             "env_desc_el": "ηλιόλουστο μπαλκόνι διαμερίσματος με στρώμα γιόγκα μισοτυλιγμένο και ταράτσες πόλης στο βάθος",
             "props_desc_el": "τηλεχειριστήριο μπότες συμπίεσης, πρωτεϊνικό shake, τηλέφωνο με βίντεο διατάσεων, απαλή πετσέτα",
-            "problem_desc_el": "διάταση recovery σε στρώμα, το ένα παπούτσι πεταμένο στην άκρη, γάμπες που κυλιούνται",
+            "problem_desc_el": "ΕΝΑ άτομο σε στρώμα σε διάταση recovery, ΚΑΙ ΤΑ ΔΥΟ παπούτσια δίπλα στο στρώμα ως product still-life (κανείς δεν αγγίζει πόδια άλλου), ή και τα δύο παπούτσια φορεμένα καθώς κυλάει τις δικές του γάμπες",
         },
     ],
     "basketball": [
@@ -3214,9 +3216,11 @@ if st.button(
             "unless that exact text is requested in this prompt. "
             + _wm_neg
             + "Overlay text must match the scene: ban work-shift / 'long shifts' overlay wording "
-            "when the scene is running / track / curb-after-run; keep shift wording only for "
-            "standing/work scenes. "
+            "when the scene is running / track / curb-after-run / park leisure; keep shift wording only for "
+            "standing/work scenes; problem/hook wording must match the visible setting "
+            "(no shift wording on park/dusk leisure unless the scene is clearly a workplace). "
             "ONLY the requested overlay text."
+            + anatomy_safety_clause()
         )
         _appearance_extra = appearance_clause(st.session_state.get("appearance_val", "eu"))
         _ui_env, _ui_props, _ui_problem = selected_env, selected_props, selected_problem
@@ -3231,9 +3235,9 @@ if st.button(
         if ad_format == "Single Layout Ad (1 Εικόνα)":
             _no_face = "No identifiable face" in (_appearance_extra or "")
             if _no_face:
-                visual_prompt = f"""Create an image: Photorealistic lifestyle/product photograph prioritizing footwear of {brand} {safe_model_name} in {colorway} colorway ({key_materials}) on a smooth surface in the foreground with {selected_props}. Soft-focus upper background suggests {selected_problem} without showing an identifiable face (crop strictly below the chin; no partial face at frame edge; shoes, legs, hands, props only). Natural depth of field and continuous studio lighting. Render a top-left fabric tag reading '{selected_tag}' and a top-right badge reading '{selected_badge}'. Display headline text overlay '{ad_texts['hook']}', body text overlay '{ad_texts['body']}', and soft CTA overlay '{ad_texts['cta']}'.{watermark_image_clause(custom_watermark)} {negative_constraint}{_brand_lock}{(' ' + _appearance_extra) if _appearance_extra else ''} Photorealistic 8k, seamless single canvas {ar_flag}"""
+                visual_prompt = f"""Create an image: Photorealistic lifestyle/product photograph prioritizing footwear of {brand} {safe_model_name} in {colorway} colorway ({key_materials}) on a smooth surface in the foreground with {selected_props}. Soft-focus upper background may SUGGEST fatigue mood with at most one seated person's legs/shoes (coherent anatomy, both shoes on, properly supported) OR empty atmosphere — never two people handling feet; crop strictly below the chin; no partial face at frame edge; shoes, legs, hands, props only. Natural depth of field and continuous studio lighting. Render a top-left fabric tag reading '{selected_tag}' and a top-right badge reading '{selected_badge}'. Display headline text overlay '{ad_texts['hook']}', body text overlay '{ad_texts['body']}', and soft CTA overlay '{ad_texts['cta']}'.{watermark_image_clause(custom_watermark)} {negative_constraint}{_brand_lock}{(' ' + _appearance_extra) if _appearance_extra else ''} Photorealistic 8k, seamless single canvas {ar_flag}"""
             else:
-                visual_prompt = f"""Create an image: Photorealistic vertical photograph of {brand} {safe_model_name} in {colorway} colorway ({key_materials}) placed on a smooth surface in the foreground, accompanied by {selected_props}. In the soft-focus upper background, {selected_problem}. Natural depth of field and continuous studio lighting. Render a top-left fabric tag reading '{selected_tag}' and a top-right badge reading '{selected_badge}'. Display headline text overlay '{ad_texts['hook']}', body text overlay '{ad_texts['body']}', and soft CTA overlay '{ad_texts['cta']}'.{watermark_image_clause(custom_watermark)} {negative_constraint}{_brand_lock}{(' ' + _appearance_extra) if _appearance_extra else ''} Photorealistic 8k, seamless single canvas {ar_flag}"""
+                visual_prompt = f"""Create an image: Photorealistic vertical photograph of {brand} {safe_model_name} in {colorway} colorway ({key_materials}) placed on a smooth surface in the foreground, accompanied by {selected_props}. Soft-focus upper background may SUGGEST fatigue mood via at most one seated person with coherent anatomy (properly supported on bench/chair/curb, both shoes on their own feet) OR empty atmosphere related to: {selected_problem} — never two people handling feet. Natural depth of field and continuous studio lighting. Render a top-left fabric tag reading '{selected_tag}' and a top-right badge reading '{selected_badge}'. Display headline text overlay '{ad_texts['hook']}', body text overlay '{ad_texts['body']}', and soft CTA overlay '{ad_texts['cta']}'.{watermark_image_clause(custom_watermark)} {negative_constraint}{_brand_lock}{(' ' + _appearance_extra) if _appearance_extra else ''} Photorealistic 8k, seamless single canvas {ar_flag}"""
             slide1_prompt = slide2_prompt = slide3_prompt = slide4_prompt = slide5_prompt = ""
 
         else:

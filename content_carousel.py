@@ -83,18 +83,19 @@ APPEARANCE_CLAUSES = {
     "auto": "",
     "eu": (
         "If a person body is visible (legs/torso from the waist down or partial figure only): "
-        "person appearance light-to-olive Mediterranean/European adult, natural look; "
+        "prefer one adult only; person appearance light-to-olive Mediterranean/European adult, natural look; "
         "do not default to unrelated ethnicity. If no person body is shown, ignore skin/ethnicity language."
     ),
     "diverse": (
         "If a person body is visible (legs/torso from the waist down or partial figure only): "
-        "person appearance naturally diverse adults appropriate to everyday EU street/"
+        "prefer one adult only; person appearance naturally diverse adults appropriate to everyday EU street/"
         "footwear content; vary across slides; avoid stereotypes. "
         "If no person body is shown, ignore skin/ethnicity language."
     ),
     "no_face": (
         "CRITICAL: No identifiable face, no portrait framing. Crop strictly below the chin; "
-        "no partial face at the frame edge. Composition must prioritize footwear/legs/hands/props only. "
+        "no partial face at the frame edge. Composition must prioritize footwear/legs/hands/props only — "
+        "legs/shoes of at most one person OR product-only. "
         "Do NOT describe facial features or head-and-shoulders portrait."
     ),
 }
@@ -104,6 +105,24 @@ def appearance_clause(key: str) -> str:
     """Return English appearance clause for key, or empty for auto/unknown."""
     k = (key or "auto").strip().lower()
     return APPEARANCE_CLAUSES.get(k, "")
+
+
+
+def anatomy_safety_clause() -> str:
+    return (
+        " ANATOMY & COMPOSITION SAFETY (CRITICAL): "
+        "Maximum ONE person in frame (prefer zero people / product-only when possible). "
+        "If a person is shown: coherent realistic anatomy only — exactly two arms, two legs, two feet; "
+        "every visible limb clearly attached to that one body; person must be properly supported "
+        "(sitting on a real bench/chair/curb or standing on the ground — NEVER floating mid-air). "
+        "Shoes must either (a) be worn correctly on that person's feet, or (b) be a separate product "
+        "still-life with NO people interacting with them. "
+        "BAN: two people interacting with feet/legs, holding/removing socks or shoes from another person, "
+        "extra limbs, detached legs, merged bodies, impossible joints, disembodied feet, "
+        "duplicate pairs of shoes that do not match the feet, hands grabbing random floating legs. "
+        "Prefer simple readable commercial composition: product hero OR single waist-down tired worker "
+        "on a bench with BOTH shoes on their own feet. "
+    )
 
 
 def _sanitize_no_face_prompt(prompt: str) -> str:
@@ -459,13 +478,15 @@ def generate_content_carousel(
                 "headshot, head-and-shoulders, facial features, smiling face. "
                 "Crop strictly below the chin; no partial face at the frame edge. "
                 "Use lifestyle/product framing instead: footwear, legs, hands, props, environments.\n"
+                + anatomy_safety_clause() + "\n"
             )
         else:
             appearance_block = (
                 "\nPERSON / MODEL APPEARANCE (apply ONLY if a person body is visible from the legs/"
                 "waist; soft creative control for brand consistency; do not force a face into frame):\n"
                 f"{_appearance_clause}\n"
-                "Include this guidance naturally in each image_prompt (English).\n"
+                "Include this guidance naturally in each image_prompt (English). Prefer one adult only.\n"
+                + anatomy_safety_clause() + "\n"
             )
 
     models_to_try = models or ["gemini-3.6-flash", "gemini-2.5-flash"]
@@ -516,8 +537,10 @@ def generate_content_carousel(
         "When watermark/domain is provided, MUST include it once naturally in ig/tiktok/pinterest/youtube captions; "
         "do not force site into every image_prompt. "
         "Overlay text must match the scene: ban work-shift / long-shifts wording when the scene "
-        "is running/track/curb-after-run; keep shift wording only for standing/work scenes. "
-        "If no_face: never write portrait/face/headshot language; prioritize shoes/legs/hands/props."
+        "is running/track/curb-after-run/park leisure; keep shift wording only for standing/work scenes; "
+        "problem/hook wording must match the visible setting (no shift wording on park/dusk leisure unless workplace). "
+        "If no_face: never write portrait/face/headshot language; prioritize shoes/legs/hands/props. "
+        + anatomy_safety_clause()
     )
 
     _copy_lang_rule = (
@@ -557,8 +580,9 @@ CRITICAL CONSTRAINTS:
 8. Optional short on-image overlay: image_prompt MAY include the SAME short title (or a 2-5 word overlay matching the title) as clean typography on the image. Prefer soft-discovery aesthetic. Keep NO "Slide X of Y", NO carousel numbering, NO carousel dots, NO LEARN MORE buttons, NO app UI chrome, NO invented OFFICIAL/BESTSELLER/SNEAKERNESS seals, NO hard sell.
 9. Append aspect flag exactly as: {ar_flag} at the end of every image_prompt.
 10. By default NEVER put SNEAKERNESS.EU / sneakerness / any website on the image. If an explicit watermark/domain is provided in this prompt: REQUIRED — render watermark EXACTLY ONCE using that exact user string only (ban any second tiny/micro duplicate, shortened copy, or extra corner mark; do not also add "sneakerness" when the user typed a full domain) as clearly phone-readable bottom-right watermark (~7–9% of image height, clean sans-serif, strong contrast — must be easily readable at a glance on a phone screen; not microscopic; not faint grey on busy background; subtle dark/light shadow OK), ~2–3% margin from edges — readable on a phone without zoom; no giant headline, not dominating the shoe, no Explore CTA sentence on image. Overlay/CTA texts must NOT contain any website/domain — the watermark is the only on-image site text. MUST include the domain once naturally in ig/tiktok/pinterest/youtube captions when provided; do not force site into every image_prompt.
-11. Overlay text must match the depicted scene (do not put work-shift / "long shifts" wording on a running / track / curb-after-run scene; keep work wording only for standing/work scenes).
-12. If HARD APPEARANCE / no_face is active: crop strictly below the chin; no partial face at frame edge; write image_prompt as lifestyle/product framing with shoes/legs/hands/props - never portrait, face close-up, looking at camera, or headshot language.
+11. Overlay text must match the depicted scene (do not put work-shift / "long shifts" wording on a running / track / curb-after-run / park leisure scene; keep work wording only for standing/work scenes; problem/hook wording must match the visible setting).
+12. If HARD APPEARANCE / no_face is active: crop strictly below the chin; no partial face at frame edge; write image_prompt as lifestyle/product framing with shoes/legs/hands/props - never portrait, face close-up, looking at camera, or headshot language. Prefer legs/shoes of at most one person OR product-only.
+13. ANATOMY & COMPOSITION SAFETY (apply to EVERY image_prompt): Maximum ONE person (prefer product-only). Coherent anatomy only — exactly two arms, two legs, two feet; limbs attached; person supported on bench/chair/curb/ground — NEVER floating. Shoes worn on that person OR separate still-life with no people. BAN: two people handling feet/legs, holding/removing socks/shoes from another, extra/detached limbs, merged bodies, disembodied feet, mismatched duplicate shoes, hands grabbing floating legs.
 {insight_block}{appearance_block}
 Return strict JSON:
 {{
