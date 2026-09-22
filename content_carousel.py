@@ -108,6 +108,14 @@ def appearance_clause(key: str) -> str:
 
 
 
+def overlay_english_image_clause() -> str:
+    """Hard lock: typography rendered on generated images must stay Latin/English."""
+    return (
+        " ALL on-image overlay / headline / body / CTA text MUST be English using Latin letters only. "
+        "NEVER use Greek letters (αβγδεζηθικλμνξοπρστυφχψω ΑΒΓ…), NEVER Cyrillic, on the image."
+    )
+
+
 def anatomy_safety_clause() -> str:
     return (
         " ANATOMY & COMPOSITION SAFETY (CRITICAL): "
@@ -370,6 +378,8 @@ def _fallback_carousel(
             )
         title = title_el if lang == "el" else title_en
         body = body_el if lang == "el" else body_en
+        if "Latin letters only" not in prompt:
+            prompt = (prompt + " " + overlay_english_image_clause()).strip()
         slides.append({
             "title": title,
             "body": body,
@@ -435,7 +445,8 @@ def generate_content_carousel(
     Call Gemini to produce educational carousel content.
 
     When lang=el: slide titles/bodies and all four captions are Greek;
-    image_prompt fields stay ENGLISH for Gemini/Grok/Nano Banana.
+    image_prompt fields stay ENGLISH for Gemini/Grok/Nano Banana
+    (any on-image overlay text inside image_prompt stays English/Latin).
     When lang=en: everything English as before.
 
     Returns dict with:
@@ -503,6 +514,8 @@ def generate_content_carousel(
         "DUAL-LANGUAGE OUTPUT: slide title and body MUST be natural Greek (Ελληνικά); "
         "ig_caption, tiktok_caption, pinterest_caption, youtube_caption MUST be natural Greek; "
         "EVERY image_prompt MUST stay ENGLISH ONLY (for image models). "
+        "Any on-image overlay / typography quoted inside image_prompt MUST be English Latin letters only "
+        "(never Greek letters on the image, even when the slide title is Greek). "
         if _ui_is_el else
         "ALL output must be ENGLISH ONLY (titles, bodies, captions, and image prompts). "
     )
@@ -545,7 +558,8 @@ def generate_content_carousel(
 
     _copy_lang_rule = (
         "Slide title + body + all four captions MUST be natural Greek (Ελληνικά). "
-        "image_prompt MUST remain ENGLISH ONLY for image generation models."
+        "image_prompt MUST remain ENGLISH ONLY for image generation models; "
+        "on-image overlay text inside image_prompt MUST be English (Latin) — never Greek letters on the image."
         if _ui_is_el
         else "ALL OUTPUT MUST BE IN ENGLISH ONLY (titles, bodies, captions, image prompts)."
     )
@@ -577,7 +591,7 @@ CRITICAL CONSTRAINTS:
    Encode usefulness IN the body (do not invent extra JSON fields).
 6. Each slide needs short on-screen title + short body (readable on phone).
 7. Each slide needs an image generation prompt in Nano Banana / Midjourney style: soft-discovery aesthetic, photorealistic or clean editorial, calm lighting, no hard-sell product packaging UI, no celebrity faces.
-8. Optional short on-image overlay: image_prompt MAY include the SAME short title (or a 2-5 word overlay matching the title) as clean typography on the image. Prefer soft-discovery aesthetic. Keep NO "Slide X of Y", NO carousel numbering, NO carousel dots, NO LEARN MORE buttons, NO app UI chrome, NO invented OFFICIAL/BESTSELLER/SNEAKERNESS seals, NO hard sell.
+8. Optional short on-image overlay: image_prompt MAY include a short 2-5 word ENGLISH (Latin letters only) overlay as clean typography — do NOT put Greek letters on the image even if the slide title is Greek; prefer a short English paraphrase of the title. Prefer soft-discovery aesthetic. Keep NO "Slide X of Y", NO carousel numbering, NO carousel dots, NO LEARN MORE buttons, NO app UI chrome, NO invented OFFICIAL/BESTSELLER/SNEAKERNESS seals, NO hard sell. ALL on-image overlay / headline / body / CTA text MUST be English using Latin letters only. NEVER use Greek letters (αβγ…), NEVER Cyrillic, on the image.
 9. Append aspect flag exactly as: {ar_flag} at the end of every image_prompt.
 10. By default NEVER put SNEAKERNESS.EU / sneakerness / any website on the image. If an explicit watermark/domain is provided in this prompt: REQUIRED — render watermark EXACTLY ONCE using that exact user string only (ban any second tiny/micro duplicate, shortened copy, or extra corner mark; do not also add "sneakerness" when the user typed a full domain) as clearly phone-readable bottom-right watermark (~7–9% of image height, clean sans-serif, strong contrast — must be easily readable at a glance on a phone screen; not microscopic; not faint grey on busy background; subtle dark/light shadow OK), ~2–3% margin from edges — readable on a phone without zoom; no giant headline, not dominating the shoe, no Explore CTA sentence on image. Overlay/CTA texts must NOT contain any website/domain — the watermark is the only on-image site text. MUST include the domain once naturally in ig/tiktok/pinterest/youtube captions when provided; do not force site into every image_prompt.
 11. Overlay text must match the depicted scene (do not put work-shift / "long shifts" wording on a running / track / curb-after-run / park leisure scene; keep work wording only for standing/work scenes; problem/hook wording must match the visible setting).
@@ -590,7 +604,7 @@ Return strict JSON:
     {{
       "title": "{_json_title}",
       "body": "{_json_body}",
-      "image_prompt": "full EN image gen prompt (optional clean title overlay; overlay text may match the slide title language) ending with {ar_flag}"
+      "image_prompt": "full EN image gen prompt (optional clean ENGLISH Latin overlay only — never Greek letters on image) ending with {ar_flag}"
     }}
   ],
   "ig_caption": "{_json_ig}",
@@ -631,6 +645,8 @@ Exactly {slide_count} objects inside "slides".
                     prompt = str(s.get("image_prompt") or "")
                     if ar_flag not in prompt:
                         prompt = (prompt + " " + ar_flag).strip()
+                    if "Latin letters only" not in prompt:
+                        prompt = (prompt + " " + overlay_english_image_clause()).strip()
                     prompt = append_appearance_clause(prompt, _appearance_key)
                     normalized.append(
                         {

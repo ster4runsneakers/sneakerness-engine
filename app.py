@@ -394,47 +394,52 @@ def safe_generate_ad_copy(brand_name, model_name, colorway_text, materials, wate
         lang_name = "Greek (Ελληνικά)"
         sys_instruction = (
             "You are an expert e-commerce copywriter specializing in soft-sell, educational, "
-            "and discovery-focused footwear ad copy and engaging social media posts in Greek (Ελληνικά). "
-            "NEVER use celebrity athlete names in your text overlays. "
-            "Write ALL user-facing copy in natural, fluent Modern Greek."
+            "and discovery-focused footwear ads. "
+            "BILINGUAL JOB: write social captions (meta_caption, tiktok_caption, hashtags_meta, "
+            "pinterest_caption, youtube_caption) in natural fluent Modern Greek (Ελληνικά); "
+            "write ALL on-image overlay fields (hook, body, cta, slide1_text, slide2_text, "
+            "slide3_text) in ENGLISH ONLY using Latin letters — AI image models render Latin "
+            "better and commercial ads use English overlays. "
+            "NEVER use celebrity athlete names in your text overlays."
         )
-        script_prompt = f"""Write ALL ad assets and copy in GREEK (Ελληνικά) for {brand_name} {clean_model_name} in {colorway_text} ({materials}) for website {site_for_prompt}.
+        script_prompt = f"""Write bilingual ad assets for {brand_name} {clean_model_name} in {colorway_text} ({materials}) for website {site_for_prompt}.
 
 CRITICAL CONSTRAINTS:
-1. ALL OUTPUT MUST BE IN GREEK (Ελληνικά). Do not use English for hooks, body, CTA, captions, or slide texts.
-2. DO NOT use hard-sell verbs like "αγόρασε", "αγορά", "παράγγειλε", "buy", "shop", "order", "purchase".
-3. Use soft discovery CTAs in overlays WITHOUT forcing a URL. Put the domain only in captions when provided.
-4. STRICTLY DO NOT include celebrity names or restricted player names in any text or overlay.
-5. {image_overlay_rule_el}
-6. {caption_site_rule_el}
+1. SOCIAL CAPTIONS (meta_caption, tiktok_caption, hashtags_meta, pinterest_caption, youtube_caption) MUST be natural Modern Greek (Ελληνικά).
+2. IMAGE OVERLAY FIELDS (hook, body, cta, slide1_text, slide2_text, slide3_text) MUST be ENGLISH ONLY — Latin letters only. Never Greek (or Cyrillic) on overlays.
+3. DO NOT use hard-sell verbs like "αγόρασε", "αγορά", "παράγγειλε", "buy", "shop", "order", "purchase".
+4. Use soft discovery CTAs in overlays WITHOUT forcing a URL. Put the domain only in captions when provided.
+5. STRICTLY DO NOT include celebrity names or restricted player names in any text or overlay.
+6. {image_overlay_rule_el}
+7. {caption_site_rule_el}
 
 STORY GOAL / ANGLE: {goal_instruction}
 {insight_block}
 Return strict JSON with keys:
-1. "hook": Image top text in Greek, max 10 words.
-2. "body": Image mid text in Greek, max 10 words.
-3. "cta": Image bottom soft CTA in Greek WITHOUT any website/URL/domain, max 8 words. Soft discovery only.
+1. "hook": Image top text in ENGLISH (Latin letters only), max 10 words.
+2. "body": Image mid text in ENGLISH (Latin letters only), max 10 words.
+3. "cta": Image bottom soft CTA in ENGLISH WITHOUT any website/URL/domain, max 8 words. Soft discovery only.
 4. "meta_caption": Greek Facebook/Instagram caption.
 5. "tiktok_caption": Short Greek TikTok caption + 4 FYP hashtags.
 6. "hashtags_meta": 8-10 trending hashtags (Greek or bilingual OK).
 7. "pinterest_caption": Greek Pinterest pin description — 2–4 short discovery/SEO-friendly sentences (light keyword phrases OK, not spammy); optional 3–5 hashtags at end.
 8. "youtube_caption": Greek YouTube Shorts/community description — first line a strong hook; then 2–4 sentences on comfort/use; soft CTA; fewer hashtags than TikTok; MUST include the site/domain once naturally when the caption-site rule requires it.
-9. "slide1_text": Text overlay for Slide 1 in Greek.
-10. "slide2_text": Text overlay for Slide 2 in Greek.
-11. "slide3_text": Soft CTA text overlay for Slide 3 in Greek WITHOUT website/URL/domain.
+9. "slide1_text": Text overlay for Slide 1 in ENGLISH (Latin letters only).
+10. "slide2_text": Text overlay for Slide 2 in ENGLISH (Latin letters only).
+11. "slide3_text": Soft CTA text overlay for Slide 3 in ENGLISH WITHOUT website/URL/domain.
 """
         fallback = {
-            "hook": f"Κουράστηκες από κούραση στα πόδια; Ανακάλυψε {brand_name} {clean_model_name}.",
-            "body": "Σχεδιασμένο να απορροφά τους κραδασμούς και να στηρίζει τη στάση όλη μέρα.",
-            "cta": "Μάθε περισσότερα.",
+            "hook": f"Tired of foot fatigue after long hours? Discover {brand_name} {clean_model_name}.",
+            "body": "Engineered to absorb impact and support posture all day.",
+            "cta": "Discover more.",
             "meta_caption": (f"Οι πολλές ώρες όρθιος δεν χρειάζεται να επιβαρύνουν τα πόδια σου. Εξερεύνησε πώς το {brand_name} {clean_model_name} προσφέρει στήριξη στάσης." + (f" Μάθε περισσότερα στο {wm_clean}." if wm_clean else "")),
             "tiktok_caption": (f"Πώς αντιμετωπίζεις την κούραση στα πόδια; Δες την τεχνολογία πίσω από {brand_name} {clean_model_name}" + (f" στο {wm_clean}" if wm_clean else "") + f"! 👟 #Sneakerness #{brand_name}"),
             "hashtags_meta": f"#Sneakerness #{brand_name} #DailyComfort #FootwearTech",
             "pinterest_caption": (f"Ψάχνεις άνετα sneakers για πολλές ώρες όρθιος; Το {brand_name} {clean_model_name} συνδυάζει στήριξη στάσης και καθημερινή άνεση. Ιδανικό για δουλειά, περπάτημα και ήπια χρήση όλη μέρα." + (f" Ανακάλυψε περισσότερα στο {wm_clean}." if wm_clean else "") + f" #Sneakerness #{brand_name} #ComfortShoes #DailyComfort"),
             "youtube_caption": (f"Κούραση στα πόδια μετά από πολλές ώρες;\nΤο {brand_name} {clean_model_name} έχει σχεδιαστεί για άνεση και στήριξη στην καθημερινότητα. Δες πώς βοηθά σε ορθοστασία και ήπια χρήση." + (f" Εξερεύνησε περισσότερα στο {wm_clean}." if wm_clean else "") + f" #Sneakerness #{brand_name}"),
-            "slide1_text": "Κουράστηκες από κούραση στα πόδια μετά από πολλές ώρες;",
-            "slide2_text": f"Ανακάλυψε {brand_name} {clean_model_name}.",
-            "slide3_text": "Δες τα χαρακτηριστικά.",
+            "slide1_text": "Tired of Foot Fatigue After Long Hours?",
+            "slide2_text": f"Discover {brand_name} {clean_model_name}.",
+            "slide3_text": "Explore the full specs.",
         }
     else:
         lang_name = "English"
@@ -509,6 +514,80 @@ _CAPTION_FIELD_KEYS = (
     "pinterest_caption",
     "youtube_caption",
 )
+_OVERLAY_FIELD_KEYS = (
+    "hook",
+    "body",
+    "cta",
+    "slide1_text",
+    "slide2_text",
+    "slide3_text",
+)
+
+
+def _extract_overlays(ad_texts: dict | None) -> dict:
+    ad_texts = ad_texts or {}
+    return {k: (ad_texts.get(k) or "") for k in _OVERLAY_FIELD_KEYS}
+
+
+def overlay_english_clause() -> str:
+    """Hard negative: on-image overlay typography must stay Latin/English."""
+    return (
+        " ALL on-image overlay / headline / body / CTA text MUST be English using Latin letters only. "
+        "NEVER use Greek letters (αβγδεζηθικλμνξοπρστυφχψω ΑΒΓ…), NEVER Cyrillic, on the image. "
+    )
+
+
+def overlays_look_non_english(overlays: dict | None) -> bool:
+    """True if overlay blob is Greek-heavy (should not be used in image prompts)."""
+    blob = " ".join(str((overlays or {}).get(k) or "") for k in _OVERLAY_FIELD_KEYS)
+    letters = [c for c in blob if c.isalpha()]
+    if len(letters) < 8:
+        return False
+    greek = sum(
+        1 for c in letters
+        if ("α" <= c <= "ω") or ("Α" <= c <= "Ω")
+    )
+    return (greek / len(letters)) >= 0.25
+
+
+def store_overlays_en(source: dict | None) -> dict:
+    """Persist English overlay fields for image prompts (independent of caption lang)."""
+    ov = _extract_overlays(source)
+    st.session_state["overlays_en"] = ov
+    return ov
+
+
+def resolve_overlays_en(ad_texts_active: dict | None, ad_texts_other: dict | None = None, other_lang: str = "en") -> dict:
+    """Prefer EN-side overlays; fall back to active if already English."""
+    other_lang = (other_lang or "").strip().lower()
+    candidates = []
+    if other_lang == "en" and isinstance(ad_texts_other, dict):
+        candidates.append(_extract_overlays(ad_texts_other))
+    if isinstance(ad_texts_active, dict):
+        candidates.append(_extract_overlays(ad_texts_active))
+    cached = st.session_state.get("overlays_en")
+    if isinstance(cached, dict) and any(str(cached.get(k) or "").strip() for k in _OVERLAY_FIELD_KEYS):
+        candidates.append(_extract_overlays(cached))
+    for cand in candidates:
+        if cand and any(str(cand.get(k) or "").strip() for k in _OVERLAY_FIELD_KEYS) and not overlays_look_non_english(cand):
+            return cand
+    # Last resort: first non-empty candidate even if Greek (caller should still add hard negative)
+    for cand in candidates:
+        if cand and any(str(cand.get(k) or "").strip() for k in _OVERLAY_FIELD_KEYS):
+            return cand
+    return {k: "" for k in _OVERLAY_FIELD_KEYS}
+
+
+def ad_texts_for_image_prompts(ad_texts: dict | None, overlays_en: dict | None = None) -> dict:
+    """Merge caption-bearing ad_texts with English overlays for visual/carousel builders."""
+    base = dict(ad_texts or {})
+    ov = overlays_en if isinstance(overlays_en, dict) else st.session_state.get("overlays_en")
+    if isinstance(ov, dict):
+        for k in _OVERLAY_FIELD_KEYS:
+            if str(ov.get(k) or "").strip():
+                base[k] = ov[k]
+    return base
+
 _CONTENT_CAPTION_KEYS = (
     "ig_caption",
     "tiktok_caption",
@@ -982,6 +1061,191 @@ def build_carousel_prompts(
             ("slide_role_cta", soft_cta),
         ]
     return roles
+
+
+def _product_negative_constraint(custom_watermark: str = "") -> str:
+    """Shared negatives for single + carousel image prompts (incl. English-overlay lock)."""
+    _wm_clean = (custom_watermark or "").strip()
+    if _wm_clean:
+        _wm_neg = (
+            f"REQUIRED on-image watermark text (exactly once, bottom-right): {_wm_clean} "
+            "Render that exact string EXACTLY ONCE as clearly phone-readable text in the "
+            "bottom-right corner (~7–9% of image height, clean sans-serif, strong contrast — must be easily readable at a glance on a phone screen; not microscopic; not faint grey on busy background; "
+            "subtle dark/light shadow OK), leaving ~2–3% margin from the edges — readable on "
+            "a phone without zoom; ban any second tiny/micro duplicate, shortened copy, or "
+            "extra corner mark; no giant headline, not dominating the shoe, no Explore CTA on "
+            "the image. Overlay/CTA texts must NOT contain any website/domain — the watermark "
+            "is the only on-image site text. "
+        )
+    else:
+        _wm_neg = (
+            "By default NO website / brand-store / SNEAKERNESS.EU text on the image. "
+            "Overlay/CTA texts must NOT contain any website/domain. "
+        )
+    return (
+        " STRICTLY NO text like 'Slide X of Y', NO carousel numbering, NO carousel dots, "
+        "NO LEARN MORE buttons, NO app UI chrome, NO page numbers. "
+        "Do NOT invent badges/seals like OFFICIAL SELECTION / BESTSELLER / SNEAKERNESS "
+        "unless that exact text is requested in this prompt. "
+        + _wm_neg
+        + overlay_english_clause()
+        + "Overlay text must match the scene: ban work-shift / 'long shifts' overlay wording "
+        "when the scene is running / track / curb-after-run / park leisure; keep shift wording only for "
+        "standing/work scenes; problem/hook wording must match the visible setting "
+        "(no shift wording on park/dusk leisure unless the scene is clearly a workplace). "
+        "ONLY the requested overlay text."
+        + anatomy_safety_clause()
+    )
+
+
+def build_single_visual_prompt(
+    *,
+    brand,
+    safe_model_name,
+    colorway,
+    key_materials,
+    selected_props,
+    selected_problem,
+    selected_tag,
+    selected_badge,
+    custom_watermark,
+    ad_texts,
+    negative_constraint,
+    ar_flag,
+    appearance_extra="",
+) -> str:
+    """Single-layout image prompt using English overlay fields from ad_texts."""
+    _no_face = "No identifiable face" in (appearance_extra or "")
+    hook = ad_texts.get("hook", "")
+    body = ad_texts.get("body", "")
+    cta = ad_texts.get("cta", "")
+    _brand_lock = (
+        f" Hero footwear must match: {brand} {safe_model_name} {colorway}. "
+        f"Clearly recognizable {brand} footwear, correct model silhouette and typical "
+        f"branding cues — do not substitute Nike/Adidas/generic. Soft trademark-safe: "
+        f"correct brand family silhouette/colors as provided; do not invent a different brand."
+    )
+    if _no_face:
+        return (
+            f"Create an image: Photorealistic lifestyle/product photograph prioritizing footwear of "
+            f"{brand} {safe_model_name} in {colorway} colorway ({key_materials}) on a smooth surface "
+            f"in the foreground with {selected_props}. Soft-focus upper background may SUGGEST fatigue "
+            f"mood with at most one seated person's legs/shoes (coherent anatomy, both shoes on, properly "
+            f"supported) OR empty atmosphere — never two people handling feet; crop strictly below the chin; "
+            f"no partial face at frame edge; shoes, legs, hands, props only. Natural depth of field and "
+            f"continuous studio lighting. Render a top-left fabric tag reading '{selected_tag}' and a "
+            f"top-right badge reading '{selected_badge}'. Display headline text overlay '{hook}', "
+            f"body text overlay '{body}', and soft CTA overlay '{cta}'."
+            f"{watermark_image_clause(custom_watermark)} {negative_constraint}{_brand_lock}"
+            f"{(' ' + appearance_extra) if appearance_extra else ''} Photorealistic 8k, seamless single canvas {ar_flag}"
+        )
+    return (
+        f"Create an image: Photorealistic vertical photograph of {brand} {safe_model_name} in "
+        f"{colorway} colorway ({key_materials}) placed on a smooth surface in the foreground, "
+        f"accompanied by {selected_props}. Soft-focus upper background may SUGGEST fatigue mood via "
+        f"at most one seated person with coherent anatomy (properly supported on bench/chair/curb, "
+        f"both shoes on their own feet) OR empty atmosphere related to: {selected_problem} — never "
+        f"two people handling feet. Natural depth of field and continuous studio lighting. Render a "
+        f"top-left fabric tag reading '{selected_tag}' and a top-right badge reading '{selected_badge}'. "
+        f"Display headline text overlay '{hook}', body text overlay '{body}', and soft CTA overlay '{cta}'."
+        f"{watermark_image_clause(custom_watermark)} {negative_constraint}{_brand_lock}"
+        f"{(' ' + appearance_extra) if appearance_extra else ''} Photorealistic 8k, seamless single canvas {ar_flag}"
+    )
+
+
+def rebuild_product_image_prompts_from_overlays_en() -> bool:
+    """Rebuild loaded visual/carousel prompts from overlays_en + EN scene fields.
+
+    Used on UI lang switch so Results image prompts never keep stale Greek overlay
+    strings buried inside otherwise-English 'Create an image...' prompts.
+    """
+    overlays = st.session_state.get("overlays_en")
+    if not isinstance(overlays, dict) or not any(str(overlays.get(k) or "").strip() for k in _OVERLAY_FIELD_KEYS):
+        return False
+    brand = (st.session_state.get("brand_val") or "").strip()
+    model_name = (st.session_state.get("model_val") or "").strip()
+    if not brand or not model_name:
+        return False
+    colorway = st.session_state.get("colorway_val", "") or ""
+    key_materials = st.session_state.get("specs_val", "") or ""
+    custom_watermark = st.session_state.get("watermark_val", "") or ""
+    selected_tag = st.session_state.get("selected_tag_val", AUTHENTICITY_TAGS[0])
+    selected_badge = st.session_state.get("selected_badge_val", CATEGORY_BADGES[0])
+    ad_format = st.session_state.get("ad_format_val", "Single Layout Ad (1 Εικόνα)")
+    aspect_ratio = st.session_state.get("aspect_ratio_val", "1:1 (Square)")
+    if aspect_ratio.startswith("4:5"):
+        ar_flag = "--ar 4:5"
+    elif aspect_ratio.startswith("2:3"):
+        ar_flag = "--ar 2:3"
+    elif aspect_ratio.startswith("16:9"):
+        ar_flag = "--ar 16:9"
+    elif aspect_ratio.startswith("9:16"):
+        ar_flag = "--ar 9:16"
+    else:
+        ar_flag = "--ar 1:1"
+    selected_env, selected_props, selected_problem = scene_fields_for_prompts()
+    unsafe_keywords = ["kobe", "jordan", "lebron", "messi", "ronaldo", "curry"]
+    safe_model_name = model_name
+    for word in unsafe_keywords:
+        if word in safe_model_name.lower():
+            safe_model_name = safe_model_name.lower().replace(word, "signature pro")
+    negative_constraint = _product_negative_constraint(custom_watermark)
+    appearance_extra = appearance_clause(st.session_state.get("appearance_val", "eu"))
+    ad_for_img = ad_texts_for_image_prompts({}, overlays)
+    if ad_format == "Single Layout Ad (1 Εικόνα)" or st.session_state.get("loaded_visual_prompt"):
+        # Prefer single if visual prompt was loaded or format is single
+        if ad_format == "Single Layout Ad (1 Εικόνα)" or (
+            st.session_state.get("loaded_visual_prompt") and not st.session_state.get("loaded_slide1_prompt")
+        ):
+            visual_prompt = build_single_visual_prompt(
+                brand=brand,
+                safe_model_name=safe_model_name,
+                colorway=colorway,
+                key_materials=key_materials,
+                selected_props=selected_props,
+                selected_problem=selected_problem,
+                selected_tag=selected_tag,
+                selected_badge=selected_badge,
+                custom_watermark=custom_watermark,
+                ad_texts=ad_for_img,
+                negative_constraint=negative_constraint,
+                ar_flag=ar_flag,
+                appearance_extra=appearance_extra,
+            )
+            st.session_state["loaded_visual_prompt"] = visual_prompt
+            for i in range(1, 6):
+                st.session_state[f"loaded_slide{i}_prompt"] = ""
+            return True
+    slide_count = int(st.session_state.get("slide_count_val", 3) or 3)
+    if slide_count not in (2, 3, 4, 5):
+        slide_count = 3
+    if not (st.session_state.get("loaded_slide1_prompt") or ad_format != "Single Layout Ad (1 Εικόνα)"):
+        return False
+    carousel_roles = build_carousel_prompts(
+        slide_count,
+        brand=brand,
+        safe_model_name=safe_model_name,
+        colorway=colorway,
+        key_materials=key_materials,
+        selected_env=selected_env,
+        selected_props=selected_props,
+        selected_problem=selected_problem,
+        selected_tag=selected_tag,
+        selected_badge=selected_badge,
+        custom_watermark=custom_watermark,
+        ad_texts=ad_for_img,
+        negative_constraint=negative_constraint,
+        ar_flag=ar_flag,
+        appearance_extra=appearance_extra,
+    )
+    slide_prompts = [p for _, p in carousel_roles]
+    while len(slide_prompts) < 5:
+        slide_prompts.append("")
+    st.session_state["loaded_visual_prompt"] = ""
+    for i in range(5):
+        st.session_state[f"loaded_slide{i+1}_prompt"] = slide_prompts[i]
+    return True
+
 
 
 
@@ -2078,6 +2342,7 @@ def clear_all_fields():
     st.session_state["loaded_youtube_caption"] = ""
     st.session_state["captions_el"] = None
     st.session_state["captions_en"] = None
+    st.session_state["overlays_en"] = {}
     st.session_state["results_lang"] = None
     st.session_state["content_captions_el"] = None
     st.session_state["content_captions_en"] = None
@@ -2164,6 +2429,17 @@ def apply_history_entry(entry: dict):
         st.session_state["captions_el"] = _cap_el
     if isinstance(_cap_en, dict):
         st.session_state["captions_en"] = _cap_en
+    _ov_en = entry.get("overlays_en")
+    if isinstance(_ov_en, dict) and any(str(_ov_en.get(k) or "").strip() for k in _OVERLAY_FIELD_KEYS):
+        st.session_state["overlays_en"] = _extract_overlays(_ov_en)
+    else:
+        # Seed English overlays from ad_texts / EN caption side when possible
+        _ad_seed = entry.get("ad_texts") if isinstance(entry.get("ad_texts"), dict) else {}
+        _seed = resolve_overlays_en(_ad_seed, None, other_lang="")
+        if _seed and not overlays_look_non_english(_seed):
+            st.session_state["overlays_en"] = _seed
+        elif isinstance(_ad_seed, dict):
+            st.session_state["overlays_en"] = _extract_overlays(_ad_seed)
     _entry_lang = (entry.get("lang") or "el").strip().lower()
     if _entry_lang not in ("el", "en"):
         _entry_lang = "el"
@@ -2217,6 +2493,17 @@ def apply_history_entry(entry: dict):
     st.session_state["loaded_slide3_prompt"] = entry.get("slide3_prompt", "") or ""
     st.session_state["loaded_slide4_prompt"] = entry.get("slide4_prompt", "") or ""
     st.session_state["loaded_slide5_prompt"] = entry.get("slide5_prompt", "") or ""
+    # If stored image prompts still embed Greek overlay typography, rebuild from overlays_en
+    _prompt_blob = " ".join([
+        st.session_state.get("loaded_visual_prompt", "") or "",
+        st.session_state.get("loaded_slide1_prompt", "") or "",
+        st.session_state.get("loaded_slide2_prompt", "") or "",
+        st.session_state.get("loaded_slide3_prompt", "") or "",
+        st.session_state.get("loaded_slide4_prompt", "") or "",
+        st.session_state.get("loaded_slide5_prompt", "") or "",
+    ])
+    if _greek_letter_ratio(_prompt_blob) >= 0.08:
+        rebuild_product_image_prompts_from_overlays_en()
     _vb = entry.get("video_beats")
     if not (isinstance(_vb, dict) and _vb.get("beats")):
         _vb = rebuild_video_beats_from_context(
@@ -2759,6 +3046,8 @@ if st.session_state.pop("_lang_switch_pending", False):
     _ui_lang = st.session_state.get("lang", "el")
     if st.session_state.get("show_loaded_pack"):
         ensure_product_captions_for_lang(_ui_lang)
+        # Captions follow UI lang; image overlay strings must stay English — rebuild prompts
+        rebuild_product_image_prompts_from_overlays_en()
     if isinstance(st.session_state.get("content_result"), dict):
         ensure_content_for_lang(_ui_lang)
     st.session_state["caption_ui_epoch"] = int(st.session_state.get("caption_ui_epoch") or 0) + 1
@@ -2776,6 +3065,7 @@ if "loaded_tiktok_caption" not in st.session_state: st.session_state["loaded_tik
 if "loaded_hashtags_meta" not in st.session_state: st.session_state["loaded_hashtags_meta"] = ""
 if "loaded_pinterest_caption" not in st.session_state: st.session_state["loaded_pinterest_caption"] = ""
 if "loaded_youtube_caption" not in st.session_state: st.session_state["loaded_youtube_caption"] = ""
+if "overlays_en" not in st.session_state: st.session_state["overlays_en"] = {}
 if "loaded_visual_prompt" not in st.session_state: st.session_state["loaded_visual_prompt"] = ""
 if "loaded_slide1_prompt" not in st.session_state: st.session_state["loaded_slide1_prompt"] = ""
 if "loaded_slide2_prompt" not in st.session_state: st.session_state["loaded_slide2_prompt"] = ""
@@ -3550,9 +3840,10 @@ if st.button(
                     if word in ad_texts[key].lower():
                         ad_texts[key] = ad_texts[key].lower().replace(word, "signature pro")
 
-        # Bilingual caption cache: active lang drives overlays; both cached for UI switch
+        # Bilingual caption cache (social copy follows UI lang). Image overlays always EN.
         store_product_caption_side(lang, ad_texts)
         _cap_other_lang = _other_lang(lang)
+        ad_texts_other = None
         try:
             ad_texts_other = safe_generate_ad_copy(
                 brand, model_name, colorway, key_materials, custom_watermark,
@@ -3567,7 +3858,7 @@ if st.button(
                             ad_texts_other[key] = ad_texts_other[key].lower().replace(word, "signature pro")
             store_product_caption_side(_cap_other_lang, ad_texts_other)
         except Exception:
-            pass
+            ad_texts_other = None
         repair_product_caption_side_if_bad(
             lang,
             brand=brand,
@@ -3590,52 +3881,32 @@ if st.button(
         )
         apply_captions_for_lang(lang)
 
-        _wm_clean = (custom_watermark or "").strip()
-        if _wm_clean:
-            _wm_neg = (
-                f"REQUIRED on-image watermark text (exactly once, bottom-right): {_wm_clean} "
-                "Render that exact string EXACTLY ONCE as clearly phone-readable text in the "
-                "bottom-right corner (~7–9% of image height, clean sans-serif, strong contrast — must be easily readable at a glance on a phone screen; not microscopic; not faint grey on busy background; "
-                "subtle dark/light shadow OK), leaving ~2–3% margin from the edges — readable on "
-                "a phone without zoom; ban any second tiny/micro duplicate, shortened copy, or "
-                "extra corner mark; no giant headline, not dominating the shoe, no Explore CTA on "
-                "the image. Overlay/CTA texts must NOT contain any website/domain — the watermark "
-                "is the only on-image site text. "
-            )
-        else:
-            _wm_neg = (
-                "By default NO website / brand-store / SNEAKERNESS.EU text on the image. "
-                "Overlay/CTA texts must NOT contain any website/domain. "
-            )
-        negative_constraint = (
-            " STRICTLY NO text like 'Slide X of Y', NO carousel numbering, NO carousel dots, "
-            "NO LEARN MORE buttons, NO app UI chrome, NO page numbers. "
-            "Do NOT invent badges/seals like OFFICIAL SELECTION / BESTSELLER / SNEAKERNESS "
-            "unless that exact text is requested in this prompt. "
-            + _wm_neg
-            + "Overlay text must match the scene: ban work-shift / 'long shifts' overlay wording "
-            "when the scene is running / track / curb-after-run / park leisure; keep shift wording only for "
-            "standing/work scenes; problem/hook wording must match the visible setting "
-            "(no shift wording on park/dusk leisure unless the scene is clearly a workplace). "
-            "ONLY the requested overlay text."
-            + anatomy_safety_clause()
-        )
+        # English overlays for image prompts (prefer EN call; EL call is bilingual with EN overlays)
+        overlays_en = resolve_overlays_en(ad_texts, ad_texts_other, other_lang=_cap_other_lang)
+        store_overlays_en(overlays_en)
+        ad_texts_img = ad_texts_for_image_prompts(ad_texts, overlays_en)
+
+        negative_constraint = _product_negative_constraint(custom_watermark)
         _appearance_extra = appearance_clause(st.session_state.get("appearance_val", "eu"))
         _ui_env, _ui_props, _ui_problem = selected_env, selected_props, selected_problem
         selected_env, selected_props, selected_problem = scene_fields_for_prompts()
-        _brand_lock = (
-            f" Hero footwear must match: {brand} {safe_model_name} {colorway}. "
-            f"Clearly recognizable {brand} footwear, correct model silhouette and typical "
-            f"branding cues — do not substitute Nike/Adidas/generic. Soft trademark-safe: "
-            f"correct brand family silhouette/colors as provided; do not invent a different brand."
-        )
 
         if ad_format == "Single Layout Ad (1 Εικόνα)":
-            _no_face = "No identifiable face" in (_appearance_extra or "")
-            if _no_face:
-                visual_prompt = f"""Create an image: Photorealistic lifestyle/product photograph prioritizing footwear of {brand} {safe_model_name} in {colorway} colorway ({key_materials}) on a smooth surface in the foreground with {selected_props}. Soft-focus upper background may SUGGEST fatigue mood with at most one seated person's legs/shoes (coherent anatomy, both shoes on, properly supported) OR empty atmosphere — never two people handling feet; crop strictly below the chin; no partial face at frame edge; shoes, legs, hands, props only. Natural depth of field and continuous studio lighting. Render a top-left fabric tag reading '{selected_tag}' and a top-right badge reading '{selected_badge}'. Display headline text overlay '{ad_texts['hook']}', body text overlay '{ad_texts['body']}', and soft CTA overlay '{ad_texts['cta']}'.{watermark_image_clause(custom_watermark)} {negative_constraint}{_brand_lock}{(' ' + _appearance_extra) if _appearance_extra else ''} Photorealistic 8k, seamless single canvas {ar_flag}"""
-            else:
-                visual_prompt = f"""Create an image: Photorealistic vertical photograph of {brand} {safe_model_name} in {colorway} colorway ({key_materials}) placed on a smooth surface in the foreground, accompanied by {selected_props}. Soft-focus upper background may SUGGEST fatigue mood via at most one seated person with coherent anatomy (properly supported on bench/chair/curb, both shoes on their own feet) OR empty atmosphere related to: {selected_problem} — never two people handling feet. Natural depth of field and continuous studio lighting. Render a top-left fabric tag reading '{selected_tag}' and a top-right badge reading '{selected_badge}'. Display headline text overlay '{ad_texts['hook']}', body text overlay '{ad_texts['body']}', and soft CTA overlay '{ad_texts['cta']}'.{watermark_image_clause(custom_watermark)} {negative_constraint}{_brand_lock}{(' ' + _appearance_extra) if _appearance_extra else ''} Photorealistic 8k, seamless single canvas {ar_flag}"""
+            visual_prompt = build_single_visual_prompt(
+                brand=brand,
+                safe_model_name=safe_model_name,
+                colorway=colorway,
+                key_materials=key_materials,
+                selected_props=selected_props,
+                selected_problem=selected_problem,
+                selected_tag=selected_tag,
+                selected_badge=selected_badge,
+                custom_watermark=custom_watermark,
+                ad_texts=ad_texts_img,
+                negative_constraint=negative_constraint,
+                ar_flag=ar_flag,
+                appearance_extra=_appearance_extra,
+            )
             slide1_prompt = slide2_prompt = slide3_prompt = slide4_prompt = slide5_prompt = ""
 
         else:
@@ -3654,7 +3925,7 @@ if st.button(
                 selected_tag=selected_tag,
                 selected_badge=selected_badge,
                 custom_watermark=custom_watermark,
-                ad_texts=ad_texts,
+                ad_texts=ad_texts_img,
                 negative_constraint=negative_constraint,
                 ar_flag=ar_flag,
                 appearance_extra=_appearance_extra,
@@ -3783,6 +4054,7 @@ RAW DATA (JSON)
             "ad_texts": ad_texts,
             "captions_el": st.session_state.get("captions_el"),
             "captions_en": st.session_state.get("captions_en"),
+            "overlays_en": st.session_state.get("overlays_en"),
             "lang": lang,
             "goal": st.session_state.get("goal_val", "auto"),
             "appearance": st.session_state.get("appearance_val", "eu"),
@@ -3903,6 +4175,7 @@ if st.session_state.get("show_loaded_pack"):
     ensure_product_captions_for_lang(lang, allow_regenerate=True)
     st.markdown("---")
     st.markdown(t("results_section", lang))
+    st.caption(t("overlay_lang_help", lang))
     if st.session_state.get("loaded_visual_prompt"):
         st.markdown(t("prompt_single", lang))
         st.code(st.session_state["loaded_visual_prompt"], language="text")
