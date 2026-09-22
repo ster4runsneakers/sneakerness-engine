@@ -493,6 +493,222 @@ Return strict JSON with keys:
     return fallback
 
 
+# --- Bilingual social captions (EL/EN cache; image prompts & Grok beats stay EN) ---
+_CAPTION_FIELD_KEYS = (
+    "meta_caption",
+    "tiktok_caption",
+    "hashtags_meta",
+    "pinterest_caption",
+    "youtube_caption",
+)
+_CONTENT_CAPTION_KEYS = (
+    "ig_caption",
+    "tiktok_caption",
+    "pinterest_caption",
+    "youtube_caption",
+)
+_CONTENT_WIDGET_KEYS = ("c_ig_cap", "c_tt_cap", "c_pin_cap", "c_yt_cap")
+
+
+def _extract_caption_dict(ad_texts: dict | None) -> dict:
+    ad_texts = ad_texts or {}
+    return {k: (ad_texts.get(k) or "") for k in _CAPTION_FIELD_KEYS}
+
+
+def _other_lang(lang: str) -> str:
+    return "en" if (lang or "el").strip().lower() == "el" else "el"
+
+
+def apply_captions_for_lang(lang: str) -> bool:
+    """Copy captions_{lang} cache into loaded_* keys and reset caption widgets."""
+    lang = (lang or "el").strip().lower()
+    if lang not in ("el", "en"):
+        lang = "el"
+    cache = st.session_state.get(f"captions_{lang}")
+    if not isinstance(cache, dict):
+        return False
+    for k in _CAPTION_FIELD_KEYS:
+        st.session_state[f"loaded_{k}"] = cache.get(k, "") or ""
+    st.session_state["results_lang"] = lang
+    for _wk in ("hist_meta_ta", "hist_tt_ta", "hist_pin_ta", "hist_yt_ta"):
+        st.session_state.pop(_wk, None)
+    return True
+
+
+def store_product_caption_side(lang: str, ad_texts: dict | None) -> None:
+    lang = (lang or "el").strip().lower()
+    if lang not in ("el", "en"):
+        lang = "el"
+    st.session_state[f"captions_{lang}"] = _extract_caption_dict(ad_texts)
+
+
+def ensure_product_captions_for_lang(lang: str, *, allow_regenerate: bool = True) -> bool:
+    """Apply cached captions for lang; optionally regenerate the missing side once."""
+    lang = (lang or "el").strip().lower()
+    if lang not in ("el", "en"):
+        lang = "el"
+    if apply_captions_for_lang(lang):
+        return True
+    if not allow_regenerate:
+        return False
+    if not st.session_state.get("show_loaded_pack"):
+        return False
+    brand = (st.session_state.get("brand_val") or "").strip()
+    model = (st.session_state.get("model_val") or "").strip()
+    if not brand or not model:
+        return False
+    colorway = st.session_state.get("colorway_val", "") or ""
+    specs = st.session_state.get("specs_val", "") or ""
+    watermark = st.session_state.get("watermark_val", "") or ""
+    goal = st.session_state.get("goal_val", "auto") or "auto"
+    insight = st.session_state.get("active_insight", "") or ""
+    with st.spinner(t("generate_spinner", lang, lang_name=t("lang_name", lang))):
+        ad_texts = safe_generate_ad_copy(
+            brand,
+            model,
+            colorway,
+            specs,
+            watermark,
+            lang=lang,
+            goal=goal,
+            insight_context=insight,
+        )
+    store_product_caption_side(lang, ad_texts)
+    return apply_captions_for_lang(lang)
+
+
+def _extract_content_captions(result: dict | None) -> dict:
+    result = result or {}
+    return {k: (result.get(k) or "") for k in _CONTENT_CAPTION_KEYS}
+
+
+def _extract_content_slides_copy(result: dict | None) -> list:
+    """Slide title/body only (image_prompt stays on the active content_result)."""
+    slides = (result or {}).get("slides") or []
+    out = []
+    for s in slides:
+        if not isinstance(s, dict):
+            continue
+        out.append({
+            "title": (s.get("title") or ""),
+            "body": (s.get("body") or ""),
+        })
+    return out
+
+
+def store_content_lang_cache(lang: str, result: dict | None) -> None:
+    lang = (lang or "el").strip().lower()
+    if lang not in ("el", "en"):
+        lang = "el"
+    st.session_state[f"content_captions_{lang}"] = _extract_content_captions(result)
+    st.session_state[f"content_slides_{lang}"] = _extract_content_slides_copy(result)
+
+
+def apply_content_for_lang(lang: str) -> bool:
+    """Swap content_result captions + slide title/body from bilingual caches; keep image_prompt EN."""
+    lang = (lang or "el").strip().lower()
+    if lang not in ("el", "en"):
+        lang = "el"
+    caps = st.session_state.get(f"content_captions_{lang}")
+    slides_copy = st.session_state.get(f"content_slides_{lang}")
+    cr = st.session_state.get("content_result")
+    if not isinstance(cr, dict):
+        return False
+    if not isinstance(caps, dict) and not isinstance(slides_copy, list):
+        return False
+    if isinstance(caps, dict):
+        for k in _CONTENT_CAPTION_KEYS:
+            cr[k] = caps.get(k, "") or ""
+    if isinstance(slides_copy, list) and slides_copy:
+        base_slides = list(cr.get("slides") or [])
+        merged = []
+        for i, sc in enumerate(slides_copy):
+            base = dict(base_slides[i]) if i < len(base_slides) and isinstance(base_slides[i], dict) else {}
+            if isinstance(sc, dict):
+                base["title"] = sc.get("title", "") or base.get("title", "")
+                base["body"] = sc.get("body", "") or base.get("body", "")
+            merged.append(base)
+        if len(base_slides) > len(merged):
+            merged.extend(base_slides[len(merged):])
+        cr["slides"] = merged
+    cr["lang"] = lang
+    st.session_state["content_result"] = cr
+    st.session_state["content_results_lang"] = lang
+    for _wk in _CONTENT_WIDGET_KEYS:
+        st.session_state.pop(_wk, None)
+    n = len(cr.get("slides") or [])
+    for i in range(1, n + 1):
+        st.session_state.pop(f"c_title_{i}", None)
+        st.session_state.pop(f"c_body_{i}", None)
+    try:
+        st.session_state["content_txt"] = build_content_txt(cr)
+        st.session_state["content_zip"] = build_content_zip_bytes(
+            cr, aspect_ratio=st.session_state.get("aspect_ratio_val", "1:1 (Square)")
+        )
+    except Exception:
+        pass
+    return True
+
+
+def ensure_content_for_lang(lang: str, *, allow_regenerate: bool = True) -> bool:
+    """Apply content bilingual cache; optionally regenerate missing side once."""
+    lang = (lang or "el").strip().lower()
+    if lang not in ("el", "en"):
+        lang = "el"
+    if apply_content_for_lang(lang):
+        return True
+    if not allow_regenerate:
+        return False
+    cr = st.session_state.get("content_result")
+    if not isinstance(cr, dict):
+        return False
+    topic_key = cr.get("topic_key") or st.session_state.get("content_topic_key", "tips")
+    topic_override = st.session_state.get("content_topic_override", "") or cr.get("topic_en", "") or ""
+    try:
+        slide_count = int(
+            cr.get("slide_count")
+            or len(cr.get("slides") or [])
+            or st.session_state.get("content_slide_count_val", 5)
+        )
+    except (TypeError, ValueError):
+        slide_count = 5
+
+    def _warn(msg):
+        try:
+            st.warning(t("model_failed", lang, model="gemini", error=msg))
+        except Exception:
+            pass
+
+    with st.spinner(t("generate_content_spinner", lang)):
+        other = generate_content_carousel(
+            client,
+            topic_key=topic_key,
+            topic_override=topic_override,
+            slide_count=slide_count,
+            aspect_ratio=st.session_state.get("aspect_ratio_val", "1:1 (Square)"),
+            insight_context=st.session_state.get("active_insight", "") or "",
+            appearance=st.session_state.get("appearance_val", "eu"),
+            lang=lang,
+            models=["gemini-3.6-flash", "gemini-2.5-flash"],
+            warn=_warn,
+        )
+    old_slides = cr.get("slides") or []
+    new_slides = other.get("slides") or []
+    if old_slides and new_slides and len(old_slides) == len(new_slides):
+        for i, ns in enumerate(new_slides):
+            if isinstance(ns, dict) and isinstance(old_slides[i], dict):
+                ip = old_slides[i].get("image_prompt")
+                if ip:
+                    ns["image_prompt"] = ip
+        other["slides"] = new_slides
+    for k in ("topic_key", "topic_en", "video_beats", "slide_count"):
+        if cr.get(k) and not other.get(k):
+            other[k] = cr.get(k)
+    store_content_lang_cache(lang, other)
+    return apply_content_for_lang(lang)
+
+
+
 # 3. RESET & INITIALIZE SESSION STATE
 
 
@@ -1399,6 +1615,14 @@ def clear_all_fields():
     st.session_state["loaded_hashtags_meta"] = ""
     st.session_state["loaded_pinterest_caption"] = ""
     st.session_state["loaded_youtube_caption"] = ""
+    st.session_state["captions_el"] = None
+    st.session_state["captions_en"] = None
+    st.session_state["results_lang"] = None
+    st.session_state["content_captions_el"] = None
+    st.session_state["content_captions_en"] = None
+    st.session_state["content_slides_el"] = None
+    st.session_state["content_slides_en"] = None
+    st.session_state["content_results_lang"] = None
     st.session_state["loaded_visual_prompt"] = ""
     st.session_state["loaded_slide1_prompt"] = ""
     st.session_state["loaded_slide2_prompt"] = ""
@@ -1470,6 +1694,60 @@ def apply_history_entry(entry: dict):
     st.session_state["loaded_hashtags_meta"] = entry.get("hashtags_meta", "") or ""
     st.session_state["loaded_pinterest_caption"] = entry.get("pinterest_caption", "") or ""
     st.session_state["loaded_youtube_caption"] = entry.get("youtube_caption", "") or ""
+    # Bilingual caption caches (new history) or seed from single-lang entry
+    _cap_el = entry.get("captions_el")
+    _cap_en = entry.get("captions_en")
+    if isinstance(_cap_el, dict):
+        st.session_state["captions_el"] = _cap_el
+    if isinstance(_cap_en, dict):
+        st.session_state["captions_en"] = _cap_en
+    _entry_lang = (entry.get("lang") or "el").strip().lower()
+    if _entry_lang not in ("el", "en"):
+        _entry_lang = "el"
+    if not isinstance(st.session_state.get(f"captions_{_entry_lang}"), dict):
+        store_product_caption_side(_entry_lang, {
+            "meta_caption": entry.get("meta_caption", "") or "",
+            "tiktok_caption": entry.get("tiktok_caption", "") or "",
+            "hashtags_meta": entry.get("hashtags_meta", "") or "",
+            "pinterest_caption": entry.get("pinterest_caption", "") or "",
+            "youtube_caption": entry.get("youtube_caption", "") or "",
+        })
+    _ui_lang = st.session_state.get("lang", "el")
+    if not apply_captions_for_lang(_ui_lang):
+        st.session_state["results_lang"] = _entry_lang
+    # Content-mode bilingual caches (when history entry is a content pack)
+    _cc_el = entry.get("content_captions_el")
+    _cc_en = entry.get("content_captions_en")
+    _cs_el = entry.get("content_slides_el")
+    _cs_en = entry.get("content_slides_en")
+    if isinstance(_cc_el, dict):
+        st.session_state["content_captions_el"] = _cc_el
+    if isinstance(_cc_en, dict):
+        st.session_state["content_captions_en"] = _cc_en
+    if isinstance(_cs_el, list):
+        st.session_state["content_slides_el"] = _cs_el
+    if isinstance(_cs_en, list):
+        st.session_state["content_slides_en"] = _cs_en
+    if entry.get("content_slides") and not st.session_state.get("content_result"):
+        st.session_state["content_result"] = {
+            "slides": entry.get("content_slides") or [],
+            "ig_caption": entry.get("meta_caption") or entry.get("ig_caption") or "",
+            "tiktok_caption": entry.get("tiktok_caption") or "",
+            "pinterest_caption": entry.get("pinterest_caption") or "",
+            "youtube_caption": entry.get("youtube_caption") or "",
+            "topic_key": entry.get("topic_key"),
+            "topic_en": entry.get("topic_en"),
+            "slide_count": entry.get("slide_count"),
+            "lang": _entry_lang,
+            "video_beats": entry.get("video_beats"),
+        }
+        if not isinstance(st.session_state.get(f"content_captions_{_entry_lang}"), dict):
+            store_content_lang_cache(_entry_lang, st.session_state["content_result"])
+        apply_content_for_lang(_ui_lang)
+    elif isinstance(st.session_state.get("content_result"), dict) and (
+        isinstance(_cc_el, dict) or isinstance(_cc_en, dict)
+    ):
+        apply_content_for_lang(_ui_lang)
     st.session_state["loaded_visual_prompt"] = entry.get("visual_prompt", "") or ""
     st.session_state["loaded_slide1_prompt"] = entry.get("slide1_prompt", "") or ""
     st.session_state["loaded_slide2_prompt"] = entry.get("slide2_prompt", "") or ""
@@ -2015,6 +2293,11 @@ if st.session_state.pop("_lang_switch_pending", False):
         st.session_state.get("lang", "el"),
         st.session_state.get("_lang_switch_from", "el"),
     )
+    _ui_lang = st.session_state.get("lang", "el")
+    if st.session_state.get("show_loaded_pack"):
+        ensure_product_captions_for_lang(_ui_lang)
+    if isinstance(st.session_state.get("content_result"), dict):
+        ensure_content_for_lang(_ui_lang)
 if "uploader_key" not in st.session_state: st.session_state["uploader_key"] = 0
 if "watermark_val" not in st.session_state: st.session_state["watermark_val"] = ""
 if "selected_tag_val" not in st.session_state: st.session_state["selected_tag_val"] = AUTHENTICITY_TAGS[0]
@@ -2115,7 +2398,21 @@ with st.sidebar:
             if _entry.get("_kind") == "content":
                 _cr = _entry.get("content_result") or {}
                 st.session_state["content_result"] = _cr
-                st.session_state["content_txt"] = _entry.get("content_txt") or build_content_txt(_cr)
+                for _side, _key in (("el", "content_captions_el"), ("en", "content_captions_en")):
+                    _caps = _entry.get(_key) or _cr.get(_key)
+                    if isinstance(_caps, dict):
+                        st.session_state[f"content_captions_{_side}"] = _caps
+                for _side, _key in (("el", "content_slides_el"), ("en", "content_slides_en")):
+                    _sl = _entry.get(_key) or _cr.get(_key)
+                    if isinstance(_sl, list):
+                        st.session_state[f"content_slides_{_side}"] = _sl
+                _cr_lang = (_cr.get("lang") or _entry.get("lang") or lang or "el")
+                if not isinstance(st.session_state.get(f"content_captions_{_cr_lang}"), dict):
+                    store_content_lang_cache(_cr_lang, _cr)
+                apply_content_for_lang(lang)
+                st.session_state["content_txt"] = _entry.get("content_txt") or build_content_txt(
+                    st.session_state.get("content_result") or _cr
+                )
                 st.session_state["app_mode_val"] = "content"
                 if _cr.get("topic_key"):
                     st.session_state["content_topic_key"] = _cr.get("topic_key")
@@ -2329,7 +2626,37 @@ if app_mode == "content":
         _result["video_beats"] = _cvb
         st.session_state["content_result"] = _result
         st.session_state["content_video_beats"] = _cvb
+        # Bilingual content captions + slide title/body (image_prompt stays EN from primary)
+        store_content_lang_cache(lang, _result)
+        _c_other = _other_lang(lang)
+        try:
+            _result_other = generate_content_carousel(
+                client,
+                topic_key=st.session_state["content_topic_key"],
+                topic_override=st.session_state.get("content_topic_override", "") or "",
+                slide_count=int(st.session_state.get("content_slide_count_val", 5)),
+                aspect_ratio=st.session_state.get("aspect_ratio_val", "1:1 (Square)"),
+                insight_context=st.session_state.get("active_insight", "") or "",
+                appearance=st.session_state.get("appearance_val", "eu"),
+                lang=_c_other,
+                models=["gemini-3.6-flash", "gemini-2.5-flash"],
+                warn=_warn,
+            )
+            _old_slides = _result.get("slides") or []
+            _new_slides = _result_other.get("slides") or []
+            if _old_slides and _new_slides and len(_old_slides) == len(_new_slides):
+                for _i, _ns in enumerate(_new_slides):
+                    if isinstance(_ns, dict) and isinstance(_old_slides[_i], dict):
+                        _ip = _old_slides[_i].get("image_prompt")
+                        if _ip:
+                            _ns["image_prompt"] = _ip
+                _result_other["slides"] = _new_slides
+            store_content_lang_cache(_c_other, _result_other)
+        except Exception:
+            pass
+        apply_content_for_lang(lang)
         usage.record_generate(st.session_state)
+        _result = st.session_state.get("content_result") or _result
         _txt = build_content_txt(_result)
         st.session_state["content_txt"] = _txt
         st.session_state["content_zip"] = build_content_zip_bytes(
@@ -2361,7 +2688,12 @@ if app_mode == "content":
                 "hashtags_meta": "",
                 "pinterest_caption": _result.get("pinterest_caption", ""),
                 "youtube_caption": _result.get("youtube_caption", ""),
-                "lang": "en",
+                "lang": lang,
+                "content_captions_el": st.session_state.get("content_captions_el"),
+                "content_captions_en": st.session_state.get("content_captions_en"),
+                "content_slides_el": st.session_state.get("content_slides_el"),
+                "content_slides_en": st.session_state.get("content_slides_en"),
+                "content_slides": _result.get("slides"),
                 "goal": "content",
                 "ad_format": "Content Carousel",
                 "slide1_prompt": (_result.get("slides") or [{}])[0].get("image_prompt", "") if (_result.get("slides") or []) else "",
@@ -2719,6 +3051,26 @@ if st.button(
                     if word in ad_texts[key].lower():
                         ad_texts[key] = ad_texts[key].lower().replace(word, "signature pro")
 
+        # Bilingual caption cache: active lang drives overlays; both cached for UI switch
+        store_product_caption_side(lang, ad_texts)
+        _cap_other_lang = _other_lang(lang)
+        try:
+            ad_texts_other = safe_generate_ad_copy(
+                brand, model_name, colorway, key_materials, custom_watermark,
+                lang=_cap_other_lang,
+                goal=_effective_goal,
+                insight_context=st.session_state.get("active_insight", "") or "",
+            )
+            for key in ad_texts_other:
+                if isinstance(ad_texts_other[key], str):
+                    for word in unsafe_keywords:
+                        if word in ad_texts_other[key].lower():
+                            ad_texts_other[key] = ad_texts_other[key].lower().replace(word, "signature pro")
+            store_product_caption_side(_cap_other_lang, ad_texts_other)
+        except Exception:
+            pass
+        apply_captions_for_lang(lang)
+
         _wm_clean = (custom_watermark or "").strip()
         if _wm_clean:
             _wm_neg = (
@@ -2883,6 +3235,8 @@ RAW DATA (JSON)
             "pinterest_caption": ad_texts.get("pinterest_caption", ""),
             "youtube_caption": ad_texts.get("youtube_caption", ""),
             "ad_texts": ad_texts,
+            "captions_el": st.session_state.get("captions_el"),
+            "captions_en": st.session_state.get("captions_en"),
             "lang": lang,
             "goal": st.session_state.get("goal_val", "auto"),
             "appearance": st.session_state.get("appearance_val", "eu"),
