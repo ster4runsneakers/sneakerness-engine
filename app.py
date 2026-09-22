@@ -218,7 +218,7 @@ AUTHENTICITY_TAGS = [
 # 2. HELPER FUNCTIONS
 def auto_analyze_shoe(brand_name, model_name, image_bytes=None, mime_type="image/jpeg", vibe="auto"):
     """Detect shoe + invent a scene. Fallbacks use pick_scene_pack (never the old Kinfolk/worker triple)."""
-    vibe = vibe or st.session_state.get("scene_vibe_val", "auto") or "auto"
+    vibe = (vibe or st.session_state.get("scene_vibe_val", "auto") or "auto").strip().lower()
     if not image_bytes:
         pack = pick_scene_pack(brand_name, model_name, "", vibe=vibe, stable=True)
         return {
@@ -231,6 +231,15 @@ def auto_analyze_shoe(brand_name, model_name, image_bytes=None, mime_type="image
             "problem_desc": pack["problem_desc"],
         }
 
+    vibe_bias = ""
+    if vibe == "lifestyle":
+        vibe_bias = (
+            "\nVIBE OVERRIDE (user selected Everyday lifestyle): Bias env_desc/props_desc/problem_desc toward "
+            "Mediterranean everyday scenes — beach promenade, hillside overlook, city plateia stroll, "
+            "neighborhood cafe terrace, Aegean village street, or park weekend walk. "
+            "Prefer ONE-person soft static framing (pause on walk, seated, leaning) OR product-only shoes. "
+            "Avoid race running and multi-person crowds as the primary subject; soft distant bokeh only.\n"
+        )
     prompt_search = """Examine the provided sneaker image with extreme precision.
 
 CRITICAL IDENTIFICATION & DYNAMIC SCENE CREATION RULES:
@@ -248,7 +257,7 @@ HARD BANS (do NOT default to these unless the shoe truly matches that exact vibe
 - generic "minimalist concrete urban street with natural daylight"
 
 REQUIREMENTS:
-- env_desc, props_desc, and problem_desc MUST match the shoe archetype (road running, trail, gym, street fashion, rainy commute, barista/retail shift, airport travel, post-run recovery, basketball court, etc.).
+- env_desc, props_desc, and problem_desc MUST match the shoe archetype (road running, trail, gym, street fashion, everyday Mediterranean lifestyle, rainy commute, barista/retail shift, airport travel, post-run recovery, basketball court, etc.).
 - Be DISTINCT from the banned defaults above.
 - Invent a NEW scene in the spirit of these short EXAMPLE packs — do NOT copy examples verbatim:
   * Road running: outdoor track at dawn mist + GPS watch / race bib / flask — ONE runner's calves after tempo, BOTH shoes on, pausing on the curb
@@ -256,10 +265,12 @@ REQUIREMENTS:
   * Gym: neon rubber-mat floor + chalk / straps / bands — ONE athlete's feet planted under a squat rack, both shoes on
   * Rainy commute: wet metro tiles + umbrella / transit card / thermos — ONE commuter's shoes beading rain on the platform
   * Boutique street: cobblestone shopfront light + crossbody / Polaroid / iced matcha — ONE person's cropped stylish legs on a ledge, both sneakers on
+  * Everyday lifestyle (beach / mountain / city / cafe): Mediterranean coastal promenade, hillside overlook, plateia golden hour, neighborhood cafe terrace, Aegean stone street, or park weekend path — ONE person soft pause OR product-only; soft static poses; distant crowd bokeh OK; not race running or multi-person foot chaos
   * Airport travel: departure hall daylight + boarding pass / neck pillow / carry-on — ONE traveler seated at the gate, both shoes on
   * Post-run recovery: curb outside a track at dusk + ice pack / recovery drink / massage ball — ONE runner seated on the curb rubbing own calves, BOTH shoes still on (or product-only shoes beside the curb — no second person)
   * Cafe barista shift: warm pendant-lit counter + milk pitcher / tickets / bar towel — ONE barista standing-shift legs behind the bar, both work sneakers on
 - Emphasize VARIETY across regenerations: same shoe analyzed again should be able to yield a different but still archetype-true scene.
+{vibe_bias}
 
 Return ONLY a valid, raw JSON object matching this schema:
 {
@@ -271,6 +282,7 @@ Return ONLY a valid, raw JSON object matching this schema:
   "props_desc": "Custom EDC props list...",
   "problem_desc": "Custom human problem scene (single person or product-only; legs/shoes OK; no face required; never two people handling feet)..."
 }"""
+    prompt_search = prompt_search.replace("{vibe_bias}", vibe_bias)
 
     contents = [
         types.Part.from_bytes(data=image_bytes, mime_type=mime_type),
@@ -1269,6 +1281,7 @@ SCENE_VIBE_KEYS = [
     "trail",
     "gym",
     "street",
+    "lifestyle",
     "commute",
     "work",
     "travel",
@@ -1451,19 +1464,60 @@ SCENE_PACKS = {
         {
             "env_desc": "sunlit loft interior with raw wood floor and large window light pooling on the boards",
             "props_desc": "vinyl record sleeve, ceramic mug of black coffee, house keys, linen tote",
-            "problem_desc": "relaxed weekend legs on a low stool, sneakers as the quiet hero of the frame",
+            "problem_desc": "ONE person seated on a low stool in soft weekend light, BOTH sneakers on their own feet as the quiet hero of the frame — or product-only shoes on the wood floor; no second person",
             "env_desc_el": "ηλιόλουστο εσωτερικό loft με ακατέργαστο ξύλινο πάτωμα και μεγάλο φως παραθύρου που πέφτει στις σανίδες",
             "props_desc_el": "εξώφυλλο δίσκου βινυλίου, κεραμική κούπα μαύρου καφέ, κλειδιά σπιτιού, λινή τσάντα tote",
-            "problem_desc_el": "χαλαρά πόδια Σαββατοκύριακου σε χαμηλό σκαμπό, τα sneakers ως ήσυχος ήρωας του κάδρου",
+            "problem_desc_el": "ΕΝΑ άτομο καθισμένο σε χαμηλό σκαμπό σε απαλό φως Σαββατοκύριακου, ΚΑΙ ΤΑ ΔΥΟ sneakers στα δικά του πόδια ως ήσυχος ήρωας του κάδρου — ή μόνο τα παπούτσια στο ξύλινο πάτωμα· χωρίς δεύτερο άτομο",
         },
         {
-            "env_desc": "coastal boardwalk with soft sea breeze haze and pale wood planks",
-            "props_desc": "sunglasses case, disposable camera, woven tote, cold sparkling water",
-            "problem_desc": "leisurely walk pause on the boardwalk railing, focusing on shoes against weathered wood",
-            "env_desc_el": "παραθαλάσσιο boardwalk με απαλή θαλασσινή αύρα-ομίχλη και χλωμές ξύλινες σανίδες",
-            "props_desc_el": "θήκη γυαλιών ηλίου, κάμερα μιας χρήσης, πλεκτή τσάντα tote, κρύο ανθρακούχο νερό",
-            "problem_desc_el": "παύση σε χαλαρό περπάτημα στο κάγκελο του boardwalk, εστίαση στα παπούτσια πάνω σε φθαρμένο ξύλο",
+            "env_desc": "Mediterranean coastal promenade at soft morning light with pale sea haze and weathered boardwalk planks",
+            "props_desc": "sunglasses case, woven straw tote, cold sparkling water, disposable camera",
+            "problem_desc": "ONE person paused mid-stroll leaning lightly on the railing, BOTH shoes on their own feet as the hero against weathered wood and soft sea bokeh — leisurely walk pause, not running",
+            "env_desc_el": "μεσογειακό παραθαλάσσιο πεζοδρόμιο σε απαλό πρωινό φως με χλωμή θαλασσινή ομίχλη και φθαρμένες σανίδες boardwalk",
+            "props_desc_el": "θήκη γυαλιών ηλίου, πλεκτή ψάθινη τσάντα, κρύο ανθρακούχο νερό, κάμερα μιας χρήσης",
+            "problem_desc_el": "ΕΝΑ άτομο σταματημένο στη μέση της βόλτας ακουμπημένο απαλά στο κάγκελο, ΚΑΙ ΤΑ ΔΥΟ παπούτσια στα δικά του πόδια ως ήρωας πάνω σε φθαρμένο ξύλο και απαλό θαλασσινό bokeh — παύση χαλαρής βόλτας, όχι τρέξιμο",
         },
+        {
+            "env_desc": "cool hillside trail overlook with distant mountain ridges, pale overcast sky, and soft alpine grass",
+            "props_desc": "compact daypack, trail map folded once, metal water bottle, light windbreaker draped aside",
+            "problem_desc": "ONE hiker paused at the overlook resting both feet on a flat rock, BOTH shoes on their own feet — soft static pose, not extreme running or race effort",
+            "env_desc_el": "δροσερό ορεινό μονοπάτι με θέα σε μακρινές κορυφογραμμές, χλωμό συννεφιασμένο ουρανό και απαλό αλπικό γρασίδι",
+            "props_desc_el": "συμπαγές daypack, χάρτης μονοπατιού διπλωμένος μια φορά, μεταλλικό μπουκάλι νερού, ελαφρύ windbreaker στην άκρη",
+            "problem_desc_el": "ΕΝΑΣ πεζοπόρος σταματημένος στο σημείο θέας με τα δύο πόδια σε επίπεδη πέτρα, ΚΑΙ ΤΑ ΔΥΟ παπούτσια στα δικά του πόδια — απαλή στατική πόζα, όχι ακραίο τρέξιμο ή αγώνας",
+        },
+        {
+            "env_desc": "city boulevard and plateia at evening golden hour with warm stone facades and soft distant pedestrian bokeh",
+            "props_desc": "crossbody bag, iced coffee cup, folded linen jacket, small paper shopping bag",
+            "problem_desc": "ONE person paused on a low plaza step during an evening stroll, BOTH shoes on their own feet as the hero silhouette — soft distant crowd bokeh only, never multi-person foot chaos",
+            "env_desc_el": "λεωφόρος πόλης και πλατεία στο βραδινό χρυσό φως με ζεστές πέτρινες προσόψεις και απαλό μακρινό bokeh πεζών",
+            "props_desc_el": "τσάντα χιαστή, παγωμένος καφές, διπλωμένο λινό μπουφάν, μικρή χάρτινη σακούλα αγορών",
+            "problem_desc_el": "ΕΝΑ άτομο σταματημένο σε χαμηλό σκαλί πλατείας σε βραδινή βόλτα, ΚΑΙ ΤΑ ΔΥΟ παπούτσια στα δικά του πόδια ως ηρωική σιλουέτα — μόνο απαλό μακρινό bokeh κόσμου, ποτέ χάος ποδιών πολλών ατόμων",
+        },
+        {
+            "env_desc": "neighborhood cafe terrace with warm late-afternoon light, terracotta tiles, and a soft awning shadow",
+            "props_desc": "espresso cup on saucer, folded newspaper, small plant pot, woven chair edge",
+            "problem_desc": "ONE person seated at a cafe table with legs and BOTH shoes visible under the table as the quiet product hero — soft static seated pose, no second person handling feet",
+            "env_desc_el": "ταράτσα γειτονικού καφέ με ζεστό απογευματινό φως, τερακότα πλακάκια και απαλή σκιά τέντας",
+            "props_desc_el": "φλιτζάνι εσπρέσο στο πιατάκι, διπλωμένη εφημερίδα, μικρή γλάστρα, άκρη πλεκτής καρέκλας",
+            "problem_desc_el": "ΕΝΑ άτομο καθισμένο σε τραπέζι καφέ με πόδια και ΚΑΙ ΤΑ ΔΥΟ παπούτσια ορατά κάτω από το τραπέζι ως ήσυχος ήρωας προϊόντος — απαλή καθιστή πόζα, κανείς δεύτερος δεν αγγίζει πόδια",
+        },
+        {
+            "env_desc": "Aegean seaside village stone street at bright midday with whitewashed walls, blue shutters, and dry warm light",
+            "props_desc": "woven market tote, sun hat resting aside, ceramic water carafe, postcard on a ledge",
+            "problem_desc": "product-only sneakers resting on warm stone steps against whitewashed wall — or ONE person paused mid-walk with BOTH shoes on their own feet; no crowd as primary subject",
+            "env_desc_el": "πέτρινο σοκάκι αιγαιοπελαγίτικου παραθαλάσσιου χωριού σε φωτεινό μεσημέρι με ασβεστωμένους τοίχους, μπλε παντζούρια και ξερό ζεστό φως",
+            "props_desc_el": "πλεκτή τσάντα αγοράς, καπέλο ήλιου στην άκρη, κεραμική καράφα νερού, κάρτα σε περβάζι",
+            "problem_desc_el": "μόνο τα sneakers ακουμπημένα σε ζεστά πέτρινα σκαλιά μπροστά σε ασβεστωμένο τοίχο — ή ΕΝΑ άτομο σταματημένο στη μέση του περπατήματος με ΚΑΙ ΤΑ ΔΥΟ παπούτσια στα δικά του πόδια· χωρίς πλήθος ως κύριο θέμα",
+        },
+        {
+            "env_desc": "tree-lined city park path on a quiet weekend morning with dappled leaf light and soft gravel",
+            "props_desc": "paperback novel, reusable coffee cup, light scarf, small day tote on a bench",
+            "problem_desc": "ONE person paused on a park path after an easy weekend walk, BOTH shoes on their own feet — soft static standing pause, or product-only shoes beside a bench; no multi-person crowds as primary subject",
+            "env_desc_el": "δεντρόφυτο μονοπάτι πάρκου πόλης σε ήσυχο πρωινό Σαββατοκύριακου με διάστικτο φως φύλλων και απαλό χαλίκι",
+            "props_desc_el": "μυθιστόρημα τσέπης, επαναχρησιμοποιούμενο ποτήρι καφέ, ελαφρύ κασκόλ, μικρή day tote σε παγκάκι",
+            "problem_desc_el": "ΕΝΑ άτομο σταματημένο σε μονοπάτι πάρκου μετά από εύκολη βόλτα Σαββατοκύριακου, ΚΑΙ ΤΑ ΔΥΟ παπούτσια στα δικά του πόδια — απαλή στατική παύση όρθιος, ή μόνο τα παπούτσια δίπλα σε παγκάκι· χωρίς πλήθη ως κύριο θέμα",
+        },
+
     ],
 }
 
@@ -1471,8 +1525,6 @@ SCENE_PACKS = {
 def infer_scene_archetype(brand: str = "", model: str = "", specs: str = "", vibe: str = "auto") -> str:
     """Infer scene archetype from vibe override or shoe keywords."""
     vibe = (vibe or "auto").strip().lower()
-    if vibe in SCENE_PACKS and vibe not in ("lifestyle",):
-        return vibe
     if vibe in SCENE_VIBE_KEYS and vibe != "auto" and vibe in SCENE_PACKS:
         return vibe
 
@@ -3650,6 +3702,7 @@ _vibe_labels = {
     "trail": t("vibe_trail", lang),
     "gym": t("vibe_gym", lang),
     "street": t("vibe_street", lang),
+    "lifestyle": t("vibe_lifestyle", lang),
     "commute": t("vibe_commute", lang),
     "work": t("vibe_work", lang),
     "travel": t("vibe_travel", lang),
@@ -3668,6 +3721,9 @@ _picked_vibe_label = st.selectbox(
 )
 _label_to_vibe = {v: k for k, v in _vibe_labels.items()}
 st.session_state["scene_vibe_val"] = _label_to_vibe.get(_picked_vibe_label, "auto")
+
+if st.session_state.get("scene_vibe_val") == "lifestyle":
+    st.caption(t("scene_lifestyle_hint", lang))
 
 if st.button(t("shuffle_scene", lang), key="shuffle_scene_btn"):
     _shuffle_pack = pick_scene_pack(
