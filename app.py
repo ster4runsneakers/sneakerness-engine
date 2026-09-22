@@ -1415,6 +1415,10 @@ def clear_all_fields():
     st.session_state["last_export_shoe_ext"] = None
     st.session_state["last_export_shoe_mime"] = None
     st.session_state["last_export_shoe_name"] = None
+    st.session_state["last_export_name"] = "content_pack.zip"
+    st.session_state["last_export_txt"] = None
+    st.session_state["last_export_txt_name"] = None
+    st.session_state["last_export_path"] = None
     st.session_state["uploader_key"] = st.session_state.get("uploader_key", 0) + 1
 
 
@@ -1541,6 +1545,12 @@ def apply_history_entry(entry: dict):
         st.session_state["last_export_shoe_name"] = f"{_bn}_{_mn}_shoe.{_hist_img_ext}"
     else:
         st.session_state["last_export_shoe_name"] = None
+    # History ZIP is rebuilt above; clear generate-only TXT path so results UI stays accurate
+    st.session_state["last_export_txt"] = None
+    st.session_state["last_export_txt_name"] = None
+    st.session_state["last_export_path"] = None
+    for _wk in ("hist_meta_ta", "hist_tt_ta", "hist_pin_ta", "hist_yt_ta"):
+        st.session_state.pop(_wk, None)
     st.session_state["uploader_key"] = st.session_state.get("uploader_key", 0) + 1
 
 
@@ -2035,6 +2045,9 @@ if "last_export_shoe_ext" not in st.session_state: st.session_state["last_export
 if "last_export_shoe_mime" not in st.session_state: st.session_state["last_export_shoe_mime"] = None
 if "last_export_shoe_name" not in st.session_state: st.session_state["last_export_shoe_name"] = None
 if "last_export_name" not in st.session_state: st.session_state["last_export_name"] = "content_pack.zip"
+if "last_export_txt" not in st.session_state: st.session_state["last_export_txt"] = None
+if "last_export_txt_name" not in st.session_state: st.session_state["last_export_txt_name"] = None
+if "last_export_path" not in st.session_state: st.session_state["last_export_path"] = None
 if "app_mode_val" not in st.session_state: st.session_state["app_mode_val"] = "product"
 if "content_topic_key" not in st.session_state: st.session_state["content_topic_key"] = "tips"
 if "content_topic_override" not in st.session_state: st.session_state["content_topic_override"] = ""
@@ -2750,9 +2763,7 @@ if st.button(
                 visual_prompt = f"""Create an image: Photorealistic lifestyle/product photograph prioritizing footwear of {brand} {safe_model_name} in {colorway} colorway ({key_materials}) on a smooth surface in the foreground with {selected_props}. Soft-focus upper background suggests {selected_problem} without showing an identifiable face (crop strictly below the chin; no partial face at frame edge; shoes, legs, hands, props only). Natural depth of field and continuous studio lighting. Render a top-left fabric tag reading '{selected_tag}' and a top-right badge reading '{selected_badge}'. Display headline text overlay '{ad_texts['hook']}', body text overlay '{ad_texts['body']}', and soft CTA overlay '{ad_texts['cta']}'.{watermark_image_clause(custom_watermark)} {negative_constraint}{_brand_lock}{(' ' + _appearance_extra) if _appearance_extra else ''} Photorealistic 8k, seamless single canvas {ar_flag}"""
             else:
                 visual_prompt = f"""Create an image: Photorealistic vertical photograph of {brand} {safe_model_name} in {colorway} colorway ({key_materials}) placed on a smooth surface in the foreground, accompanied by {selected_props}. In the soft-focus upper background, {selected_problem}. Natural depth of field and continuous studio lighting. Render a top-left fabric tag reading '{selected_tag}' and a top-right badge reading '{selected_badge}'. Display headline text overlay '{ad_texts['hook']}', body text overlay '{ad_texts['body']}', and soft CTA overlay '{ad_texts['cta']}'.{watermark_image_clause(custom_watermark)} {negative_constraint}{_brand_lock}{(' ' + _appearance_extra) if _appearance_extra else ''} Photorealistic 8k, seamless single canvas {ar_flag}"""
-
-            st.markdown(t("prompt_single", lang))
-            st.code(visual_prompt, language="text")
+            slide1_prompt = slide2_prompt = slide3_prompt = slide4_prompt = slide5_prompt = ""
 
         else:
             slide_count = int(st.session_state.get("slide_count_val", 3))
@@ -2781,15 +2792,6 @@ if st.button(
                 slide_prompts.append("")
             slide1_prompt, slide2_prompt, slide3_prompt, slide4_prompt, slide5_prompt = slide_prompts[:5]
 
-            st.markdown(t("prompt_carousel", lang))
-            for i, (role_key, prompt) in enumerate(carousel_roles, start=1):
-                role = t(role_key, lang)
-                st.write(t("slide_label", lang, n=i, role=role))
-                st.code(prompt, language="text")
-
-        st.markdown("---")
-        st.markdown(t("captions_section", lang, lang_name=t("lang_name", lang)))
-
         # Build Grok Video beats with the same generate click (deterministic)
         _video_mode = "single" if ad_format == "Single Layout Ad (1 Εικόνα)" else "carousel"
         _video_sc = 3 if _video_mode == "single" else int(st.session_state.get("slide_count_val", 3) or 3)
@@ -2810,32 +2812,10 @@ if st.button(
         )
         st.session_state["loaded_video_beats"] = video_beats
 
-        tab1, tab2, tab3, tab4, tab5 = st.tabs([
-            t("tab_meta", lang, lang_name=t("lang_name", lang)),
-            t("tab_tiktok", lang, lang_name=t("lang_name", lang)),
-            t("tab_pinterest", lang, lang_name=t("lang_name", lang)),
-            t("tab_youtube", lang, lang_name=t("lang_name", lang)),
-            t("tab_video", lang, lang_name=t("lang_name", lang)),
-        ])
-        
-        with tab1:
-            meta_post = f"{ad_texts.get('meta_caption', '')}\n\n{ad_texts.get('hashtags_meta', '')}"
-            st.text_area(t("caption_meta_label", lang, lang_name=t("lang_name", lang)), value=meta_post, height=180)
-            
-        with tab2:
-            tiktok_post = ad_texts.get('tiktok_caption', '')
-            st.text_area(t("caption_tiktok_label", lang, lang_name=t("lang_name", lang)), value=tiktok_post, height=120)
-
-        with tab3:
-            pinterest_post = ad_texts.get('pinterest_caption', '')
-            st.text_area(t("caption_pinterest_label", lang, lang_name=t("lang_name", lang)), value=pinterest_post, height=180)
-
-        with tab4:
-            youtube_post = ad_texts.get('youtube_caption', '')
-            st.text_area(t("caption_youtube_label", lang, lang_name=t("lang_name", lang)), value=youtube_post, height=160)
-
-        with tab5:
-            render_video_beats_ui(video_beats, lang=lang, key_prefix="gen")
+        meta_post = f"{ad_texts.get('meta_caption', '')}\n\n{ad_texts.get('hashtags_meta', '')}"
+        tiktok_post = ad_texts.get('tiktok_caption', '')
+        pinterest_post = ad_texts.get('pinterest_caption', '')
+        youtube_post = ad_texts.get('youtube_caption', '')
 
         lang_tag = "EL" if lang == "el" else "EN"
         os.makedirs("output", exist_ok=True)
@@ -2953,13 +2933,8 @@ RAW DATA (JSON)
         st.session_state["loaded_slide3_prompt"] = hist_payload.get("slide3_prompt", "")
         st.session_state["loaded_slide4_prompt"] = hist_payload.get("slide4_prompt", "")
         st.session_state["loaded_slide5_prompt"] = hist_payload.get("slide5_prompt", "")
-        st.session_state["show_loaded_pack"] = False
 
-        st.info(t("saved_info", lang, path=file_path))
-        st.caption(t("save_where_help", lang))
-        
-
-        # Feature C — ZIP export pack (in-memory)
+        # Feature C — ZIP export pack (in-memory); persist for download-safe results UI
         _zip_slides = []
         if ad_format == "Single Layout Ad (1 Εικόνα)":
             _zip_visual = visual_prompt
@@ -3013,40 +2988,20 @@ RAW DATA (JSON)
             st.session_state["last_export_shoe_name"] = f"{brand}_{model_name}_{_ts}_shoe.{_zip_img_ext}".replace(" ", "_")
         else:
             st.session_state["last_export_shoe_name"] = None
-
-        # Recommended: ZIP (text + shoe). TXT kept for text-only.
-        if st.session_state.get("last_export_zip"):
-            st.download_button(
-                label=t("export_zip_label", lang),
-                data=st.session_state["last_export_zip"],
-                file_name=st.session_state.get("last_export_name", "content_pack.zip"),
-                mime="application/zip",
-                help=t("export_zip_help", lang),
-                key="export_zip_after_gen",
-            )
-        st.download_button(
-            label=t("download_label", lang),
-            data=txt_content,
-            file_name=f"{brand}_{model_name}_{_ts}.txt".replace(" ", "_"),
-            mime="text/plain",
-            help=t("download_txt_help", lang),
-            key="export_txt_after_gen",
-        )
-        if st.session_state.get("last_export_shoe"):
-            st.download_button(
-                label=t("download_shoe_label", lang),
-                data=st.session_state["last_export_shoe"],
-                file_name=st.session_state.get("last_export_shoe_name") or f"shoe.{st.session_state.get('last_export_shoe_ext') or 'jpg'}",
-                mime=st.session_state.get("last_export_shoe_mime") or "image/jpeg",
-                help=t("download_shoe_help", lang),
-                key="export_shoe_after_gen",
-            )
+        st.session_state["last_export_txt"] = txt_content
+        st.session_state["last_export_txt_name"] = f"{brand}_{model_name}_{_ts}.txt".replace(" ", "_")
+        st.session_state["last_export_path"] = file_path
+        # Reset persistent results widgets so new captions show after regenerate
+        for _wk in ("hist_meta_ta", "hist_tt_ta", "hist_pin_ta", "hist_yt_ta"):
+            st.session_state.pop(_wk, None)
+        st.session_state["show_loaded_pack"] = True
+        st.rerun()
 
 
-# Show pack loaded from history (without regenerating)
+# Persistent results (generate / history / import) — survives download-button reruns
 if st.session_state.get("show_loaded_pack"):
     st.markdown("---")
-    st.markdown(t("loaded_from_history", lang))
+    st.markdown(t("results_section", lang))
     if st.session_state.get("loaded_visual_prompt"):
         st.markdown(t("prompt_single", lang))
         st.code(st.session_state["loaded_visual_prompt"], language="text")
@@ -3137,8 +3092,11 @@ if st.session_state.get("show_loaded_pack"):
                 lang=lang,
             )
             st.session_state["loaded_video_beats"] = _hv
-        render_video_beats_ui(_hv, lang=lang, key_prefix="hist")
+        render_video_beats_ui(_hv, lang=lang, key_prefix="results")
 
+    if st.session_state.get("last_export_path"):
+        st.info(t("saved_info", lang, path=st.session_state["last_export_path"]))
+        st.caption(t("save_where_help", lang))
     st.caption(t("download_txt_help", lang))
     if st.session_state.get("last_export_zip"):
         st.download_button(
@@ -3148,6 +3106,15 @@ if st.session_state.get("show_loaded_pack"):
             mime="application/zip",
             help=t("export_zip_help", lang),
             key="export_zip_from_history",
+        )
+    if st.session_state.get("last_export_txt"):
+        st.download_button(
+            label=t("download_label", lang),
+            data=st.session_state["last_export_txt"],
+            file_name=st.session_state.get("last_export_txt_name") or "content_pack.txt",
+            mime="text/plain",
+            help=t("download_txt_help", lang),
+            key="export_txt_from_results",
         )
     if st.session_state.get("last_export_shoe"):
         st.download_button(
