@@ -2,6 +2,8 @@
 import os
 import json
 import time
+import random
+import hashlib
 import io
 import zipfile
 from datetime import datetime
@@ -199,16 +201,19 @@ AUTHENTICITY_TAGS = [
 ]
 
 # 2. HELPER FUNCTIONS
-def auto_analyze_shoe(brand_name, model_name, image_bytes=None, mime_type="image/jpeg"):
+def auto_analyze_shoe(brand_name, model_name, image_bytes=None, mime_type="image/jpeg", vibe="auto"):
+    """Detect shoe + invent a scene. Fallbacks use pick_scene_pack (never the old Kinfolk/worker triple)."""
+    vibe = vibe or st.session_state.get("scene_vibe_val", "auto") or "auto"
     if not image_bytes:
+        pack = pick_scene_pack(brand_name, model_name, "", vibe=vibe, stable=True)
         return {
             "brand": brand_name if brand_name else "",
             "model": model_name if model_name else "",
             "specs": "",
             "colorway": "",
-            "env_desc": "minimalist concrete urban street with natural daylight",
-            "props_desc": "an open Kinfolk magazine, a ceramic cup of cappuccino, brass keys, succulent",
-            "problem_desc": "a tired worker sitting on stairs touching sore feet with work boots beside them"
+            "env_desc": pack["env_desc"],
+            "props_desc": pack["props_desc"],
+            "problem_desc": pack["problem_desc"],
         }
 
     prompt_search = """Examine the provided sneaker image with extreme precision.
@@ -218,9 +223,28 @@ CRITICAL IDENTIFICATION & DYNAMIC SCENE CREATION RULES:
 2. "model": Identify the EXACT shoe model name based on visible text. Check tongue, lateral side, or heel label carefully.
 3. "colorway": Describe the exact observed colors in the image (e.g., "Cream / Red / Navy Blue").
 4. "specs": Technical specifications specific to this exact model (e.g., Vibram Megagrip outsole, dual-density EVA midsole, breathable mesh upper).
-5. "env_desc": Write a detailed, hyper-relevant 1-sentence English description of the IDEAL background environment tailored to this shoe's archetype (e.g. basketball court, urban street, trail, luxury lounge).
+5. "env_desc": Write a detailed, hyper-relevant 1-sentence English description of the IDEAL background environment tailored to this shoe's archetype.
 6. "props_desc": Write a 1-sentence English list of 3-4 EDC props placed on the surface next to the shoe that match its lifestyle/vibe.
-7. "problem_desc": Write a 1-sentence English description of a realistic human pain-point/problem scene matching this shoe's category (e.g. tired athlete, fatigued retail worker, aching hiker, long shift worker).
+7. "problem_desc": Write a 1-sentence English description of a realistic human pain-point/problem scene matching this shoe's category. Prefer legs/feet/shoes framing; faces not required.
+
+HARD BANS (do NOT default to these unless the shoe truly matches that exact vibe, and even then invent a NEW wording):
+- tired worker sitting on stairs / sore feet with work boots
+- Kinfolk magazine, ceramic cappuccino, brass keys, succulent plant
+- generic "minimalist concrete urban street with natural daylight"
+
+REQUIREMENTS:
+- env_desc, props_desc, and problem_desc MUST match the shoe archetype (road running, trail, gym, street fashion, rainy commute, barista/retail shift, airport travel, post-run recovery, basketball court, etc.).
+- Be DISTINCT from the banned defaults above.
+- Invent a NEW scene in the spirit of these short EXAMPLE packs — do NOT copy examples verbatim:
+  * Road running: outdoor track at dawn mist + GPS watch / race bib / flask — calves after tempo on the curb
+  * Trail: muddy pine singletrack + poles / map / gaiters — mud-caked shoes paused on a rock
+  * Gym: neon rubber-mat floor + chalk / straps / bands — feet planted under a squat rack
+  * Rainy commute: wet metro tiles + umbrella / transit card / thermos — shoes beading rain on the platform
+  * Boutique street: cobblestone shopfront light + crossbody / Polaroid / iced matcha — cropped stylish legs on a ledge
+  * Airport travel: departure hall daylight + boarding pass / neck pillow / carry-on — legs stretched at the gate
+  * Post-run recovery: curb outside a track at dusk + ice pack / recovery drink / massage ball — shoes half-off on the curb
+  * Cafe barista shift: warm pendant-lit counter + milk pitcher / tickets / bar towel — standing-shift legs behind the bar
+- Emphasize VARIETY across regenerations: same shoe analyzed again should be able to yield a different but still archetype-true scene.
 
 Return ONLY a valid, raw JSON object matching this schema:
 {
@@ -230,7 +254,7 @@ Return ONLY a valid, raw JSON object matching this schema:
   "colorway": "Detected colorway...",
   "env_desc": "Custom environmental background description...",
   "props_desc": "Custom EDC props list...",
-  "problem_desc": "Custom human problem/fatigue scene..."
+  "problem_desc": "Custom human problem scene (legs/shoes OK, no face required)..."
 }"""
 
     contents = [
@@ -239,14 +263,14 @@ Return ONLY a valid, raw JSON object matching this schema:
     ]
 
     models_to_try = ["gemini-3.6-flash", "gemini-2.5-flash"]
-    
+
     for model_item in models_to_try:
         try:
             res = client.models.generate_content(
-                model=model_item, 
+                model=model_item,
                 contents=contents
             )
-            
+
             if res and res.text:
                 clean_txt = res.text.strip()
                 if clean_txt.startswith("```json"):
@@ -257,20 +281,36 @@ Return ONLY a valid, raw JSON object matching this schema:
                     clean_txt = clean_txt[:-3]
                 clean_txt = clean_txt.strip()
 
-                return json.loads(clean_txt)
+                data = json.loads(clean_txt)
+                if not isinstance(data, dict):
+                    raise ValueError("analyze JSON was not an object")
+                brand_out = data.get("brand") or brand_name or ""
+                model_out = data.get("model") or model_name or ""
+                specs_out = data.get("specs") or ""
+                env_out = data.get("env_desc") or ""
+                props_out = data.get("props_desc") or ""
+                problem_out = data.get("problem_desc") or ""
+                if scene_matches_banned_defaults(env_out, props_out, problem_out):
+                    pack = pick_scene_pack(brand_out, model_out, specs_out, vibe=vibe)
+                    data["env_desc"] = pack["env_desc"]
+                    data["props_desc"] = pack["props_desc"]
+                    data["problem_desc"] = pack["problem_desc"]
+                return data
         except Exception as e:
             st.warning(t("model_failed", st.session_state.get("lang", "el"), model=model_item, error=str(e)))
             time.sleep(1)
 
+    pack = pick_scene_pack(brand_name, model_name, "", vibe=vibe, stable=True)
     return {
         "brand": "",
         "model": "",
         "specs": "",
         "colorway": "",
-        "env_desc": "minimalist concrete urban street with natural daylight",
-        "props_desc": "an open Kinfolk magazine, a ceramic cup of cappuccino, brass keys, succulent",
-        "problem_desc": "a tired worker sitting on stairs touching sore feet with work boots beside them"
+        "env_desc": pack["env_desc"],
+        "props_desc": pack["props_desc"],
+        "problem_desc": pack["problem_desc"],
     }
+
 
 def safe_generate_ad_copy(brand_name, model_name, colorway_text, materials, watermark, lang="el", goal="auto", insight_context=""):
     # Ασπίδα αφαίρεσης ευαίσθητων λέξεων
@@ -629,6 +669,248 @@ def build_carousel_prompts(
     return roles
 
 
+
+# --- Scene pack bank (English prompt text; diversify Scene elements) ---
+BANNED_DEFAULT_ENV = "minimalist concrete urban street with natural daylight"
+BANNED_DEFAULT_PROPS = "an open Kinfolk magazine, a ceramic cup of cappuccino, brass keys, succulent"
+BANNED_DEFAULT_PROBLEM = "a tired worker sitting on stairs touching sore feet with work boots beside them"
+BANNED_SCENE_MARKERS = (
+    "kinfolk",
+    "cappuccino",
+    "brass keys",
+    "succulent",
+    "tired worker sitting on stairs",
+    "minimalist concrete urban street",
+    "work boots beside them",
+)
+
+SCENE_VIBE_KEYS = [
+    "auto",
+    "running",
+    "trail",
+    "gym",
+    "street",
+    "commute",
+    "work",
+    "travel",
+    "recovery",
+    "basketball",
+]
+
+SCENE_PACKS = {
+    "running": [
+        {
+            "env_desc": "quiet outdoor track at soft dawn mist with lane lines still damp from overnight dew",
+            "props_desc": "GPS watch, race bib folded once, lightweight hydration flask, chalked starting block marks",
+            "problem_desc": "close-up of runner calves mid-stride after tempo intervals, shoes planted on the curb for a breath",
+        },
+        {
+            "env_desc": "city park loop path edged with autumn leaves and low morning sun through trees",
+            "props_desc": "foam roller half-used, charcoal compression socks, energy gel wrappers, reflective vest",
+            "problem_desc": "legs stretched on a park bench after a long easy run, one shoe loosened at the heel",
+        },
+        {
+            "env_desc": "race-day expo plaza outside a start corral with banners blurred in daylight",
+            "props_desc": "safety pins, timing chip bag, throwaway warm-up layer, electrolyte tablet tube",
+            "problem_desc": "feet shifting nervously in the start corral, shoes tied tight for race pace",
+        },
+    ],
+    "trail": [
+        {
+            "env_desc": "muddy singletrack climbing through pine forest with soft filtered canopy light",
+            "props_desc": "trekking poles clipped together, trail map in a zip pouch, muddy gaiters, bear-bell clip",
+            "problem_desc": "mud-caked shoes and calves paused on a rock after a steep ascent, no face needed",
+        },
+        {
+            "env_desc": "rocky alpine switchback with distant ridgeline and cool overcast sky",
+            "props_desc": "hydration vest, protein bar, headlamp, compact first-aid tin",
+            "problem_desc": "hikers legs braced on uneven stone, shoes gripping scree after a long descent",
+        },
+    ],
+    "gym": [
+        {
+            "env_desc": "neon-lit training floor with rubber mats, rack mirrors, and cool evening gym lighting",
+            "props_desc": "chalk bowl, lifting straps, resistance bands, stainless water bottle",
+            "problem_desc": "athlete feet planted under a squat rack between sets, shoes braced on the platform",
+        },
+        {
+            "env_desc": "bright functional-training studio with kettlebells lined along a white wall",
+            "props_desc": "jump rope, foam yoga block, sweat towel, heart-rate armband",
+            "problem_desc": "legs mid-lunge on turf after HIIT, shoes dusty with chalk residue",
+        },
+    ],
+    "street": [
+        {
+            "env_desc": "boutique cobblestone side street with shopfront glass and warm late-afternoon light",
+            "props_desc": "crossbody bag, Polaroid camera, folded denim jacket, iced matcha cup",
+            "problem_desc": "stylish cropped legs leaning on a storefront ledge, sneakers as the hero silhouette",
+        },
+        {
+            "env_desc": "graffiti alley with soft bounce light from a neighboring cafe awning",
+            "props_desc": "skateboard deck, wireless earbuds case, enamel pin card, chain wallet",
+            "problem_desc": "street-style feet crossed on a curb, focusing on clean upper and sole stack",
+        },
+    ],
+    "commute": [
+        {
+            "env_desc": "rainy metro platform with wet tiles reflecting overhead LEDs and distant train blur",
+            "props_desc": "compact umbrella, transit card sleeve, dripping raincoat hem, reusable coffee thermos",
+            "problem_desc": "commuter legs waiting on wet tiles, shoes beading rain after a soaked walk to the station",
+        },
+        {
+            "env_desc": "busy crosswalk at dusk with puddles and yellow taxi streaks in bokeh",
+            "props_desc": "folded newspaper, bike helmet, wet scarf, phone with cracked case",
+            "problem_desc": "feet stepping through a shallow puddle at a red light, shoes taking the splash",
+        },
+    ],
+    "work": [
+        {
+            "env_desc": "busy cafe counter area with warm pendant lights and steam from the espresso machine",
+            "props_desc": "order ticket spike, milk pitcher, bar towel, tip jar coins",
+            "problem_desc": "barista shift legs behind the counter after hours of standing, work sneakers loosened",
+        },
+        {
+            "env_desc": "retail shop floor aisle with soft overhead LEDs and clothing racks softly blurred",
+            "props_desc": "price gun, folded stock boxes, name-badge lanyard, inventory tablet",
+            "problem_desc": "retail associate legs pausing mid-aisle after a long standing shift, shoes still on",
+        },
+    ],
+    "travel": [
+        {
+            "env_desc": "airport departure hall with polished floors, soft daylight from tall windows, and rolling suitcase blur",
+            "props_desc": "boarding pass sleeve, compact neck pillow, passport holder, carry-on handle",
+            "problem_desc": "traveler legs stretched beside a gate seat after a long walk through terminals",
+        },
+        {
+            "env_desc": "train platform with morning haze and distant countryside rolling stock",
+            "props_desc": "weekender duffel, paperback novel, bottle of water, luggage tag",
+            "problem_desc": "feet resting on a hard platform bench during a layover, shoes still laced for walking",
+        },
+    ],
+    "recovery": [
+        {
+            "env_desc": "quiet curb outside a running track after sunset with streetlamps just flickering on",
+            "props_desc": "ice pack wrap, recovery drink can, sweaty singlet draped aside, massage ball",
+            "problem_desc": "post-run legs on the curb, shoes half-off, focusing on tired feet without showing a face",
+        },
+        {
+            "env_desc": "sunny apartment balcony with a yoga mat rolled halfway and city rooftops beyond",
+            "props_desc": "compression boots remote, protein shake, phone playing a stretch video, soft towel",
+            "problem_desc": "recovery stretch on a mat, one shoe kicked aside, calves being rolled out",
+        },
+    ],
+    "basketball": [
+        {
+            "env_desc": "indoor hardwood court with sharp overhead lights and painted free-throw arc",
+            "props_desc": "basketball, towel on the baseline, ankle sleeve, sports drink bottle",
+            "problem_desc": "player legs cutting hard near the key, shoes planted for a quick stop",
+        },
+        {
+            "env_desc": "outdoor asphalt half-court at golden hour with chain net softly clinking",
+            "props_desc": "worn basketball, portable speaker, chalked score tally, water jug",
+            "problem_desc": "pickup-game feet at the top of the key between possessions, dusty court shoes",
+        },
+    ],
+    "lifestyle": [
+        {
+            "env_desc": "sunlit loft interior with raw wood floor and large window light pooling on the boards",
+            "props_desc": "vinyl record sleeve, ceramic mug of black coffee, house keys, linen tote",
+            "problem_desc": "relaxed weekend legs on a low stool, sneakers as the quiet hero of the frame",
+        },
+        {
+            "env_desc": "coastal boardwalk with soft sea breeze haze and pale wood planks",
+            "props_desc": "sunglasses case, disposable camera, woven tote, cold sparkling water",
+            "problem_desc": "leisurely walk pause on the boardwalk railing, focusing on shoes against weathered wood",
+        },
+    ],
+}
+
+
+def infer_scene_archetype(brand: str = "", model: str = "", specs: str = "", vibe: str = "auto") -> str:
+    """Infer scene archetype from vibe override or shoe keywords."""
+    vibe = (vibe or "auto").strip().lower()
+    if vibe in SCENE_PACKS and vibe not in ("lifestyle",):
+        return vibe
+    if vibe in SCENE_VIBE_KEYS and vibe != "auto" and vibe in SCENE_PACKS:
+        return vibe
+
+    blob = f"{brand or ''} {model or ''} {specs or ''}".lower()
+    if any(k in blob for k in ("trail", "gore-tex", "gore tex", "hike", "hiking", "mafate", "speedgoat", "ultrarunning", "off-road", "vibram")):
+        return "trail"
+    if any(k in blob for k in ("basketball", "hoops", "court", "kyrie", "lebron", "harden", "dame")):
+        return "basketball"
+    if any(k in blob for k in ("gym", "training", "crossfit", "metcon", "lifting", "nano", "trainer")):
+        return "gym"
+    if any(k in blob for k in (
+        "brooks", "hoka", "pegasus", "ghost", "glycerin", "clifton", "bondi", "hyperion",
+        "running", "runner", "marathon", "tempo", "road race", "racing flat", "vaporfly",
+        "endorphin", "adrenaline", "saucony", "asics", "nimbus", "cumulus", "gel-kayano",
+    )):
+        return "running"
+    if any(k in blob for k in ("commute", "rain", "waterproof", "city walk", "metro")):
+        return "commute"
+    if any(k in blob for k in ("travel", "airport", "walkable", "all day walk")):
+        return "travel"
+    if any(k in blob for k in ("recovery", "post-run", "after run", "cool down")):
+        return "recovery"
+    if any(k in blob for k in ("retail", "barista", "standing", "shift", "work boot", "nurse", "hospitality")):
+        return "work"
+    if any(k in blob for k in ("street", "lifestyle", "heritage", "og", "retro", "fashion", "dunk", "jordan", "samba", "gazelle")):
+        return "street"
+    return "lifestyle"
+
+
+def pick_scene_pack(brand: str = "", model: str = "", specs: str = "", rng=None, vibe: str = "auto", stable: bool = False):
+    """Pick a diverse {env_desc, props_desc, problem_desc} pack.
+
+    rng: optional random.Random for tests.
+    stable=True: hash brand+model for a deterministic fallback (still not the old Kinfolk/worker triple).
+    vibe: SCENE_VIBE_KEYS value; 'auto' infers from keywords.
+    """
+    archetype = infer_scene_archetype(brand, model, specs, vibe=vibe)
+    packs = SCENE_PACKS.get(archetype) or SCENE_PACKS["lifestyle"]
+    if not packs:
+        packs = SCENE_PACKS["lifestyle"]
+    if stable:
+        key = f"{(brand or '').strip().lower()}|{(model or '').strip().lower()}|{archetype}"
+        digest = hashlib.md5(key.encode("utf-8")).hexdigest()
+        idx = int(digest[:8], 16) % len(packs)
+        pack = packs[idx]
+    else:
+        chooser = rng.choice if rng is not None else random.choice
+        pack = chooser(packs)
+    return {
+        "env_desc": pack["env_desc"],
+        "props_desc": pack["props_desc"],
+        "problem_desc": pack["problem_desc"],
+    }
+
+
+def scene_matches_banned_defaults(env_desc: str = "", props_desc: str = "", problem_desc: str = "") -> bool:
+    """True if analyze/fallback still looks like the old hard-coded Kinfolk/worker triple."""
+    blob = f"{env_desc or ''} {props_desc or ''} {problem_desc or ''}".lower()
+    if not blob.strip():
+        return True
+    hits = sum(1 for m in BANNED_SCENE_MARKERS if m in blob)
+    if hits >= 2:
+        return True
+    if BANNED_DEFAULT_ENV.lower() in (env_desc or "").lower():
+        return True
+    if BANNED_DEFAULT_PROPS.lower() in (props_desc or "").lower():
+        return True
+    if BANNED_DEFAULT_PROBLEM.lower() in (problem_desc or "").lower():
+        return True
+    return False
+
+
+def apply_scene_pack_to_session(pack: dict):
+    """Write env/props/problem into session_state widget values."""
+    st.session_state["env_desc_val"] = pack.get("env_desc", "") or ""
+    st.session_state["props_desc_val"] = pack.get("props_desc", "") or ""
+    st.session_state["problem_desc_val"] = pack.get("problem_desc", "") or ""
+
+
+
 GOAL_KEYS = ["auto", "comfort", "wide_fit", "style", "rain_care"]
 
 
@@ -753,9 +1035,8 @@ def clear_all_fields():
     st.session_state["model_val"] = ""
     st.session_state["colorway_val"] = ""
     st.session_state["specs_val"] = ""
-    st.session_state["env_desc_val"] = "minimalist concrete urban street with natural daylight"
-    st.session_state["props_desc_val"] = "an open Kinfolk magazine, a ceramic cup of cappuccino, brass keys, succulent"
-    st.session_state["problem_desc_val"] = "a tired worker sitting on stairs touching sore feet with work boots beside them"
+    _pack = pick_scene_pack("", "", "", vibe=st.session_state.get("scene_vibe_val", "auto") or "auto")
+    apply_scene_pack_to_session(_pack)
     st.session_state["watermark_val"] = ""
     st.session_state["selected_tag_val"] = AUTHENTICITY_TAGS[0]
     st.session_state["selected_badge_val"] = CATEGORY_BADGES[0]
@@ -1310,9 +1591,12 @@ if "brand_val" not in st.session_state: st.session_state["brand_val"] = ""
 if "model_val" not in st.session_state: st.session_state["model_val"] = ""
 if "colorway_val" not in st.session_state: st.session_state["colorway_val"] = ""
 if "specs_val" not in st.session_state: st.session_state["specs_val"] = ""
-if "env_desc_val" not in st.session_state: st.session_state["env_desc_val"] = "minimalist concrete urban street with natural daylight"
-if "props_desc_val" not in st.session_state: st.session_state["props_desc_val"] = "an open Kinfolk magazine, a ceramic cup of cappuccino, brass keys, succulent"
-if "problem_desc_val" not in st.session_state: st.session_state["problem_desc_val"] = "a tired worker sitting on stairs touching sore feet with work boots beside them"
+if "scene_vibe_val" not in st.session_state: st.session_state["scene_vibe_val"] = "auto"
+if "env_desc_val" not in st.session_state or "props_desc_val" not in st.session_state or "problem_desc_val" not in st.session_state:
+    _init_pack = pick_scene_pack("", "", "", vibe=st.session_state.get("scene_vibe_val", "auto") or "auto")
+    if "env_desc_val" not in st.session_state: st.session_state["env_desc_val"] = _init_pack["env_desc"]
+    if "props_desc_val" not in st.session_state: st.session_state["props_desc_val"] = _init_pack["props_desc"]
+    if "problem_desc_val" not in st.session_state: st.session_state["problem_desc_val"] = _init_pack["problem_desc"]
 if "uploader_key" not in st.session_state: st.session_state["uploader_key"] = 0
 if "watermark_val" not in st.session_state: st.session_state["watermark_val"] = ""
 if "selected_tag_val" not in st.session_state: st.session_state["selected_tag_val"] = AUTHENTICITY_TAGS[0]
@@ -1721,7 +2005,7 @@ if st.button(t("analyze_button", lang)):
             if uploaded_file.name.lower().endswith(".webp"): mime = "image/webp"
             elif uploaded_file.name.lower().endswith(".png"): mime = "image/png"
 
-            data = auto_analyze_shoe("", "", img_bytes, mime)
+            data = auto_analyze_shoe("", "", img_bytes, mime, vibe=st.session_state.get("scene_vibe_val", "auto") or "auto")
             
             st.session_state["brand_val"] = data.get("brand", "")
             st.session_state["model_val"] = data.get("model", "")
@@ -1763,6 +2047,42 @@ with col_badge:
     st.session_state["selected_badge_val"] = selected_badge
 
 st.markdown(t("scene_section", lang))
+st.caption(t("scene_help", lang))
+
+_vibe_labels = {
+    "auto": t("vibe_auto", lang),
+    "running": t("vibe_running", lang),
+    "trail": t("vibe_trail", lang),
+    "gym": t("vibe_gym", lang),
+    "street": t("vibe_street", lang),
+    "commute": t("vibe_commute", lang),
+    "work": t("vibe_work", lang),
+    "travel": t("vibe_travel", lang),
+    "recovery": t("vibe_recovery", lang),
+    "basketball": t("vibe_basketball", lang),
+}
+_cur_vibe = st.session_state.get("scene_vibe_val", "auto")
+if _cur_vibe not in SCENE_VIBE_KEYS:
+    _cur_vibe = "auto"
+_vibe_idx = SCENE_VIBE_KEYS.index(_cur_vibe)
+_picked_vibe_label = st.selectbox(
+    t("scene_vibe_label", lang),
+    [_vibe_labels[k] for k in SCENE_VIBE_KEYS],
+    index=_vibe_idx,
+    key="scene_vibe_select_label",
+)
+_label_to_vibe = {v: k for k, v in _vibe_labels.items()}
+st.session_state["scene_vibe_val"] = _label_to_vibe.get(_picked_vibe_label, "auto")
+
+if st.button(t("shuffle_scene", lang), key="shuffle_scene_btn"):
+    _shuffle_pack = pick_scene_pack(
+        st.session_state.get("brand_val", ""),
+        st.session_state.get("model_val", ""),
+        st.session_state.get("specs_val", ""),
+        vibe=st.session_state.get("scene_vibe_val", "auto") or "auto",
+    )
+    apply_scene_pack_to_session(_shuffle_pack)
+    st.rerun()
 
 selected_env = st.text_area(t("env_label", lang), value=st.session_state["env_desc_val"], height=70)
 st.session_state["env_desc_val"] = selected_env
