@@ -687,6 +687,19 @@ def build_content_txt(result: dict[str, Any]) -> str:
     lines.append("========================================")
     lines.append(result.get("youtube_caption") or "")
     lines.append("")
+    vb = result.get("video_beats")
+    if isinstance(vb, dict) and vb.get("beats"):
+        lines.append("========================================")
+        lines.append("GROK VIDEO BEATS (EN prompts)")
+        lines.append("========================================")
+        try:
+            from video_prompts import format_video_prompts_txt
+            lines.append(format_video_prompts_txt(vb, topic=result.get("topic_en") or ""))
+        except Exception:
+            for b in vb.get("beats") or []:
+                lines.append(f"--- BEAT {b.get('index')} ---")
+                lines.append(b.get("prompt_en") or "")
+                lines.append("")
     lines.append("========================================")
     lines.append("RAW JSON")
     lines.append("========================================")
@@ -715,6 +728,19 @@ def build_content_zip_bytes(result: dict[str, Any], *, aspect_ratio: str = "") -
                 f"Prompt:\n{s.get('image_prompt', '')}"
             )
         zf.writestr("prompts.txt", "\n\n".join(parts))
+        vb = result.get("video_beats")
+        if isinstance(vb, dict) and vb.get("beats"):
+            try:
+                from video_prompts import format_video_prompts_txt
+                zf.writestr(
+                    "video_prompts.txt",
+                    format_video_prompts_txt(vb, topic=result.get("topic_en") or ""),
+                )
+            except Exception:
+                pass
+            meta_vb = vb
+        else:
+            meta_vb = None
         meta = {
             "type": "content",
             "topic_key": result.get("topic_key"),
@@ -723,5 +749,7 @@ def build_content_zip_bytes(result: dict[str, Any], *, aspect_ratio: str = "") -
             "aspect": aspect_ratio,
             "lang_output": result.get("lang") or "en",
         }
+        if meta_vb:
+            meta["video_beats"] = meta_vb
         zf.writestr("meta.json", json.dumps(meta, ensure_ascii=False, indent=2))
     return buf.getvalue()

@@ -32,6 +32,8 @@ from content_carousel import (
     build_content_txt,
     build_content_zip_bytes,
 )
+import video_prompts
+from video_prompts import build_grok_video_beats, format_video_prompts_txt, ensure_video_beats
 
 st.set_page_config(page_title="Sneaker Image Studio", page_icon="👟", layout="centered")
 
@@ -1232,6 +1234,8 @@ def build_pack_zip_bytes(
     image_bytes: bytes | None = None,
     image_ext: str | None = None,
     image_mime: str | None = None,
+    video_prompts_txt: str = "",
+    video_beats: dict | None = None,
 ) -> bytes:
     """Build an in-memory ZIP export pack (stdlib only). Includes shoe.* when image_bytes set."""
     slide_prompts = slide_prompts or []
@@ -1242,6 +1246,13 @@ def build_pack_zip_bytes(
         zf.writestr("captions_tiktok.txt", tiktok_caption or "")
         zf.writestr("captions_pinterest.txt", pinterest_caption or "")
         zf.writestr("captions_youtube.txt", youtube_caption or "")
+        _vtxt = (video_prompts_txt or "").strip()
+        if not _vtxt and video_beats:
+            _vtxt = format_video_prompts_txt(
+                video_beats, brand=brand, model=model_name, colorway=colorway
+            )
+        if _vtxt:
+            zf.writestr("video_prompts.txt", _vtxt)
         if visual_prompt:
             prompts_txt = visual_prompt
         else:
@@ -1261,11 +1272,112 @@ def build_pack_zip_bytes(
             "slide_count": slide_count,
             "specs": specs,
         }
+        if video_beats:
+            meta["video_beats"] = video_beats
         zf.writestr("meta.json", json.dumps(meta, ensure_ascii=False, indent=2))
         if image_bytes:
             ext = _normalize_shoe_image_ext(image_ext, image_mime)
             zf.writestr(f"shoe.{ext}", image_bytes)
     return buf.getvalue()
+
+
+
+def _video_role_label(role: str, lang: str) -> str:
+    key = f"video_role_{role}"
+    label = t(key, lang)
+    return label if label != key else (role or "").replace("_", " ")
+
+
+def render_video_beats_ui(video_pack: dict, *, lang: str, key_prefix: str = "vid") -> None:
+    """Render Grok Video howto + beats + download inside a tab/section."""
+    if not video_pack or not video_pack.get("beats"):
+        return
+    howto = video_pack.get("howto_el") if lang == "el" else video_pack.get("howto_en")
+    st.caption(t("video_section_help", lang))
+    st.info(t("video_howto", lang, howto=howto or ""))
+    st.caption(t("video_duration_hint", lang, hint=video_pack.get("duration_hint") or ""))
+    for b in video_pack.get("beats") or []:
+        idx = b.get("index", 0)
+        role = _video_role_label(b.get("role", ""), lang)
+        st.markdown(f"**{t('video_beat_label', lang, n=idx, role=role)}**")
+        summary = b.get("summary_el") or ""
+        if summary:
+            st.write(f"{t('video_summary_label', lang)} {summary}")
+        st.caption(t("video_prompt_label", lang))
+        st.code(b.get("prompt_en") or "", language="text")
+    txt = format_video_prompts_txt(
+        video_pack,
+        brand=st.session_state.get("brand_val", ""),
+        model=st.session_state.get("model_val", ""),
+        colorway=st.session_state.get("colorway_val", ""),
+        topic=(st.session_state.get("content_result") or {}).get("topic_en", ""),
+    )
+    st.download_button(
+        label=t("video_download", lang),
+        data=txt,
+        file_name="video_prompts.txt",
+        mime="text/plain",
+        key=f"{key_prefix}_video_dl",
+    )
+
+
+def rebuild_video_beats_from_context(
+    *,
+    brand: str = "",
+    model: str = "",
+    colorway: str = "",
+    specs: str = "",
+    env: str = "",
+    props: str = "",
+    problem: str = "",
+    watermark: str = "",
+    appearance: str = "eu",
+    goal: str = "auto",
+    ad_format: str = "",
+    slide_count: int = 3,
+    lang: str = "el",
+    existing=None,
+    topic: str = "",
+    slide_texts=None,
+) -> dict:
+    """Prefer stored video_beats; otherwise rebuild from product/content context."""
+    if isinstance(existing, dict) and existing.get("beats"):
+        return existing
+    fmt = (ad_format or "").lower()
+    try:
+        sc = int(slide_count)
+    except (TypeError, ValueError):
+        sc = 3
+    if "content" in fmt or (slide_texts and "product" not in fmt and "carousel" not in fmt and "single" not in fmt and goal == "content"):
+        mode = "content"
+    elif slide_texts and ("content" in fmt or goal == "content"):
+        mode = "content"
+    elif "carousel" in fmt:
+        mode = "carousel"
+    elif "single" in fmt or "1 εικόνα" in fmt or "1 εικονα" in fmt or sc <= 1:
+        mode = "single"
+    elif sc >= 2:
+        mode = "carousel"
+    else:
+        mode = "single"
+    return build_grok_video_beats(
+        brand=brand,
+        model=model,
+        colorway=colorway,
+        specs=specs,
+        env=env,
+        props=props,
+        problem=problem,
+        watermark=watermark,
+        appearance=appearance,
+        goal=goal,
+        mode=mode,
+        slide_count=slide_count,
+        slide_texts=slide_texts,
+        lang=lang,
+        topic=topic,
+    )
+
 
 
 def clear_all_fields():
@@ -1293,6 +1405,7 @@ def clear_all_fields():
     st.session_state["loaded_slide3_prompt"] = ""
     st.session_state["loaded_slide4_prompt"] = ""
     st.session_state["loaded_slide5_prompt"] = ""
+    st.session_state["loaded_video_beats"] = None
     st.session_state["show_loaded_pack"] = False
     st.session_state["goal_val"] = "auto"
     st.session_state["appearance_val"] = "eu"
@@ -1359,6 +1472,26 @@ def apply_history_entry(entry: dict):
     st.session_state["loaded_slide3_prompt"] = entry.get("slide3_prompt", "") or ""
     st.session_state["loaded_slide4_prompt"] = entry.get("slide4_prompt", "") or ""
     st.session_state["loaded_slide5_prompt"] = entry.get("slide5_prompt", "") or ""
+    _vb = entry.get("video_beats")
+    if not (isinstance(_vb, dict) and _vb.get("beats")):
+        _vb = rebuild_video_beats_from_context(
+            brand=entry.get("brand", "") or "",
+            model=entry.get("model", "") or "",
+            colorway=entry.get("colorway", "") or "",
+            specs=entry.get("specs", "") or "",
+            env=entry.get("env_desc_en") or entry.get("env_desc", "") or "",
+            props=entry.get("props_desc_en") or entry.get("props_desc", "") or "",
+            problem=entry.get("problem_desc_en") or entry.get("problem_desc", "") or "",
+            watermark=(entry.get("watermark") or "").strip(),
+            appearance=(entry.get("appearance") or "eu"),
+            goal=(entry.get("goal") or "auto"),
+            ad_format=entry.get("ad_format") or "",
+            slide_count=entry.get("slide_count") or 3,
+            lang=entry.get("lang") or st.session_state.get("lang", "el"),
+            topic=entry.get("topic_en") or "",
+            slide_texts=entry.get("content_slides"),
+        )
+    st.session_state["loaded_video_beats"] = _vb
     g = (entry.get("goal") or "auto").strip().lower()
     st.session_state["goal_val"] = g if g in GOAL_KEYS else "auto"
     ap = (entry.get("appearance") or "eu").strip().lower()
@@ -1396,6 +1529,7 @@ def apply_history_entry(entry: dict):
         image_bytes=_hist_img_b,
         image_ext=_hist_img_ext,
         image_mime=_hist_img_mime,
+        video_beats=st.session_state.get("loaded_video_beats"),
     )
     st.session_state["last_export_shoe"] = _hist_img_b
     st.session_state["last_export_shoe_ext"] = _hist_img_ext
@@ -1488,6 +1622,11 @@ def _normalize_import_entry(raw: dict, extras: dict | None = None) -> dict:
     if not any(entry[k] for k in ("visual_prompt", "slide1_prompt", "slide2_prompt", "slide3_prompt", "slide4_prompt", "slide5_prompt")):
         if extras.get("prompts_txt"):
             entry.update(_parse_prompts_txt(extras["prompts_txt"]))
+    _vb = raw.get("video_beats") or extras.get("video_beats")
+    if isinstance(_vb, dict) and _vb.get("beats"):
+        entry["video_beats"] = _vb
+    elif extras.get("video_prompts_txt"):
+        entry["video_prompts_txt"] = extras.get("video_prompts_txt")
 
     for k in ("env_desc", "props_desc", "problem_desc", "watermark", "selected_tag", "selected_badge", "ad_format", "image_path"):
         if raw.get(k) is not None:
@@ -1779,7 +1918,10 @@ def import_pack_bytes(data: bytes, filename: str = "") -> tuple[dict | None, byt
                     "pinterest_caption": _read_txt("captions_pinterest.txt"),
                     "youtube_caption": _read_txt("captions_youtube.txt"),
                     "prompts_txt": _read_txt("prompts.txt"),
+                    "video_prompts_txt": _read_txt("video_prompts.txt"),
                 }
+                if isinstance(raw, dict) and raw.get("video_beats"):
+                    extras["video_beats"] = raw.get("video_beats")
                 img_exts = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp"}
                 # Prefer shoe.jpg / shoe.png written by export; else first image in ZIP
                 image_candidates = []
@@ -1882,6 +2024,7 @@ if "loaded_slide2_prompt" not in st.session_state: st.session_state["loaded_slid
 if "loaded_slide3_prompt" not in st.session_state: st.session_state["loaded_slide3_prompt"] = ""
 if "loaded_slide4_prompt" not in st.session_state: st.session_state["loaded_slide4_prompt"] = ""
 if "loaded_slide5_prompt" not in st.session_state: st.session_state["loaded_slide5_prompt"] = ""
+if "loaded_video_beats" not in st.session_state: st.session_state["loaded_video_beats"] = None
 if "show_loaded_pack" not in st.session_state: st.session_state["show_loaded_pack"] = False
 if "goal_val" not in st.session_state: st.session_state["goal_val"] = "auto"
 if "appearance_val" not in st.session_state: st.session_state["appearance_val"] = "eu"
@@ -2156,7 +2299,23 @@ if app_mode == "content":
                 models=["gemini-3.6-flash", "gemini-2.5-flash"],
                 warn=_warn,
             )
+        _cvb = build_grok_video_beats(
+            brand="",
+            model="",
+            colorway="",
+            specs="",
+            watermark=st.session_state.get("watermark_val", ""),
+            appearance=st.session_state.get("appearance_val", "eu"),
+            goal="content",
+            mode="content",
+            slide_count=_result.get("slide_count") or len(_result.get("slides") or []) or 3,
+            slide_texts=_result.get("slides") or [],
+            lang=lang,
+            topic=_result.get("topic_en") or "",
+        )
+        _result["video_beats"] = _cvb
         st.session_state["content_result"] = _result
+        st.session_state["content_video_beats"] = _cvb
         usage.record_generate(st.session_state)
         _txt = build_content_txt(_result)
         st.session_state["content_txt"] = _txt
@@ -2198,6 +2357,7 @@ if app_mode == "content":
                 "slide4_prompt": (_result.get("slides") or [{}, {}, {}, {}])[3].get("image_prompt", "") if len(_result.get("slides") or []) > 3 else "",
                 "slide5_prompt": (_result.get("slides") or [{}, {}, {}, {}, {}])[4].get("image_prompt", "") if len(_result.get("slides") or []) > 4 else "",
                 "content_slides": _result.get("slides"),
+                "video_beats": _cvb,
             })
         except Exception:
             pass
@@ -2213,10 +2373,40 @@ if app_mode == "content":
             st.caption(t("content_prompt_label", lang))
             st.code(_slide.get("image_prompt", ""), language="text")
         st.markdown(t("content_captions_section", lang))
-        st.text_area(t("content_ig_label", lang), value=_cr.get("ig_caption", ""), height=140, key="c_ig_cap")
-        st.text_area(t("content_tiktok_label", lang), value=_cr.get("tiktok_caption", ""), height=100, key="c_tt_cap")
-        st.text_area(t("content_pinterest_label", lang), value=_cr.get("pinterest_caption", ""), height=140, key="c_pin_cap")
-        st.text_area(t("content_youtube_label", lang), value=_cr.get("youtube_caption", ""), height=120, key="c_yt_cap")
+        _c_tabs = st.tabs([
+            t("tab_meta", lang, lang_name=t("lang_name", lang)),
+            t("tab_tiktok", lang, lang_name=t("lang_name", lang)),
+            t("tab_pinterest", lang, lang_name=t("lang_name", lang)),
+            t("tab_youtube", lang, lang_name=t("lang_name", lang)),
+            t("tab_video", lang, lang_name=t("lang_name", lang)),
+        ])
+        with _c_tabs[0]:
+            st.text_area(t("content_ig_label", lang), value=_cr.get("ig_caption", ""), height=140, key="c_ig_cap")
+        with _c_tabs[1]:
+            st.text_area(t("content_tiktok_label", lang), value=_cr.get("tiktok_caption", ""), height=100, key="c_tt_cap")
+        with _c_tabs[2]:
+            st.text_area(t("content_pinterest_label", lang), value=_cr.get("pinterest_caption", ""), height=140, key="c_pin_cap")
+        with _c_tabs[3]:
+            st.text_area(t("content_youtube_label", lang), value=_cr.get("youtube_caption", ""), height=120, key="c_yt_cap")
+        with _c_tabs[4]:
+            _cvb = _cr.get("video_beats") or st.session_state.get("content_video_beats")
+            if not (isinstance(_cvb, dict) and _cvb.get("beats")):
+                _cvb = build_grok_video_beats(
+                    brand="",
+                    model="",
+                    colorway="",
+                    specs="",
+                    watermark=st.session_state.get("watermark_val", ""),
+                    appearance=st.session_state.get("appearance_val", "eu"),
+                    goal="content",
+                    mode="content",
+                    slide_count=_cr.get("slide_count") or len(_cr.get("slides") or []) or 3,
+                    slide_texts=_cr.get("slides") or [],
+                    lang=lang,
+                    topic=_cr.get("topic_en") or "",
+                )
+                st.session_state["content_video_beats"] = _cvb
+            render_video_beats_ui(_cvb, lang=lang, key_prefix="content")
         if st.session_state.get("content_txt"):
             st.download_button(
                 label=t("content_download_txt", lang),
@@ -2600,11 +2790,32 @@ if st.button(
         st.markdown("---")
         st.markdown(t("captions_section", lang, lang_name=t("lang_name", lang)))
 
-        tab1, tab2, tab3, tab4 = st.tabs([
+        # Build Grok Video beats with the same generate click (deterministic)
+        _video_mode = "single" if ad_format == "Single Layout Ad (1 Εικόνα)" else "carousel"
+        _video_sc = 3 if _video_mode == "single" else int(st.session_state.get("slide_count_val", 3) or 3)
+        video_beats = build_grok_video_beats(
+            brand=brand,
+            model=safe_model_name,
+            colorway=colorway,
+            specs=key_materials,
+            env=selected_env,
+            props=selected_props,
+            problem=selected_problem,
+            watermark=custom_watermark,
+            appearance=st.session_state.get("appearance_val", "eu"),
+            goal=st.session_state.get("goal_val", "auto"),
+            mode=_video_mode,
+            slide_count=_video_sc,
+            lang=lang,
+        )
+        st.session_state["loaded_video_beats"] = video_beats
+
+        tab1, tab2, tab3, tab4, tab5 = st.tabs([
             t("tab_meta", lang, lang_name=t("lang_name", lang)),
             t("tab_tiktok", lang, lang_name=t("lang_name", lang)),
             t("tab_pinterest", lang, lang_name=t("lang_name", lang)),
             t("tab_youtube", lang, lang_name=t("lang_name", lang)),
+            t("tab_video", lang, lang_name=t("lang_name", lang)),
         ])
         
         with tab1:
@@ -2622,6 +2833,9 @@ if st.button(
         with tab4:
             youtube_post = ad_texts.get('youtube_caption', '')
             st.text_area(t("caption_youtube_label", lang, lang_name=t("lang_name", lang)), value=youtube_post, height=160)
+
+        with tab5:
+            render_video_beats_ui(video_beats, lang=lang, key_prefix="gen")
 
         lang_tag = "EL" if lang == "el" else "EN"
         os.makedirs("output", exist_ok=True)
@@ -2652,6 +2866,10 @@ YOUTUBE CAPTION ({lang_tag})
 ========================================
 {youtube_post}
 
+========================================
+GROK VIDEO BEATS (EN prompts)
+========================================
+{format_video_prompts_txt(video_beats, brand=brand, model=model_name, colorway=colorway)}
 ========================================
 RAW DATA (JSON)
 ========================================
@@ -2688,6 +2906,7 @@ RAW DATA (JSON)
             "lang": lang,
             "goal": st.session_state.get("goal_val", "auto"),
             "appearance": st.session_state.get("appearance_val", "eu"),
+            "video_beats": video_beats,
         }
         hist_payload["slide_count"] = int(st.session_state.get("slide_count_val", 3)) if ad_format != "Single Layout Ad (1 Εικόνα)" else 1
         if ad_format == "Single Layout Ad (1 Εικόνα)":
@@ -2783,6 +3002,7 @@ RAW DATA (JSON)
             image_bytes=_zip_img_b,
             image_ext=_zip_img_ext,
             image_mime=_zip_img_mime,
+            video_beats=video_beats,
         )
         _ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         st.session_state["last_export_name"] = f"{brand}_{model_name}_{_ts}_pack.zip".replace(" ", "_")
@@ -2859,11 +3079,12 @@ if st.session_state.get("show_loaded_pack"):
             st.write(t("slide_label", lang, n=i, role=role))
             st.code(prompt, language="text")
     st.markdown(t("captions_section", lang, lang_name=t("lang_name", lang)))
-    tab_h1, tab_h2, tab_h3, tab_h4 = st.tabs([
+    tab_h1, tab_h2, tab_h3, tab_h4, tab_h5 = st.tabs([
         t("tab_meta", lang, lang_name=t("lang_name", lang)),
         t("tab_tiktok", lang, lang_name=t("lang_name", lang)),
         t("tab_pinterest", lang, lang_name=t("lang_name", lang)),
         t("tab_youtube", lang, lang_name=t("lang_name", lang)),
+        t("tab_video", lang, lang_name=t("lang_name", lang)),
     ])
     with tab_h1:
         meta_loaded = (
@@ -2897,6 +3118,26 @@ if st.session_state.get("show_loaded_pack"):
             height=160,
             key="hist_yt_ta",
         )
+    with tab_h5:
+        _hv = st.session_state.get("loaded_video_beats")
+        if not (isinstance(_hv, dict) and _hv.get("beats")):
+            _hv = rebuild_video_beats_from_context(
+                brand=st.session_state.get("brand_val", ""),
+                model=st.session_state.get("model_val", ""),
+                colorway=st.session_state.get("colorway_val", ""),
+                specs=st.session_state.get("specs_val", ""),
+                env=st.session_state.get("env_desc_en") or st.session_state.get("env_desc_val", ""),
+                props=st.session_state.get("props_desc_en") or st.session_state.get("props_desc_val", ""),
+                problem=st.session_state.get("problem_desc_en") or st.session_state.get("problem_desc_val", ""),
+                watermark=st.session_state.get("watermark_val", ""),
+                appearance=st.session_state.get("appearance_val", "eu"),
+                goal=st.session_state.get("goal_val", "auto"),
+                ad_format=st.session_state.get("ad_format_val", ""),
+                slide_count=st.session_state.get("slide_count_val", 3),
+                lang=lang,
+            )
+            st.session_state["loaded_video_beats"] = _hv
+        render_video_beats_ui(_hv, lang=lang, key_prefix="hist")
 
     st.caption(t("download_txt_help", lang))
     if st.session_state.get("last_export_zip"):
