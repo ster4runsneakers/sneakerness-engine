@@ -339,7 +339,201 @@ Return ONLY a valid, raw JSON object matching this schema:
     }
 
 
-def safe_generate_ad_copy(brand_name, model_name, colorway_text, materials, watermark, lang="el", goal="auto", insight_context=""):
+def _infer_scene_caption_bucket(scene_env="", scene_props="", scene_problem="", vibe=""):
+    """Map English scene strings to a caption template bucket (not standing-fatigue by default)."""
+    blob = " ".join(
+        str(x or "").lower()
+        for x in (scene_env, scene_props, scene_problem, vibe)
+    )
+    def has(*words):
+        return any(w in blob for w in words)
+
+    if has("beach", "sea", "coast", "shore", "promenade", "paralia", "seaside", "boardwalk"):
+        return "beach"
+    if has("mountain", "trail", "hike", "hiking", "alpine", "ridge", "scree", "trekking", "forest path"):
+        return "trail"
+    if has("track", "tempo", "runner", "running", "race", "corral", "interval", "jog"):
+        return "run"
+    if has("rain", "metro", "commute", "puddle", "umbrella", "wet tile", "crosswalk", "taxi"):
+        return "commute"
+    if has(
+        "cafe", "barista", "retail", "shift", "standing", "counter", "shop floor",
+        "work sneaker", "aisle", "ticket spike", "milk pitcher",
+    ):
+        return "standing"
+    if has("loft", "lifestyle", "park", "city", "plateia", "plaza", "cobblestone", "street", "terrace", "apartment"):
+        return "everyday"
+    return "everyday"
+
+
+def _scene_aware_ad_copy_fallback(brand_name, clean_model_name, wm_clean, lang="el",
+                                  scene_env="", scene_props="", scene_problem="", vibe=""):
+    """Soft-discovery caption/overlay fallbacks keyed to the visual scene (EL + EN)."""
+    bucket = _infer_scene_caption_bucket(scene_env, scene_props, scene_problem, vibe)
+    site_el = f" Μάθε περισσότερα στο {wm_clean}." if wm_clean else ""
+    site_en = f" Learn more at {wm_clean}." if wm_clean else ""
+    site_el_short = f" στο {wm_clean}" if wm_clean else ""
+    site_en_short = f" at {wm_clean}" if wm_clean else ""
+    site_el_pin = f" Ανακάλυψε περισσότερα στο {wm_clean}." if wm_clean else ""
+    site_en_pin = f" Discover more at {wm_clean}." if wm_clean else ""
+    site_el_yt = f" Εξερεύνησε περισσότερα στο {wm_clean}." if wm_clean else ""
+    site_en_yt = f" Explore more at {wm_clean}." if wm_clean else ""
+
+    # Overlays always EN (Latin). Captions follow lang.
+    packs = {
+        "beach": {
+            "hook": f"Easy steps on the promenade. Discover {brand_name} {clean_model_name}.",
+            "body": "Light cushioning for seaside strolls and soft walks.",
+            "cta": "Discover more.",
+            "slide1_text": "Promenade comfort, soft underfoot.",
+            "slide2_text": f"Discover {brand_name} {clean_model_name}.",
+            "slide3_text": "Explore the full specs.",
+            "el": {
+                "meta": f"Βόλτα στην παραλιακή με άνεση κάτω από τα πόδια. Εξερεύνησε πώς το {brand_name} {clean_model_name} συνοδεύει χαλαρούς ρυθμούς δίπλα στη θάλασσα.{site_el}",
+                "tiktok": f"Παραλιακή βόλτα χωρίς βαριά πόδια; Δες το {brand_name} {clean_model_name}{site_el_short}! 👟 #Sneakerness #{brand_name}",
+                "pin": f"Sneakers για βόλτα στην παραλία και απαλό περπάτημα. Το {brand_name} {clean_model_name} φέρνει ελαφριά άνεση σε seaside ρυθμούς.{site_el_pin} #Sneakerness #{brand_name} #BeachWalk #DailyComfort",
+                "yt": f"Άνετη βόλτα δίπλα στη θάλασσα;\nΤο {brand_name} {clean_model_name} είναι φτιαγμένο για απαλό περπάτημα στην παραλιακή και χαλαρές στιγμές.{site_el_yt} #Sneakerness #{brand_name}",
+            },
+            "en": {
+                "meta": f"A soft stroll along the promenade — comfort underfoot without the heavy feel. Explore how {brand_name} {clean_model_name} fits easy seaside days.{site_en}",
+                "tiktok": f"Promenade walk, lighter feet? Check out {brand_name} {clean_model_name}{site_en_short}! 👟 #Sneakerness #{brand_name}",
+                "pin": f"Sneakers for beach promenades and easy coastal walks. The {brand_name} {clean_model_name} brings light everyday cushioning to seaside pace.{site_en_pin} #Sneakerness #{brand_name} #BeachWalk #DailyComfort",
+                "yt": f"Comfortable steps by the sea?\nThe {brand_name} {clean_model_name} is built for soft promenade walks and easy coastal days.{site_en_yt} #Sneakerness #{brand_name}",
+            },
+        },
+        "trail": {
+            "hook": f"Trail miles, softer landings. Discover {brand_name} {clean_model_name}.",
+            "body": "Grip and cushion for overlooks and hikes.",
+            "cta": "Discover more.",
+            "slide1_text": "Trail comfort after the climb.",
+            "slide2_text": f"Discover {brand_name} {clean_model_name}.",
+            "slide3_text": "Explore the full specs.",
+            "el": {
+                "meta": f"Μονοπάτι και θέα — άνεση που ακολουθεί το βήμα σου. Εξερεύνησε το {brand_name} {clean_model_name} για trail και ήπιες πεζοπορίες.{site_el}",
+                "tiktok": f"Μετά την ανάβαση, πιο μαλακό πάτημα; Δες το {brand_name} {clean_model_name}{site_el_short}! 👟 #Sneakerness #{brand_name}",
+                "pin": f"Sneakers για trail και ορεινές διαδρομές. Το {brand_name} {clean_model_name} συνδυάζει στήριξη και άνεση σε μονοπάτι.{site_el_pin} #Sneakerness #{brand_name} #TrailComfort #Hiking",
+                "yt": f"Άνεση στο trail μετά την ανάβαση;\nΤο {brand_name} {clean_model_name} βοηθά σε μονοπάτι, θέα και ήπια πεζοπορία.{site_el_yt} #Sneakerness #{brand_name}",
+            },
+            "en": {
+                "meta": f"Trail and overlook comfort that follows your stride. Explore how {brand_name} {clean_model_name} supports soft hikes and mountain paths.{site_en}",
+                "tiktok": f"After the climb, softer steps? Check out {brand_name} {clean_model_name}{site_en_short}! 👟 #Sneakerness #{brand_name}",
+                "pin": f"Sneakers for trails and mountain overlooks. The {brand_name} {clean_model_name} blends support with trail-day comfort.{site_en_pin} #Sneakerness #{brand_name} #TrailComfort #Hiking",
+                "yt": f"Trail comfort after the climb?\nThe {brand_name} {clean_model_name} is built for paths, overlooks, and easy hikes.{site_en_yt} #Sneakerness #{brand_name}",
+            },
+        },
+        "run": {
+            "hook": f"After the run, easier steps. Discover {brand_name} {clean_model_name}.",
+            "body": "Recovery comfort for track and easy miles.",
+            "cta": "Discover more.",
+            "slide1_text": "Post-run comfort on the curb.",
+            "slide2_text": f"Discover {brand_name} {clean_model_name}.",
+            "slide3_text": "Explore the full specs.",
+            "el": {
+                "meta": f"Μετά το τρέξιμο ή τον στίβο, πιο απαλό πάτημα. Εξερεύνησε πώς το {brand_name} {clean_model_name} στηρίζει recovery και εύκολα χιλιόμετρα.{site_el}",
+                "tiktok": f"Μετά το run, πιο ήρεμα πόδια; Δες το {brand_name} {clean_model_name}{site_el_short}! 👟 #Sneakerness #{brand_name}",
+                "pin": f"Sneakers για στίβο, εύκολο τρέξιμο και recovery. Το {brand_name} {clean_model_name} φέρνει άνεση μετά τα χιλιόμετρα.{site_el_pin} #Sneakerness #{brand_name} #RunRecovery #DailyComfort",
+                "yt": f"Άνεση μετά το τρέξιμο;\nΤο {brand_name} {clean_model_name} είναι για στίβο, easy miles και απαλό recovery.{site_el_yt} #Sneakerness #{brand_name}",
+            },
+            "en": {
+                "meta": f"After track or easy miles, softer steps underfoot. Explore how {brand_name} {clean_model_name} supports run recovery and calm cool-downs.{site_en}",
+                "tiktok": f"Post-run, lighter feet? Check out {brand_name} {clean_model_name}{site_en_short}! 👟 #Sneakerness #{brand_name}",
+                "pin": f"Sneakers for track days, easy runs, and recovery. The {brand_name} {clean_model_name} brings comfort after the miles.{site_en_pin} #Sneakerness #{brand_name} #RunRecovery #DailyComfort",
+                "yt": f"Comfort after the run?\nThe {brand_name} {clean_model_name} is built for track, easy miles, and soft recovery.{site_en_yt} #Sneakerness #{brand_name}",
+            },
+        },
+        "commute": {
+            "hook": f"Wet commute, drier comfort. Discover {brand_name} {clean_model_name}.",
+            "body": "Steady steps through rain and metro platforms.",
+            "cta": "Discover more.",
+            "slide1_text": "Rainy commute, steadier steps.",
+            "slide2_text": f"Discover {brand_name} {clean_model_name}.",
+            "slide3_text": "Explore the full specs.",
+            "el": {
+                "meta": f"Βροχερή διαδρομή προς το μετρό — πιο σταθερό πάτημα. Εξερεύνησε το {brand_name} {clean_model_name} για υγρές μετακινήσεις.{site_el}",
+                "tiktok": f"Βρεγμένη διαδρομή, πιο άνετα πόδια; Δες το {brand_name} {clean_model_name}{site_el_short}! 👟 #Sneakerness #{brand_name}",
+                "pin": f"Sneakers για βροχή, μετρό και καθημερινή μετακίνηση. Το {brand_name} {clean_model_name} βοηθά σε υγρό πεζοδρόμιο και commute.{site_el_pin} #Sneakerness #{brand_name} #WetCommute #DailyComfort",
+                "yt": f"Άνεση στη βροχερή μετακίνηση;\nΤο {brand_name} {clean_model_name} είναι για υγρές πλατφόρμες, διαβάσεις και daily commute.{site_el_yt} #Sneakerness #{brand_name}",
+            },
+            "en": {
+                "meta": f"Rainy walk to the metro — steadier comfort underfoot. Explore how {brand_name} {clean_model_name} fits wet commutes and damp platforms.{site_en}",
+                "tiktok": f"Wet commute, softer steps? Check out {brand_name} {clean_model_name}{site_en_short}! 👟 #Sneakerness #{brand_name}",
+                "pin": f"Sneakers for rain, metro platforms, and daily commute. The {brand_name} {clean_model_name} supports wet sidewalks and damp days.{site_en_pin} #Sneakerness #{brand_name} #WetCommute #DailyComfort",
+                "yt": f"Comfort on a wet commute?\nThe {brand_name} {clean_model_name} is built for rainy platforms, crosswalks, and everyday transit.{site_en_yt} #Sneakerness #{brand_name}",
+            },
+        },
+        "standing": {
+            "hook": f"Tired of foot fatigue after long hours? Discover {brand_name} {clean_model_name}.",
+            "body": "Engineered to absorb impact and support posture all day.",
+            "cta": "Discover more.",
+            "slide1_text": "Tired of Foot Fatigue After Long Hours?",
+            "slide2_text": f"Discover {brand_name} {clean_model_name}.",
+            "slide3_text": "Explore the full specs.",
+            "el": {
+                "meta": f"Οι πολλές ώρες όρθιος δεν χρειάζεται να επιβαρύνουν τα πόδια σου. Εξερεύνησε πώς το {brand_name} {clean_model_name} προσφέρει στήριξη στάσης.{site_el}",
+                "tiktok": f"Πώς αντιμετωπίζεις την κούραση στα πόδια; Δες την τεχνολογία πίσω από {brand_name} {clean_model_name}{site_el_short}! 👟 #Sneakerness #{brand_name}",
+                "pin": f"Ψάχνεις άνετα sneakers για πολλές ώρες όρθιος; Το {brand_name} {clean_model_name} συνδυάζει στήριξη στάσης και καθημερινή άνεση. Ιδανικό για δουλειά, περπάτημα και ήπια χρήση όλη μέρα.{site_el_pin} #Sneakerness #{brand_name} #ComfortShoes #DailyComfort",
+                "yt": f"Κούραση στα πόδια μετά από πολλές ώρες;\nΤο {brand_name} {clean_model_name} έχει σχεδιαστεί για άνεση και στήριξη στην καθημερινότητα. Δες πώς βοηθά σε ορθοστασία και ήπια χρήση.{site_el_yt} #Sneakerness #{brand_name}",
+            },
+            "en": {
+                "meta": f"Long shifts and daily standing don't have to take a toll on your feet. Explore how {brand_name} {clean_model_name} delivers posture support.{site_en}",
+                "tiktok": f"How do you deal with foot fatigue? Check out the tech behind {brand_name} {clean_model_name}{site_en_short}! 👟 #Sneakerness #{brand_name}",
+                "pin": f"Looking for comfortable sneakers for long hours on your feet? The {brand_name} {clean_model_name} blends posture support with everyday comfort. Great for work, walking, and all-day wear.{site_en_pin} #Sneakerness #{brand_name} #ComfortShoes #DailyComfort",
+                "yt": f"Tired of foot fatigue after long hours?\nThe {brand_name} {clean_model_name} is built for daily comfort and posture support. See how it helps with standing and light everyday use.{site_en_yt} #Sneakerness #{brand_name}",
+            },
+        },
+        "everyday": {
+            "hook": f"Everyday walks, softer steps. Discover {brand_name} {clean_model_name}.",
+            "body": "All-day cushion for city strolls and lifestyle days.",
+            "cta": "Discover more.",
+            "slide1_text": "City stroll comfort, all day.",
+            "slide2_text": f"Discover {brand_name} {clean_model_name}.",
+            "slide3_text": "Explore the full specs.",
+            "el": {
+                "meta": f"Καθημερινή βόλτα στην πόλη με πιο απαλό πάτημα. Εξερεύνησε πώς το {brand_name} {clean_model_name} συνοδεύει lifestyle ρυθμούς.{site_el}",
+                "tiktok": f"Βόλτα στην πλατεία χωρίς βαριά πόδια; Δες το {brand_name} {clean_model_name}{site_el_short}! 👟 #Sneakerness #{brand_name}",
+                "pin": f"Sneakers για καθημερινό περπάτημα, πάρκο και city lifestyle. Το {brand_name} {clean_model_name} φέρνει άνεση σε κάθε βόλτα.{site_el_pin} #Sneakerness #{brand_name} #EverydayWalk #DailyComfort",
+                "yt": f"Άνεση στην καθημερινή βόλτα;\nΤο {brand_name} {clean_model_name} είναι για πόλη, πάρκο και ήπιους lifestyle ρυθμούς.{site_el_yt} #Sneakerness #{brand_name}",
+            },
+            "en": {
+                "meta": f"An easy city stroll with softer steps underfoot. Explore how {brand_name} {clean_model_name} fits everyday lifestyle walks.{site_en}",
+                "tiktok": f"Plateia walk, lighter feet? Check out {brand_name} {clean_model_name}{site_en_short}! 👟 #Sneakerness #{brand_name}",
+                "pin": f"Sneakers for everyday walks, parks, and city lifestyle. The {brand_name} {clean_model_name} brings comfort to every stroll.{site_en_pin} #Sneakerness #{brand_name} #EverydayWalk #DailyComfort",
+                "yt": f"Comfort for the everyday walk?\nThe {brand_name} {clean_model_name} is built for city days, parks, and easy lifestyle miles.{site_en_yt} #Sneakerness #{brand_name}",
+            },
+        },
+    }
+    pack = packs.get(bucket) or packs["everyday"]
+    lang_key = "el" if (lang or "el").strip().lower() == "el" else "en"
+    caps = pack[lang_key]
+    return {
+        "hook": pack["hook"],
+        "body": pack["body"],
+        "cta": pack["cta"],
+        "meta_caption": caps["meta"],
+        "tiktok_caption": caps["tiktok"],
+        "hashtags_meta": f"#Sneakerness #{brand_name} #DailyComfort #FootwearTech",
+        "pinterest_caption": caps["pin"],
+        "youtube_caption": caps["yt"],
+        "slide1_text": pack["slide1_text"],
+        "slide2_text": pack["slide2_text"],
+        "slide3_text": pack["slide3_text"],
+    }
+
+
+def _current_scene_for_captions():
+    """English scene strings (same source as image prompts) + vibe for caption lock."""
+    try:
+        env, props, problem = scene_fields_for_prompts()
+    except Exception:
+        env = (st.session_state.get("env_desc_en") or st.session_state.get("env_desc_val") or "").strip()
+        props = (st.session_state.get("props_desc_en") or st.session_state.get("props_desc_val") or "").strip()
+        problem = (st.session_state.get("problem_desc_en") or st.session_state.get("problem_desc_val") or "").strip()
+    vibe = (st.session_state.get("scene_vibe_val") or "auto") or "auto"
+    return env, props, problem, vibe
+
+
+def safe_generate_ad_copy(brand_name, model_name, colorway_text, materials, watermark, lang="el", goal="auto", insight_context="", scene_env="", scene_props="", scene_problem="", vibe=""):
+
     # Ασπίδα αφαίρεσης ευαίσθητων λέξεων
     unsafe_keywords = ["kobe", "jordan", "lebron", "messi", "ronaldo", "curry"]
     clean_model_name = model_name
@@ -366,6 +560,34 @@ def safe_generate_ad_copy(brand_name, model_name, colorway_text, materials, wate
             + "\n"
         )
 
+    _sc_env = (scene_env or "").strip()
+    _sc_props = (scene_props or "").strip()
+    _sc_problem = (scene_problem or "").strip()
+    _sc_vibe = (vibe or "").strip()
+    if not (_sc_env or _sc_props or _sc_problem):
+        try:
+            _sc_env, _sc_props, _sc_problem, _sc_vibe = _current_scene_for_captions()
+        except Exception:
+            pass
+    _scene_lines = []
+    if _sc_env:
+        _scene_lines.append(f"- Environment: {_sc_env}")
+    if _sc_props:
+        _scene_lines.append(f"- Props: {_sc_props}")
+    if _sc_problem:
+        _scene_lines.append(f"- Problem / human beat: {_sc_problem}")
+    if _sc_vibe and _sc_vibe.lower() not in ("", "auto"):
+        _scene_lines.append(f"- Vibe: {_sc_vibe}")
+    _scene_blob = "\n".join(_scene_lines) if _scene_lines else "- (no explicit scene; infer gently from shoe specs — prefer everyday walk over work-shift fatigue)"
+    scene_lock_block = f"""
+CRITICAL SCENE-CAPTION LOCK (must follow):
+The generated IMAGE uses this visual scene — social captions MUST clearly match it:
+{_scene_blob}
+- meta_caption, tiktok_caption, pinterest_caption, and youtube_caption MUST mention or clearly imply the SAME place/activity (beach promenade, mountain overlook, city plateia, cafe terrace, track, rainy commute, park stroll, etc.).
+- BAN MISMATCH: do NOT use work-shift / long-standing / retail-barista / foot-fatigue-after-long-hours wording when the scene is leisure, running, trail, beach, park, lifestyle stroll, or similar.
+- Keep soft-discovery tone; still feature brand + model; watermark/site rules unchanged.
+- Overlays (hook/body/cta/slides) should lightly match scene mood (EN Latin) — captions are the priority.
+"""
 
     wm_clean = (watermark or "").strip()
     # Domain belongs primarily in captions; image overlays must not force site/CTA-with-URL.
@@ -426,7 +648,7 @@ CRITICAL CONSTRAINTS:
 7. {caption_site_rule_el}
 
 STORY GOAL / ANGLE: {goal_instruction}
-{insight_block}
+{insight_block}{scene_lock_block}
 Return strict JSON with keys:
 1. "hook": Image top text in ENGLISH (Latin letters only), max 10 words.
 2. "body": Image mid text in ENGLISH (Latin letters only), max 10 words.
@@ -440,19 +662,10 @@ Return strict JSON with keys:
 10. "slide2_text": Text overlay for Slide 2 in ENGLISH (Latin letters only).
 11. "slide3_text": Soft CTA text overlay for Slide 3 in ENGLISH WITHOUT website/URL/domain.
 """
-        fallback = {
-            "hook": f"Tired of foot fatigue after long hours? Discover {brand_name} {clean_model_name}.",
-            "body": "Engineered to absorb impact and support posture all day.",
-            "cta": "Discover more.",
-            "meta_caption": (f"Οι πολλές ώρες όρθιος δεν χρειάζεται να επιβαρύνουν τα πόδια σου. Εξερεύνησε πώς το {brand_name} {clean_model_name} προσφέρει στήριξη στάσης." + (f" Μάθε περισσότερα στο {wm_clean}." if wm_clean else "")),
-            "tiktok_caption": (f"Πώς αντιμετωπίζεις την κούραση στα πόδια; Δες την τεχνολογία πίσω από {brand_name} {clean_model_name}" + (f" στο {wm_clean}" if wm_clean else "") + f"! 👟 #Sneakerness #{brand_name}"),
-            "hashtags_meta": f"#Sneakerness #{brand_name} #DailyComfort #FootwearTech",
-            "pinterest_caption": (f"Ψάχνεις άνετα sneakers για πολλές ώρες όρθιος; Το {brand_name} {clean_model_name} συνδυάζει στήριξη στάσης και καθημερινή άνεση. Ιδανικό για δουλειά, περπάτημα και ήπια χρήση όλη μέρα." + (f" Ανακάλυψε περισσότερα στο {wm_clean}." if wm_clean else "") + f" #Sneakerness #{brand_name} #ComfortShoes #DailyComfort"),
-            "youtube_caption": (f"Κούραση στα πόδια μετά από πολλές ώρες;\nΤο {brand_name} {clean_model_name} έχει σχεδιαστεί για άνεση και στήριξη στην καθημερινότητα. Δες πώς βοηθά σε ορθοστασία και ήπια χρήση." + (f" Εξερεύνησε περισσότερα στο {wm_clean}." if wm_clean else "") + f" #Sneakerness #{brand_name}"),
-            "slide1_text": "Tired of Foot Fatigue After Long Hours?",
-            "slide2_text": f"Discover {brand_name} {clean_model_name}.",
-            "slide3_text": "Explore the full specs.",
-        }
+        fallback = _scene_aware_ad_copy_fallback(
+            brand_name, clean_model_name, wm_clean, lang="el",
+            scene_env=_sc_env, scene_props=_sc_props, scene_problem=_sc_problem, vibe=_sc_vibe,
+        )
     else:
         lang_name = "English"
         sys_instruction = (
@@ -471,7 +684,7 @@ CRITICAL CONSTRAINTS:
 6. {caption_site_rule_en}
 
 STORY GOAL / ANGLE: {goal_instruction}
-{insight_block}
+{insight_block}{scene_lock_block}
 Return strict JSON with keys:
 1. "hook": Image top text, max 10 words.
 2. "body": Image mid text, max 10 words.
@@ -485,19 +698,10 @@ Return strict JSON with keys:
 10. "slide2_text": Text overlay for Slide 2.
 11. "slide3_text": Soft CTA text overlay for Slide 3 WITHOUT website/URL/domain.
 """
-        fallback = {
-            "hook": f"Tired of foot fatigue after long hours? Discover {brand_name} {clean_model_name}.",
-            "body": "Engineered to absorb impact and support posture all day.",
-            "cta": "Discover more.",
-            "meta_caption": (f"Long shifts and daily standing don't have to take a toll on your feet. Explore how {brand_name} {clean_model_name} delivers posture support." + (f" Learn more at {wm_clean}." if wm_clean else "")),
-            "tiktok_caption": (f"How do you deal with foot fatigue? Check out the tech behind {brand_name} {clean_model_name}" + (f" at {wm_clean}" if wm_clean else "") + f"! 👟 #Sneakerness #{brand_name}"),
-            "hashtags_meta": f"#Sneakerness #{brand_name} #DailyComfort #FootwearTech",
-            "pinterest_caption": (f"Looking for comfortable sneakers for long hours on your feet? The {brand_name} {clean_model_name} blends posture support with everyday comfort. Great for work, walking, and all-day wear." + (f" Discover more at {wm_clean}." if wm_clean else "") + f" #Sneakerness #{brand_name} #ComfortShoes #DailyComfort"),
-            "youtube_caption": (f"Tired of foot fatigue after long hours?\nThe {brand_name} {clean_model_name} is built for daily comfort and posture support. See how it helps with standing and light everyday use." + (f" Explore more at {wm_clean}." if wm_clean else "") + f" #Sneakerness #{brand_name}"),
-            "slide1_text": "Tired of Foot Fatigue After Long Hours?",
-            "slide2_text": f"Discover {brand_name} {clean_model_name}.",
-            "slide3_text": "Explore the full specs.",
-        }
+        fallback = _scene_aware_ad_copy_fallback(
+            brand_name, clean_model_name, wm_clean, lang="en",
+            scene_env=_sc_env, scene_props=_sc_props, scene_problem=_sc_problem, vibe=_sc_vibe,
+        )
 
     models_to_try = ["gemini-3.6-flash", "gemini-2.5-flash"]
     for model_item in models_to_try:
@@ -718,6 +922,7 @@ def ensure_product_captions_for_lang(lang: str, *, allow_regenerate: bool = True
     watermark = st.session_state.get("watermark_val", "") or ""
     goal = st.session_state.get("goal_val", "auto") or "auto"
     insight = st.session_state.get("active_insight", "") or ""
+    _sc_env, _sc_props, _sc_problem, _sc_vibe = _current_scene_for_captions()
     with st.spinner(t("generate_spinner", lang, lang_name=t("lang_name", lang))):
         ad_texts = safe_generate_ad_copy(
             brand,
@@ -728,6 +933,10 @@ def ensure_product_captions_for_lang(lang: str, *, allow_regenerate: bool = True
             lang=lang,
             goal=goal,
             insight_context=insight,
+            scene_env=_sc_env,
+            scene_props=_sc_props,
+            scene_problem=_sc_problem,
+            vibe=_sc_vibe,
         )
     store_product_caption_side(lang, ad_texts)
     if _captions_look_wrong_lang(ad_texts, lang):
@@ -740,12 +949,16 @@ def ensure_product_captions_for_lang(lang: str, *, allow_regenerate: bool = True
             lang=lang,
             goal=goal,
             insight_context=insight,
+            scene_env=_sc_env,
+            scene_props=_sc_props,
+            scene_problem=_sc_problem,
+            vibe=_sc_vibe,
         )
         store_product_caption_side(lang, ad_texts)
     return apply_captions_for_lang(lang)
 
 
-def repair_product_caption_side_if_bad(lang: str, *, brand, model_name, colorway, key_materials, custom_watermark, goal, insight_context) -> None:
+def repair_product_caption_side_if_bad(lang: str, *, brand, model_name, colorway, key_materials, custom_watermark, goal, insight_context, scene_env="", scene_props="", scene_problem="", vibe="") -> None:
     """If cached captions for lang look wrong-language, regenerate that side once silently."""
     lang = (lang or "el").strip().lower()
     if lang not in ("el", "en"):
@@ -755,11 +968,17 @@ def repair_product_caption_side_if_bad(lang: str, *, brand, model_name, colorway
         return
     if not _captions_look_wrong_lang(cache, lang):
         return
+    if not (scene_env or scene_props or scene_problem):
+        scene_env, scene_props, scene_problem, vibe = _current_scene_for_captions()
     ad_texts = safe_generate_ad_copy(
         brand, model_name, colorway, key_materials, custom_watermark,
         lang=lang,
         goal=goal,
         insight_context=insight_context,
+        scene_env=scene_env,
+        scene_props=scene_props,
+        scene_problem=scene_problem,
+        vibe=vibe,
     )
     store_product_caption_side(lang, ad_texts)
 
@@ -3872,12 +4091,18 @@ if st.button(
     if not brand or not model_name:
         st.error(t("generate_error", lang))
     else:
+        # Captions AFTER scene fields finalized (analyze/shuffle already applied)
+        _sc_env, _sc_props, _sc_problem, _sc_vibe = _current_scene_for_captions()
         with st.spinner(t("generate_spinner", lang, lang_name=t("lang_name", lang))):
             ad_texts = safe_generate_ad_copy(
                 brand, model_name, colorway, key_materials, custom_watermark,
                 lang=lang,
                 goal=_effective_goal,
                 insight_context=st.session_state.get("active_insight", "") or "",
+                scene_env=_sc_env,
+                scene_props=_sc_props,
+                scene_problem=_sc_problem,
+                vibe=_sc_vibe,
             )
 
         usage.record_generate(st.session_state)
@@ -3906,6 +4131,10 @@ if st.button(
                 lang=_cap_other_lang,
                 goal=_effective_goal,
                 insight_context=st.session_state.get("active_insight", "") or "",
+                scene_env=_sc_env,
+                scene_props=_sc_props,
+                scene_problem=_sc_problem,
+                vibe=_sc_vibe,
             )
             for key in ad_texts_other:
                 if isinstance(ad_texts_other[key], str):
@@ -3924,6 +4153,10 @@ if st.button(
             custom_watermark=custom_watermark,
             goal=_effective_goal,
             insight_context=st.session_state.get("active_insight", "") or "",
+            scene_env=_sc_env,
+            scene_props=_sc_props,
+            scene_problem=_sc_problem,
+            vibe=_sc_vibe,
         )
         repair_product_caption_side_if_bad(
             _cap_other_lang,
@@ -3934,6 +4167,10 @@ if st.button(
             custom_watermark=custom_watermark,
             goal=_effective_goal,
             insight_context=st.session_state.get("active_insight", "") or "",
+            scene_env=_sc_env,
+            scene_props=_sc_props,
+            scene_problem=_sc_problem,
+            vibe=_sc_vibe,
         )
         apply_captions_for_lang(lang)
 

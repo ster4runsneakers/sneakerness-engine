@@ -533,6 +533,9 @@ def generate_content_carousel(
         "CRITICAL IMAGE-TEXT LOCK: for every slide, title + body must describe and teach from "
         "what that slide's image_prompt depicts; the body must state the practical usefulness "
         "of that visual (what the viewer learns and why the tip helps). "
+        "CRITICAL SHARED-CAPTION LOCK: ig_caption, tiktok_caption, pinterest_caption, and "
+        "youtube_caption must summarize the SAME story/scenes the slides' image_prompts depict — "
+        "do not invent a different setting than slides 1..N show. "
         "When a person/model appearance guidance is provided in the user prompt, reflect it "
         "consistently in every image_prompt. "
         "HARD IMAGE RULES for every image_prompt: NEVER render Slide X of Y, LEARN MORE buttons, "
@@ -589,6 +592,7 @@ CRITICAL CONSTRAINTS:
 5. IMAGE-TEXT LOCK: for each slide, title + body MUST describe and teach from what that slide's image_prompt depicts.
    The body MUST state the practical usefulness of that visual (what the viewer learns / why this tip helps).
    Encode usefulness IN the body (do not invent extra JSON fields).
+5b. CRITICAL SHARED-CAPTION LOCK: ig_caption, tiktok_caption, pinterest_caption, and youtube_caption MUST summarize the SAME story/scenes as slides 1..N image_prompts — do NOT invent a different setting than the slides depict.
 6. Each slide needs short on-screen title + short body (readable on phone).
 7. Each slide needs an image generation prompt in Nano Banana / Midjourney style: soft-discovery aesthetic, photorealistic or clean editorial, calm lighting, no hard-sell product packaging UI, no celebrity faces.
 8. Optional short on-image overlay: image_prompt MAY include a short 2-5 word ENGLISH (Latin letters only) overlay as clean typography — do NOT put Greek letters on the image even if the slide title is Greek; prefer a short English paraphrase of the title. Prefer soft-discovery aesthetic. Keep NO "Slide X of Y", NO carousel numbering, NO carousel dots, NO LEARN MORE buttons, NO app UI chrome, NO invented OFFICIAL/BESTSELLER/SNEAKERNESS seals, NO hard sell. ALL on-image overlay / headline / body / CTA text MUST be English using Latin letters only. NEVER use Greek letters (αβγ…), NEVER Cyrillic, on the image.
