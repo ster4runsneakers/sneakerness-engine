@@ -114,10 +114,112 @@ AUDIO_NO_VOICE = (
     "NO dialogue, NO singing/lyrics, NO text-to-speech."
 )
 
-VIDEO_AUDIO_NEGATIVES = (
-    "Negatives (audio): voiceover, narration, narrator, spoken words, dialogue, talking, "
-    "lyrics, singing, vocals, text-to-speech."
+# Spoken-text guard: Grok tends to read on-image text aloud as an ad voice.
+AUDIO_TEXT_SILENT = (
+    "Any text visible in the image is a silent printed graphic: never read it aloud, never speak or sing it. "
+    "Music starts from the first frame (0s) and plays continuously to the end. Zero human voice at any point."
 )
+
+# Placed FIRST in every video prompt (unified + beats); the full music clause stays near the end.
+AUDIO_LEAD = (
+    "AUDIO FIRST (highest priority): instrumental music only — no voiceover, no narration, no announcer, "
+    "no spoken words, no singing. " + AUDIO_TEXT_SILENT
+)
+
+VIDEO_AUDIO_NEGATIVES = (
+    "Negatives (audio): voiceover, narration, narrator, announcer, ad voice, reading on-screen text aloud, "
+    "spoken words, dialogue, talking, lyrics, singing, vocals, text-to-speech."
+)
+
+# Text + shoe stability across every frame of the video
+TEXT_SHOE_STABILITY = (
+    "TEXT & SHOE STABILITY: keep on-image text exactly as in the source, static, no new text "
+    "(watermark only if set); shoe design, colorway, stripes and logos stay identical to the source frame "
+    "in every frame; no morphing, no garbled heel or tongue text."
+)
+
+VIDEO_TIP_EL = (
+    "Συμβουλή: για καθαρότερο αποτέλεσμα φτιάξε το βίντεο από φωτογραφία χωρίς κείμενα "
+    "και πρόσθεσε τα κείμενα στο CapCut."
+)
+VIDEO_TIP_EN = (
+    "Tip: for the cleanest result, generate the video from a version of the photo without text "
+    "and add the text in CapCut."
+)
+
+
+# ---------------------------------------------------------------------------
+# PERSON IN SOURCE: product-only stills must never sprout walking legs
+# ---------------------------------------------------------------------------
+PERSON_SOURCE_OPTIONS = ("auto", "yes", "no")
+PERSON_SOURCE_DEFAULT = "no"  # most user stills are product scenes
+
+_NO_PERSON_WORDS = (
+    "still life", "still-life", "flat lay", "flat-lay", "flatlay", "product only", "product-only",
+    "product hero", "product shot", "packshot", "pack shot", "no person", "no people", "nobody",
+    "νεκρή φύση", "χωρίς άνθρωπο", "χωρίς πρόσωπο",
+)
+_PERSON_WORDS = (
+    "person", "people", " man ", " man,", "woman", "runner", "jogger", "walker", "model wearing",
+    "on-foot", "on foot", "on feet", "wearing", "worn by", " legs", " leg ", "knees", "ankles",
+    "walking", "running person", "athlete", "girl", " guy", "άνθρωπ", "γυναίκα", "άντρας", "πόδια",
+)
+
+
+def _has_any(text: str, words: tuple[str, ...]) -> bool:
+    t = f" {(text or '').lower()} "
+    return any(w in t for w in words)
+
+
+def normalize_person_source(value: Any) -> str:
+    v = (_clean(value) or PERSON_SOURCE_DEFAULT).lower()
+    return v if v in PERSON_SOURCE_OPTIONS else PERSON_SOURCE_DEFAULT
+
+
+def detect_person_in_text(text: str) -> Optional[bool]:
+    """True = person evident, False = explicitly product-only, None = unknown."""
+    if not _clean(text):
+        return None
+    if _has_any(text, _NO_PERSON_WORDS):
+        return False
+    if _has_any(text, _PERSON_WORDS):
+        return True
+    return None
+
+
+def resolve_person_in_source(person_in_source: Any = PERSON_SOURCE_DEFAULT, *, appearance: str = "",
+                             scene_text: str = "", frame_text: str = "") -> bool:
+    """Resolve whether the source photo/beat shows a person.
+
+    yes -> True, no -> False. auto: No-face appearance or still-life/flat-lay/product-hero cues
+    -> False; clear person cues in the frame description or scene -> True; unknown -> False
+    (camera-only is the safe default for image-to-video of product stills).
+    """
+    v = normalize_person_source(person_in_source)
+    if v == "yes":
+        return True
+    if v == "no":
+        return False
+    if (_clean(appearance) or "").lower() == "no_face":
+        return False
+    for txt in (frame_text, scene_text):
+        d = detect_person_in_text(txt)
+        if d is not None:
+            return d
+    return False
+
+
+def _product_only_motion_rules() -> str:
+    return (
+        "PRODUCT-ONLY SOURCE (no person in the photo): CAMERA-ONLY MOTION — slow push-in, gentle orbit "
+        "or subtle parallax; subtle natural motion only (light shifts, soft shadows, leaves, steam or "
+        "condensation on a drink). No person appears, no legs, no feet, no hands enter the frame; "
+        "the shoes stay still on the ground, unchanged — they never walk, lift, slide or glide."
+    )
+
+
+def _product_only_people_clause() -> str:
+    return "No people at all — product still life only; no faces, no body parts, no walking figure."
 
 # key -> (EN style clause, EL summary label, EN summary label, ambient cue)
 MUSIC_PROFILES: dict[str, tuple[str, str, str, str]] = {
@@ -257,7 +359,8 @@ def music_clause_for_scene(env: str = "", props: str = "", problem: str = "", vi
     )
     return (
         f"{AUDIO_NO_VOICE} Music style: {style}; {scope}. "
-        f"Subtle natural ambient sound OK under the music ({ambient}) — never voices."
+        f"Subtle natural ambient sound OK under the music ({ambient}) — never voices. "
+        f"{AUDIO_TEXT_SILENT}"
     )
 
 
@@ -270,15 +373,23 @@ def music_summary_for_scene(env: str = "", props: str = "", problem: str = "", v
     return f"Music: {en}, no narration"
 
 
-def _no_chrome() -> str:
+def _no_chrome(has_person: bool = True) -> str:
+    grounded = (
+        "Shoes grounded — worn or resting on the ground, never levitating, never on a pedestal, one pair per shot. "
+        if has_person
+        else "Shoes grounded — resting still on the ground, never levitating, never on a pedestal, one pair per shot. "
+    )
+    people = "People always wear the sneakers or proper shoes — no bare feet. " if has_person else ""
     return (
         "No app interface on screen: no slide numbers, no page counter, no buttons, no arrows, "
         "no close or swipe icons, no badges, no star ratings, no drawn brand logos or wordmarks. "
-        "Shoes grounded — worn or resting on the ground, never levitating, never on a pedestal, one pair per shot. "
-        "Any on-screen text minimal, plain English, spelled exactly — no garbled or invented words. "
-        "People always wear the sneakers or proper shoes — no bare feet. "
+        + grounded
+        + "Any on-screen text minimal, plain English, spelled exactly — no garbled or invented words. "
+        + people
+        + (
         "Props unbranded — no recognizable third-party brands/logos (no AirPods, iPhone, "
         "Apple Watch-like devices)."
+        )
     )
 
 
@@ -348,8 +459,9 @@ def _beat_prompt(
     slide_body: str = "",
     product_mode: bool = True,
     audio_clause: str = "",
+    has_person: bool = True,
 ) -> str:
-    parts: list[str] = []
+    parts: list[str] = [AUDIO_LEAD]
     if index == 1:
         parts.append(
             "Photorealistic commercial video, 9:16 vertical. Generate this opening beat."
@@ -358,9 +470,14 @@ def _beat_prompt(
         parts.append("Extend this clip.")
         parts.append(_continuity())
 
-    parts.append(_safe_motion_rules())
-    parts.append(_appearance_video_clause(appearance))
-    parts.append(_no_chrome())
+    if has_person:
+        parts.append(_safe_motion_rules())
+        parts.append(_appearance_video_clause(appearance))
+    else:
+        parts.append(_product_only_motion_rules())
+        parts.append(_product_only_people_clause())
+    parts.append(_no_chrome(has_person))
+    parts.append(TEXT_SHOE_STABILITY)
 
     if product_mode and (_clean(brand) or _clean(model)):
         parts.append(_shoe_lock(brand, model, colorway))
@@ -387,9 +504,26 @@ def _beat_prompt(
     return " ".join(p.strip() for p in parts if p and p.strip())
 
 
-def _motion_for_role(role: str, *, brand: str, model: str, colorway: str, product_mode: bool) -> str:
+def _motion_for_role(role: str, *, brand: str, model: str, colorway: str, product_mode: bool,
+                     has_person: bool = True) -> str:
     pair = " ".join(x for x in (_clean(brand), _clean(model), _clean(colorway)) if x)
     shoe = pair if (product_mode and pair) else "the sneakers"
+
+    if not has_person:
+        still = {
+            "start": f"START on the source frame: {shoe} resting still on the ground — slow camera push-in only.",
+            "deepen": f"Gentle camera orbit or slow tilt closer to {shoe}; the shoes stay exactly where they are.",
+            "end": f"Camera eases to a calm still hold on {shoe} — fade-friendly ending still.",
+            "hook": f"Wide establishing view of the scene with {shoe} on the ground; slow push-in or subtle parallax, camera-only.",
+            "product": f"Slow push-in toward {shoe} resting on the ground; camera-only motion.",
+            "product_cta": f"Slow push-in on {shoe} settling into a calm still hold; camera slows to still.",
+            "lifestyle": f"Closer slow parallax around {shoe} resting on the ground — camera-only, nobody enters the frame.",
+            "specs": f"Slow camera glide toward the midsole/outsole of {shoe}; the shoes do not move.",
+            "specs_cta": f"Close camera move on {shoe} detail, then ease back to a calm still hold.",
+            "cta": f"Calm still hold of {shoe} as placed in the source frame; camera barely moves.",
+            "content": "Slow push-in or gentle orbit, camera-only; footwear readable; nothing walks into frame.",
+        }
+        return still.get(role, still["content"])
 
     motions = {
         "start": (
@@ -437,9 +571,18 @@ def _motion_for_role(role: str, *, brand: str, model: str, colorway: str, produc
     return motions.get(role, motions["content"])
 
 
-def _summary_for_role(role: str, lang: str, index: int) -> str:
+ROLE_SUMMARIES_EL_NO_PERSON = {
+    "start": "Έναρξη: η φωτογραφία ως έχει, μόνο αργό push-in της κάμερας",
+    "lifestyle": "Κοντινό parallax στο παπούτσι, μόνο κάμερα, χωρίς πόδια",
+    "hook": "Άγκιστρο: ευρύ πλάνο της σκηνής, μόνο κίνηση κάμερας",
+}
+
+
+def _summary_for_role(role: str, lang: str, index: int, has_person: bool = True) -> str:
     if (lang or "el").lower() == "el":
         base = ROLE_SUMMARIES_EL.get(role, ROLE_SUMMARIES_EL["content"])
+        if not has_person:
+            base = ROLE_SUMMARIES_EL_NO_PERSON.get(role, base)
         return f"Beat {index}: {base}"
     label = ROLE_LABELS_EN.get(role, role)
     return f"Beat {index}: {label} — paste into Grok Video ({'Generate' if index == 1 else 'Extend'})"
@@ -476,7 +619,9 @@ def format_video_prompts_txt(
     lines.append(f"Duration hint: {video_pack.get('duration_hint') or ''}")
     if _clean(video_pack.get("music_summary_en")):
         lines.append(f"Audio — {_clean(video_pack.get('music_summary_en'))} (instrumental only, no voiceover)")
+    lines.append(f"Person in source photo: {video_pack.get('person_in_source') or PERSON_SOURCE_DEFAULT}")
     lines.append(f"Howto: {video_pack.get('howto_en') or HOWTO_EN}")
+    lines.append(VIDEO_TIP_EN)
     lines.append("")
     for b in beats:
         idx = b.get("index", "")
@@ -509,8 +654,12 @@ def build_grok_video_beats(
     lang: str = "el",
     topic: str = "",
     vibe: str = "",
+    person_in_source: str = PERSON_SOURCE_DEFAULT,
 ) -> dict[str, Any]:
     """Build deterministic Grok Video beats.
+
+    person_in_source: auto / yes / no — "no" (default) forces camera-only motion with no
+    person, legs or feet entering the frame (product-only still image-to-video).
 
     mode:
       - single: always 3 beats (~16s)
@@ -533,6 +682,8 @@ def build_grok_video_beats(
     music_en = music_summary_for_scene(env, props, problem, vibe, _music_extra, lang="en")
     product_mode = mode_l != "content"
     wm = _clean(watermark)
+    person_src = normalize_person_source(person_in_source)
+    _scene_txt = " ".join(x for x in (_clean(env), _clean(props), _clean(problem)) if x)
 
     if mode_l == "carousel":
         try:
@@ -578,8 +729,13 @@ def build_grok_video_beats(
             else:
                 slide_body = _clean(item)
 
+        has_person = resolve_person_in_source(
+            person_src, appearance=appearance, scene_text=_scene_txt,
+            frame_text=" ".join(x for x in (slide_title, slide_body) if x),
+        )
         motion = _motion_for_role(
-            role, brand=brand, model=model, colorway=colorway, product_mode=product_mode
+            role, brand=brand, model=model, colorway=colorway, product_mode=product_mode,
+            has_person=has_person,
         )
         prompt_en = _beat_prompt(
             index=i,
@@ -600,16 +756,22 @@ def build_grok_video_beats(
             slide_body=slide_body,
             product_mode=product_mode,
             audio_clause=audio_clause,
+            has_person=has_person,
         )
-        _summ = _summary_for_role(role, lang, i)
+        _summ = _summary_for_role(role, lang, i, has_person=has_person)
         if i == 1:
-            _summ = f"{_summ} · {music_el if (lang or 'el').lower() == 'el' else music_en}"
+            _is_el = (lang or "el").lower() == "el"
+            _summ = (
+                f"{_summ} · {music_el if _is_el else music_en} · "
+                f"{VIDEO_TIP_EL if _is_el else VIDEO_TIP_EN}"
+            )
         beats.append(
             {
                 "index": i,
                 "role": role,
                 "prompt_en": prompt_en,
                 "summary_el": _summ,
+                "has_person": has_person,
             }
         )
 
@@ -622,6 +784,10 @@ def build_grok_video_beats(
         "music_summary_el": music_el,
         "music_summary_en": music_en,
         "music_summary": music_el if (lang or "el").lower() == "el" else music_en,
+        "person_in_source": person_src,
+        "tip_el": VIDEO_TIP_EL,
+        "tip_en": VIDEO_TIP_EN,
+        "tip": VIDEO_TIP_EL if (lang or "el").lower() == "el" else VIDEO_TIP_EN,
     }
 
 
@@ -670,7 +836,8 @@ def _time_windows(n: int) -> list[tuple[str, str]]:
     ]
 
 
-def _slide_hint_arc(n: int, hints: Optional[list] = None, slide_prompts: Optional[list] = None) -> list[str]:
+def _slide_hint_arc(n: int, hints: Optional[list] = None, slide_prompts: Optional[list] = None,
+                    person_flags: Optional[list] = None) -> list[str]:
     """Build ordered per-slide visual hints (EN), preserving upload order."""
     roles = list(CAROUSEL_ROLE_ARCS.get(n if n in CAROUSEL_ROLE_ARCS else 3, CAROUSEL_ROLE_ARCS[3]))
     while len(roles) < n:
@@ -691,8 +858,17 @@ def _slide_hint_arc(n: int, hints: Optional[list] = None, slide_prompts: Optiona
         "deepen": "closer orbit / tilt to sole detail",
         "end": "calm hold ending still",
     }
+    generic_still = {
+        "hook": "wide establishing view of the scene with the pair resting on the ground",
+        "lifestyle": "closer parallax on the pair resting on the ground, camera-only",
+        "start": "product still from the source frame with camera-only push-in",
+    }
+    flags = list(person_flags or [])
     for i in range(n):
         role = roles[i] if i < len(roles) else "content"
+        g = generic
+        if i < len(flags) and flags[i] is False:
+            g = {**generic, **generic_still}
         h = ""
         if i < len(hints) and _clean(hints[i]):
             h = _clean(hints[i])
@@ -704,11 +880,11 @@ def _slide_hint_arc(n: int, hints: Optional[list] = None, slide_prompts: Optiona
         else:
             # Generic arc by position
             if i == 0:
-                h = "opening shot — " + generic.get(role, generic["hook"])
+                h = "opening shot — " + g.get(role, g["hook"])
             elif i == n - 1:
-                h = "closing lifestyle shot — " + generic.get(role, generic["cta"])
+                h = "closing shot — " + g.get(role, g["cta"])
             else:
-                h = f"detail shot {i+1} — " + generic.get(role, generic["product"])
+                h = f"detail shot {i+1} — " + g.get(role, g["product"])
         out.append(h)
     return out
 
@@ -735,8 +911,13 @@ def build_unified_grok_video_prompt(
     product_mode: bool = True,
     source: str = "slides",
     vibe: str = "",
+    person_in_source: str = PERSON_SOURCE_DEFAULT,
 ) -> dict[str, Any]:
     """Build ONE continuous English Grok Video prompt (~16s) with timed beats inside.
+
+    person_in_source: auto / yes / no. "no" (default) = product-only source → camera-only
+    motion, no person/legs/feet entering. auto = per-frame detection from vision hints /
+    scene text, unknown → product-only.
 
     Returns dict: prompt_en, summary_el, howto_el, howto_en, slide_count, source, duration_hint.
     """
@@ -765,7 +946,20 @@ def build_unified_grok_video_prompt(
                 hints.append(" — ".join(x for x in (title, body) if x) or "story beat")
             else:
                 hints.append(_clean(item) or "story beat")
-    hints = _slide_hint_arc(n, hints=hints or None, slide_prompts=slide_prompts)
+    person_src = normalize_person_source(person_in_source)
+    _scene_txt = " ".join(x for x in (_clean(env), _clean(props), _clean(problem)) if x)
+    # Only real frame descriptions (vision hints / content titles) feed auto-detection —
+    # app slide prompts carry rule text ("worn or resting") that would false-trigger.
+    _raw_hints = list(hints)
+    person_flags = [
+        resolve_person_in_source(
+            person_src, appearance=appearance, scene_text=_scene_txt,
+            frame_text=(_raw_hints[i] if i < len(_raw_hints) else ""),
+        )
+        for i in range(n)
+    ]
+    any_person = any(person_flags)
+    hints = _slide_hint_arc(n, hints=hints or None, slide_prompts=slide_prompts, person_flags=person_flags)
 
     windows = _time_windows(n)
     # Align window count to n
@@ -775,21 +969,37 @@ def build_unified_grok_video_prompt(
     pair = " ".join(x for x in (_clean(brand), _clean(model), _clean(colorway)) if x)
     scene = _env_hint(env, problem, goal)
 
-    parts: list[str] = []
+    parts: list[str] = [AUDIO_LEAD]
     parts.append(
         f"Photorealistic commercial video, {aspect} vertical, ONE continuous ~{duration_s}s shot/story "
         f"(not three separate ads). Generate once — timed segments below are beats INSIDE this single video."
     )
-    parts.append(_safe_motion_rules())
-    parts.append(_anatomy_video_clause())
-    parts.append(_appearance_video_clause(appearance))
-    parts.append(_no_chrome())
-    parts.append(
-        "Shoe lock every moment — never morph into a different pair; "
-        "NEVER empty static shoes then jump to a runner; prefer product + camera motion "
-        "(push-in, gentle orbit, slight tilt) or already-on-feet with exactly 2 feet FORWARD only "
-        "(no reverse, no spins)."
-    )
+    if any_person:
+        parts.append(_safe_motion_rules())
+        parts.append(_anatomy_video_clause())
+        parts.append(_appearance_video_clause(appearance))
+        if not all(person_flags):
+            parts.append(
+                "Frames marked product-only have NO person: camera-only motion there; "
+                "no legs or feet enter those frames; the shoes stay still on the ground."
+            )
+    else:
+        parts.append(_product_only_motion_rules())
+        parts.append(_product_only_people_clause())
+    parts.append(_no_chrome(any_person))
+    parts.append(TEXT_SHOE_STABILITY)
+    if any_person:
+        parts.append(
+            "Shoe lock every moment — never morph into a different pair; "
+            "NEVER empty static shoes then jump to a runner; prefer product + camera motion "
+            "(push-in, gentle orbit, slight tilt) or already-on-feet with exactly 2 feet FORWARD only "
+            "(no reverse, no spins)."
+        )
+    else:
+        parts.append(
+            "Shoe lock every moment — the same pair stays exactly where it is in the source frame, "
+            "never morphs, never walks; only the camera moves."
+        )
 
     if product_mode and (_clean(brand) or _clean(model)):
         parts.append(_shoe_lock(brand, model, colorway))
@@ -805,13 +1015,16 @@ def build_unified_grok_video_prompt(
     # Timed visual story through uploaded / slide frames in order
     beat_bits: list[str] = []
     for i, ((win, role), hint) in enumerate(zip(windows, hints), start=1):
+        _hp = person_flags[i - 1] if i - 1 < len(person_flags) else False
         motion = _motion_for_role(
-            role, brand=brand, model=model, colorway=colorway, product_mode=product_mode
+            role, brand=brand, model=model, colorway=colorway, product_mode=product_mode,
+            has_person=_hp,
         )
         is_final = i == n
         wm = _watermark_clause(watermark, final_beat=is_final)
+        _tag = "" if _hp else " (product-only, no person)"
         beat_bits.append(
-            f"{win}: visual story of frame {i}/{n} — {hint}. {motion} {wm}"
+            f"{win}: visual story of frame {i}/{n}{_tag} — {hint}. {motion} {wm}"
         )
     parts.append(" ".join(beat_bits))
     parts.append(
@@ -838,14 +1051,14 @@ def build_unified_grok_video_prompt(
             f"Ενιαίο ~{duration_s}s video ({n} καρέ σε σειρά). "
             f"Επικόλλησε μία φορά στο Grok Video → Generate ({aspect}). "
             f"Η ιστορία ρέει 1→{n} μέσα στο ίδιο prompt (timed beats). "
-            f"{music_el}."
+            f"{music_el}. {VIDEO_TIP_EL}"
         )
     else:
         summary_el = (
             f"Unified ~{duration_s}s video ({n} frames in order). "
             f"Paste once into Grok Video → Generate ({aspect}). "
             f"Story flows 1→{n} inside one prompt (timed beats). "
-            f"{music_en}."
+            f"{music_en}. {VIDEO_TIP_EN}"
         )
 
     return {
@@ -860,6 +1073,11 @@ def build_unified_grok_video_prompt(
         "music_summary_el": music_el,
         "music_summary_en": music_en,
         "music_summary": music_el if (lang or "el").lower() == "el" else music_en,
+        "person_in_source": person_src,
+        "person_flags": person_flags,
+        "tip_el": VIDEO_TIP_EL,
+        "tip_en": VIDEO_TIP_EN,
+        "tip": VIDEO_TIP_EL if (lang or "el").lower() == "el" else VIDEO_TIP_EN,
     }
 
 
@@ -890,7 +1108,9 @@ def format_unified_video_txt(
     lines.append(f"Source: {unified.get('source') or ''}")
     if _clean(unified.get("music_summary_en")):
         lines.append(f"Audio — {_clean(unified.get('music_summary_en'))} (instrumental only, no voiceover)")
+    lines.append(f"Person in source photo: {unified.get('person_in_source') or PERSON_SOURCE_DEFAULT}")
     lines.append(f"Howto: {unified.get('howto_en') or UNIFIED_HOWTO_EN}")
+    lines.append(VIDEO_TIP_EN)
     lines.append("")
     lines.append("========== UNIFIED PROMPT (EN) ==========")
     lines.append("")

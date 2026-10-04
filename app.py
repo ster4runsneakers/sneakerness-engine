@@ -45,7 +45,16 @@ from video_prompts import (
     format_video_prompts_txt,
     format_unified_video_txt,
     ensure_video_beats,
+    PERSON_SOURCE_DEFAULT,
+    normalize_person_source,
 )
+
+
+def _video_person_src() -> str:
+    """Current 'Source photo has a person?' choice (auto / yes / no). Default: no."""
+    return normalize_person_source(
+        st.session_state.get("video_person_src_val", PERSON_SOURCE_DEFAULT)
+    )
 
 st.set_page_config(page_title="Sneaker Image Studio", page_icon="👟", layout="centered")
 
@@ -2447,6 +2456,7 @@ def render_video_unified_ui(*, lang: str, key_prefix: str = "vid", product_mode:
                 product_mode=product_mode,
                 source="upload",
                 vibe=(st.session_state.get("scene_vibe_val", "auto") or "auto") if product_mode else "",
+                person_in_source=_video_person_src(),
             )
             st.session_state[state_key] = unified
             # Also mirror to loaded_video_unified for ZIP convenience in product mode
@@ -2504,6 +2514,7 @@ def render_video_unified_ui(*, lang: str, key_prefix: str = "vid", product_mode:
                 product_mode=product_mode,
                 source="slides",
                 vibe=(st.session_state.get("scene_vibe_val", "auto") or "auto") if product_mode else "",
+                person_in_source=_video_person_src(),
             )
             st.session_state[state_key] = unified
             if product_mode:
@@ -2575,9 +2586,29 @@ def render_video_tab_ui(*, lang: str, key_prefix: str = "vid", product_mode: boo
         key="video_prompt_mode",
         horizontal=True,
     )
+    # Source photo has a person? (auto / yes / no) — default No (product only)
+    if "video_person_src_val" not in st.session_state:
+        st.session_state["video_person_src_val"] = PERSON_SOURCE_DEFAULT
+    _person_labels = {
+        "auto": t("video_person_auto", lang),
+        "yes": t("video_person_yes", lang),
+        "no": t("video_person_no", lang),
+    }
+    st.radio(
+        t("video_person_label", lang),
+        options=["auto", "yes", "no"],
+        format_func=lambda k: _person_labels.get(k, k),
+        key="video_person_src_val",
+        horizontal=True,
+        help=t("video_person_help", lang),
+    )
+    _psrc = _video_person_src()
     mode = st.session_state.get("video_prompt_mode") or "unified"
     if mode == "beats":
         pack = video_pack
+        # Rebuild stored beats when the person choice changed (or pack predates the option)
+        if isinstance(pack, dict) and pack.get("beats") and pack.get("person_in_source") != _psrc:
+            pack = None
         if not (isinstance(pack, dict) and pack.get("beats")):
             if product_mode:
                 pack = rebuild_video_beats_from_context(
@@ -2611,10 +2642,14 @@ def render_video_tab_ui(*, lang: str, key_prefix: str = "vid", product_mode: boo
                     slide_texts=cr.get("slides") or [],
                     lang=lang,
                     topic=cr.get("topic_en") or "",
+                    person_in_source=_video_person_src(),
                 )
                 st.session_state["content_video_beats"] = pack
         render_video_beats_ui(pack, lang=lang, key_prefix=key_prefix)
     else:
+        _u = st.session_state.get("loaded_video_unified" if product_mode else "content_video_unified")
+        if isinstance(_u, dict) and _u.get("prompt_en") and _u.get("person_in_source") != _psrc:
+            st.warning(t("video_person_stale", lang))
         render_video_unified_ui(lang=lang, key_prefix=key_prefix, product_mode=product_mode)
 
 
@@ -2675,6 +2710,7 @@ def rebuild_video_beats_from_context(
         lang=lang,
         topic=topic,
         vibe=vibe or (st.session_state.get("scene_vibe_val", "auto") or "auto"),
+        person_in_source=_video_person_src(),
     )
 
 
@@ -3742,6 +3778,7 @@ if app_mode == "content":
             slide_texts=_result.get("slides") or [],
             lang=lang,
             topic=_result.get("topic_en") or "",
+            person_in_source=_video_person_src(),
         )
         _result["video_beats"] = _cvb
         try:
@@ -3764,6 +3801,7 @@ if app_mode == "content":
                 topic=_result.get("topic_en") or "",
                 product_mode=False,
                 source="slides",
+                person_in_source=_video_person_src(),
             )
             _result["video_unified"] = _c_unified
             st.session_state["content_video_unified"] = _c_unified
@@ -4339,6 +4377,7 @@ if st.button(
             slide_count=_video_sc,
             lang=lang,
             vibe=st.session_state.get("scene_vibe_val", "auto") or "auto",
+            person_in_source=_video_person_src(),
         )
         st.session_state["loaded_video_beats"] = video_beats
         # Default unified prompt from carousel roles / slide prompts (no quota)
@@ -4364,6 +4403,7 @@ if st.button(
                 product_mode=True,
                 source="slides",
                 vibe=st.session_state.get("scene_vibe_val", "auto") or "auto",
+                person_in_source=_video_person_src(),
             )
         except Exception:
             pass
