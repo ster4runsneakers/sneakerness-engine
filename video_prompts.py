@@ -6,6 +6,7 @@ Greek one-line summaries for UI when lang=el.
 """
 from __future__ import annotations
 
+import re
 from typing import Any, Optional
 
 
@@ -104,6 +105,170 @@ VIDEO_FINAL_CHECK = (
 )
 
 
+# ---------------------------------------------------------------------------
+# AUDIO: scene-matched instrumental music, never narration
+# ---------------------------------------------------------------------------
+AUDIO_NO_VOICE = (
+    "Audio: instrumental background music only. NO voiceover, NO narration, NO spoken words, "
+    "NO dialogue, NO singing/lyrics, NO text-to-speech."
+)
+
+VIDEO_AUDIO_NEGATIVES = (
+    "Negatives (audio): voiceover, narration, narrator, spoken words, dialogue, talking, "
+    "lyrics, singing, vocals, text-to-speech."
+)
+
+# key -> (EN style clause, EL summary label, EN summary label, ambient cue)
+MUSIC_PROFILES: dict[str, tuple[str, str, str, str]] = {
+    "beach": (
+        "light upbeat acoustic / tropical house instrumental, relaxed sunny mood, ~100-110 BPM",
+        "ελαφρύ acoustic / tropical house, χαλαρό",
+        "light acoustic / tropical house, relaxed",
+        "soft waves and light footsteps",
+    ),
+    "mountain": (
+        "uplifting cinematic indie-folk instrumental, airy and open, ~90-105 BPM",
+        "ανεβαστικό cinematic indie/folk, ευάερο",
+        "uplifting cinematic indie/folk, airy",
+        "light wind and footsteps on the trail",
+    ),
+    "running": (
+        "energetic electronic instrumental with a driving beat, motivated mood, ~120-128 BPM",
+        "ενεργητικό electronic, δυναμικός ρυθμός ~120-128 BPM",
+        "energetic electronic, driving beat ~120-128 BPM",
+        "rhythmic footsteps",
+    ),
+    "gym": (
+        "punchy hip-hop / electronic instrumental beat, powerful focused mood, ~95-110 BPM",
+        "δυνατό hip-hop / electronic beat",
+        "punchy hip-hop / electronic beat",
+        "subtle gym ambience",
+    ),
+    "basketball": (
+        "bouncy hip-hop instrumental beat, playful confident mood, ~90-100 BPM",
+        "χοροπηδηχτό hip-hop beat",
+        "bouncy hip-hop beat",
+        "subtle sneaker squeaks and ball bounces",
+    ),
+    "commute": (
+        "moody downtempo / lo-fi instrumental, calm reflective mood, ~75-85 BPM",
+        "μελαγχολικό downtempo / lo-fi, ήρεμο",
+        "moody downtempo / lo-fi, calm",
+        "soft rain or distant station ambience",
+    ),
+    "cafe": (
+        "warm jazzy lo-fi instrumental, cozy easygoing mood, ~80-90 BPM",
+        "ζεστό jazzy lo-fi, χαλαρό",
+        "warm jazzy lo-fi, cozy",
+        "soft cafe ambience",
+    ),
+    "travel": (
+        "smooth chill electronic instrumental, light forward-moving mood, ~100-110 BPM",
+        "απαλό chill electronic, ταξιδιάρικο",
+        "smooth chill electronic, travel mood",
+        "subtle terminal ambience and rolling suitcase",
+    ),
+    "recovery": (
+        "soft ambient / lo-fi instrumental, calm restful mood, ~65-75 BPM",
+        "απαλό ambient / lo-fi, ήρεμο",
+        "soft ambient / lo-fi, restful",
+        "quiet room tone",
+    ),
+    "city": (
+        "modern lo-fi hip-hop / chill urban groove instrumental, laid-back mood, ~85-95 BPM",
+        "μοντέρνο lo-fi hip-hop / chill urban groove",
+        "modern lo-fi hip-hop / chill urban groove",
+        "light street ambience and footsteps",
+    ),
+    "default": (
+        "modern upbeat chill pop instrumental, positive easygoing mood, ~100-110 BPM",
+        "μοντέρνο χαλαρό upbeat pop (instrumental)",
+        "modern upbeat chill pop instrumental",
+        "light footsteps",
+    ),
+}
+
+# Order matters: more specific scenes first.
+_MUSIC_KEYWORDS: list[tuple[str, tuple[str, ...]]] = [
+    ("basketball", ("basketball", "hoop", "court", "μπάσκετ")),
+    ("commute", ("rain", "rainy", "metro", "subway", "commut", "train", "platform", "station",
+                 "tram", "bus stop", "βροχ", "μετρό", "αποβάθρ", "σταθμ")),
+    ("running", ("running", "runner", "run ", "jog", "track", "marathon", "sprint", "τρέξιμ", "στίβ")),
+    ("gym", ("gym", "workout", "weights", "dumbbell", "barbell", "fitness", "crossfit", "γυμναστ")),
+    ("mountain", ("mountain", "trail", "hike", "hiking", "forest", "summit", "alpine", "βουν", "μονοπάτ")),
+    ("beach", ("beach", "coast", "seaside", "shore", "sand", "aegean", "island", "promenade", "sea ",
+               "παραλ", "θάλασσ", "αιγαί", "νησ")),
+    ("travel", ("airport", "travel", "terminal", "suitcase", "luggage", "flight", "boarding",
+                "αεροδρόμ", "ταξίδ")),
+    ("cafe", ("cafe", "café", "coffee", "office", "desk", "workday", "shift", "barista", "καφέ", "γραφεί")),
+    ("recovery", ("recovery", "loft", "home", "living room", "sofa", "couch", "bedroom", "rest day",
+                  "ξεκούρασ", "σπίτ")),
+    ("city", ("city", "street", "urban", "plateia", "plaza", "square", "downtown", "sidewalk",
+              "crosswalk", "πόλη", "δρόμ", "πλατεί")),
+]
+
+_VIBE_TO_MUSIC = {
+    "running": "running",
+    "trail": "mountain",
+    "gym": "gym",
+    "street": "city",
+    "commute": "commute",
+    "work": "cafe",
+    "travel": "travel",
+    "recovery": "recovery",
+    "basketball": "basketball",
+}
+
+
+def _match_music_key(text: str) -> str:
+    t = f" {(text or '').lower()} "
+    for key, words in _MUSIC_KEYWORDS:
+        for w in words:
+            if w in t:
+                return key
+    return ""
+
+
+def music_key_for_scene(env: str = "", props: str = "", problem: str = "", vibe: str = "",
+                        extra: str = "") -> str:
+    """Pick a music profile key. Explicit scene vibe wins; else environment keywords,
+    then props/problem/extra (topic, slide hints); else default."""
+    v = (_clean(vibe) or "auto").lower()
+    if v in _VIBE_TO_MUSIC:
+        return _VIBE_TO_MUSIC[v]
+    k = _match_music_key(env)
+    if k:
+        return k
+    k = _match_music_key(" ".join(x for x in (_clean(props), _clean(problem), _clean(extra)) if x))
+    return k or "default"
+
+
+def music_clause_for_scene(env: str = "", props: str = "", problem: str = "", vibe: str = "",
+                           extra: str = "", *, story: bool = False) -> str:
+    """English AUDIO block for Grok Video prompts: scene-matched instrumental, no voice."""
+    key = music_key_for_scene(env, props, problem, vibe, extra)
+    style, _el, _en, ambient = MUSIC_PROFILES.get(key, MUSIC_PROFILES["default"])
+    scope = (
+        "one consistent track across the whole video that matches the overall story arc, "
+        "building gently and resolving on the final hold"
+        if story
+        else "consistent across Extend clips"
+    )
+    return (
+        f"{AUDIO_NO_VOICE} Music style: {style}; {scope}. "
+        f"Subtle natural ambient sound OK under the music ({ambient}) — never voices."
+    )
+
+
+def music_summary_for_scene(env: str = "", props: str = "", problem: str = "", vibe: str = "",
+                            extra: str = "", *, lang: str = "el") -> str:
+    key = music_key_for_scene(env, props, problem, vibe, extra)
+    _style, el, en, _amb = MUSIC_PROFILES.get(key, MUSIC_PROFILES["default"])
+    if (lang or "el").lower() == "el":
+        return f"Μουσική: {el}, χωρίς αφήγηση"
+    return f"Music: {en}, no narration"
+
+
 def _no_chrome() -> str:
     return (
         "No UI chrome: no Slide X of Y, no LEARN MORE buttons, no carousel dots; "
@@ -180,6 +345,7 @@ def _beat_prompt(
     slide_title: str = "",
     slide_body: str = "",
     product_mode: bool = True,
+    audio_clause: str = "",
 ) -> str:
     parts: list[str] = []
     if index == 1:
@@ -213,6 +379,8 @@ def _beat_prompt(
     parts.append(motion_focus)
     parts.append(_watermark_clause(watermark, final_beat=is_final))
     parts.append("Natural light continuity. Cinematic, sharp, no morphing shoes.")
+    parts.append(audio_clause or AUDIO_NO_VOICE)
+    parts.append(VIDEO_AUDIO_NEGATIVES)
     parts.append(VIDEO_FINAL_CHECK)
     return " ".join(p.strip() for p in parts if p and p.strip())
 
@@ -304,6 +472,8 @@ def format_video_prompts_txt(
     if _clean(topic):
         lines.append(f"Topic: {_clean(topic)}")
     lines.append(f"Duration hint: {video_pack.get('duration_hint') or ''}")
+    if _clean(video_pack.get("music_summary_en")):
+        lines.append(f"Audio — {_clean(video_pack.get('music_summary_en'))} (instrumental only, no voiceover)")
     lines.append(f"Howto: {video_pack.get('howto_en') or HOWTO_EN}")
     lines.append("")
     for b in beats:
@@ -336,6 +506,7 @@ def build_grok_video_beats(
     slide_texts: Optional[list] = None,
     lang: str = "el",
     topic: str = "",
+    vibe: str = "",
 ) -> dict[str, Any]:
     """Build deterministic Grok Video beats.
 
@@ -344,9 +515,20 @@ def build_grok_video_beats(
       - carousel: N = slide_count (2–5), one beat per slide role
       - content: N from slide_texts / slide_count; topic-driven, soft product lock
     """
-    _ = props  # kept in signature for scene parity with callers
     _ = slide_prompts
     mode_l = (_clean(mode) or "single").lower()
+    _music_extra = _clean(topic)
+    if slide_texts:
+        for _it in slide_texts:
+            if isinstance(_it, dict):
+                _music_extra += " " + _clean(_it.get("title")) + " " + _clean(_it.get("body"))
+            else:
+                _music_extra += " " + _clean(_it)
+    audio_clause = music_clause_for_scene(
+        env, props, problem, vibe, _music_extra, story=(mode_l != "single")
+    )
+    music_el = music_summary_for_scene(env, props, problem, vibe, _music_extra, lang="el")
+    music_en = music_summary_for_scene(env, props, problem, vibe, _music_extra, lang="en")
     product_mode = mode_l != "content"
     wm = _clean(watermark)
 
@@ -415,13 +597,17 @@ def build_grok_video_beats(
             slide_title=slide_title,
             slide_body=slide_body,
             product_mode=product_mode,
+            audio_clause=audio_clause,
         )
+        _summ = _summary_for_role(role, lang, i)
+        if i == 1:
+            _summ = f"{_summ} · {music_el if (lang or 'el').lower() == 'el' else music_en}"
         beats.append(
             {
                 "index": i,
                 "role": role,
                 "prompt_en": prompt_en,
-                "summary_el": _summary_for_role(role, lang, i),
+                "summary_el": _summ,
             }
         )
 
@@ -431,6 +617,9 @@ def build_grok_video_beats(
         "howto_en": HOWTO_EN,
         "duration_hint": _duration_hint(n),
         "mode": mode_l,
+        "music_summary_el": music_el,
+        "music_summary_en": music_en,
+        "music_summary": music_el if (lang or "el").lower() == "el" else music_en,
     }
 
 
@@ -543,12 +732,12 @@ def build_unified_grok_video_prompt(
     topic: str = "",
     product_mode: bool = True,
     source: str = "slides",
+    vibe: str = "",
 ) -> dict[str, Any]:
     """Build ONE continuous English Grok Video prompt (~16s) with timed beats inside.
 
     Returns dict: prompt_en, summary_el, howto_el, howto_en, slide_count, source, duration_hint.
     """
-    _ = props
     try:
         n = int(slide_count)
     except (TypeError, ValueError):
@@ -631,7 +820,14 @@ def build_unified_grok_video_prompt(
         parts.append("Watermark only in the final seconds if set; keep earlier frames clean.")
     else:
         parts.append("No watermark, no domain text on screen.")
+    _music_extra = " ".join(x for x in ([_clean(topic)] + [_clean(h) for h in hints]) if x)
+    parts.append(
+        music_clause_for_scene(env, props, problem, vibe, _music_extra, story=True)
+    )
+    parts.append(VIDEO_AUDIO_NEGATIVES)
     parts.append(VIDEO_FINAL_CHECK)
+    music_el = music_summary_for_scene(env, props, problem, vibe, _music_extra, lang="el")
+    music_en = music_summary_for_scene(env, props, problem, vibe, _music_extra, lang="en")
 
     prompt_en = " ".join(p.strip() for p in parts if p and str(p).strip())
 
@@ -639,13 +835,15 @@ def build_unified_grok_video_prompt(
         summary_el = (
             f"Ενιαίο ~{duration_s}s video ({n} καρέ σε σειρά). "
             f"Επικόλλησε μία φορά στο Grok Video → Generate ({aspect}). "
-            f"Η ιστορία ρέει 1→{n} μέσα στο ίδιο prompt (timed beats)."
+            f"Η ιστορία ρέει 1→{n} μέσα στο ίδιο prompt (timed beats). "
+            f"{music_el}."
         )
     else:
         summary_el = (
             f"Unified ~{duration_s}s video ({n} frames in order). "
             f"Paste once into Grok Video → Generate ({aspect}). "
-            f"Story flows 1→{n} inside one prompt (timed beats)."
+            f"Story flows 1→{n} inside one prompt (timed beats). "
+            f"{music_en}."
         )
 
     return {
@@ -657,6 +855,9 @@ def build_unified_grok_video_prompt(
         "source": _clean(source) or "slides",
         "duration_hint": f"~{duration_s}s · {aspect}",
         "slide_hints": hints,
+        "music_summary_el": music_el,
+        "music_summary_en": music_en,
+        "music_summary": music_el if (lang or "el").lower() == "el" else music_en,
     }
 
 
@@ -685,6 +886,8 @@ def format_unified_video_txt(
     lines.append(f"Duration: {unified.get('duration_hint') or '~16s · 9:16'}")
     lines.append(f"Slides: {unified.get('slide_count') or ''}")
     lines.append(f"Source: {unified.get('source') or ''}")
+    if _clean(unified.get("music_summary_en")):
+        lines.append(f"Audio — {_clean(unified.get('music_summary_en'))} (instrumental only, no voiceover)")
     lines.append(f"Howto: {unified.get('howto_en') or UNIFIED_HOWTO_EN}")
     lines.append("")
     lines.append("========== UNIFIED PROMPT (EN) ==========")

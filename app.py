@@ -2222,6 +2222,9 @@ def render_video_beats_ui(video_pack: dict, *, lang: str, key_prefix: str = "vid
     st.caption(t("video_section_help", lang))
     st.info(t("video_howto", lang, howto=howto or ""))
     st.caption(t("video_duration_hint", lang, hint=video_pack.get("duration_hint") or ""))
+    _music = video_pack.get("music_summary_el") if lang == "el" else video_pack.get("music_summary_en")
+    if _music:
+        st.caption(f"🎵 {_music}")
     for b in video_pack.get("beats") or []:
         idx = b.get("index", 0)
         role = _video_role_label(b.get("role", ""), lang)
@@ -2434,6 +2437,7 @@ def render_video_unified_ui(*, lang: str, key_prefix: str = "vid", product_mode:
                 topic=topic,
                 product_mode=product_mode,
                 source="upload",
+                vibe=(st.session_state.get("scene_vibe_val", "auto") or "auto") if product_mode else "",
             )
             st.session_state[state_key] = unified
             # Also mirror to loaded_video_unified for ZIP convenience in product mode
@@ -2490,6 +2494,7 @@ def render_video_unified_ui(*, lang: str, key_prefix: str = "vid", product_mode:
                 topic=topic,
                 product_mode=product_mode,
                 source="slides",
+                vibe=(st.session_state.get("scene_vibe_val", "auto") or "auto") if product_mode else "",
             )
             st.session_state[state_key] = unified
             if product_mode:
@@ -2523,6 +2528,9 @@ def render_video_unified_ui(*, lang: str, key_prefix: str = "vid", product_mode:
         st.info(howto or "")
         st.write(f"{t('video_unified_summary_label', lang)} {unified.get('summary_el') or ''}")
         st.caption(t("video_duration_hint", lang, hint=unified.get("duration_hint") or "~16s · 9:16"))
+        _music_u = unified.get("music_summary_el") if lang == "el" else unified.get("music_summary_en")
+        if _music_u:
+            st.caption(f"🎵 {_music_u}")
         st.caption(t("video_unified_prompt_label", lang))
         st.code(unified.get("prompt_en") or "", language="text")
         utxt = format_unified_video_txt(
@@ -2619,6 +2627,7 @@ def rebuild_video_beats_from_context(
     existing=None,
     topic: str = "",
     slide_texts=None,
+    vibe: str = "",
 ) -> dict:
     """Prefer stored video_beats; otherwise rebuild from product/content context."""
     if isinstance(existing, dict) and existing.get("beats"):
@@ -2656,6 +2665,7 @@ def rebuild_video_beats_from_context(
         slide_texts=slide_texts,
         lang=lang,
         topic=topic,
+        vibe=vibe or (st.session_state.get("scene_vibe_val", "auto") or "auto"),
     )
 
 
@@ -4316,6 +4326,7 @@ if st.button(
             mode=_video_mode,
             slide_count=_video_sc,
             lang=lang,
+            vibe=st.session_state.get("scene_vibe_val", "auto") or "auto",
         )
         st.session_state["loaded_video_beats"] = video_beats
         # Default unified prompt from carousel roles / slide prompts (no quota)
@@ -4340,6 +4351,7 @@ if st.button(
                 lang=lang,
                 product_mode=True,
                 source="slides",
+                vibe=st.session_state.get("scene_vibe_val", "auto") or "auto",
             )
         except Exception:
             pass
