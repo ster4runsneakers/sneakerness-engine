@@ -39,11 +39,18 @@ from content_carousel import (
     build_content_zip_bytes,
 )
 import video_prompts
+# Streamlit Cloud can keep a stale video_prompts module in memory after a deploy
+# (seen as ImportError on new names) — reload once if the newest API is missing.
+if not hasattr(video_prompts, "build_simple_video_prompts"):
+    import importlib as _importlib
+    video_prompts = _importlib.reload(video_prompts)
 from video_prompts import (
     build_grok_video_beats,
     build_unified_grok_video_prompt,
     format_video_prompts_txt,
     format_unified_video_txt,
+    build_simple_video_prompts,
+    format_simple_video_txt,
     ensure_video_beats,
     PERSON_SOURCE_DEFAULT,
     normalize_person_source,
@@ -2254,6 +2261,7 @@ def render_video_beats_ui(video_pack: dict, *, lang: str, key_prefix: str = "vid
         st.code(b.get("prompt_en") or "", language="text")
     txt = format_video_prompts_txt(
         video_pack,
+        simple=st.session_state.get("video_simple_current"),
         brand=st.session_state.get("brand_val", ""),
         model=st.session_state.get("model_val", ""),
         colorway=st.session_state.get("colorway_val", ""),
@@ -2555,6 +2563,7 @@ def render_video_unified_ui(*, lang: str, key_prefix: str = "vid", product_mode:
         st.code(unified.get("prompt_en") or "", language="text")
         utxt = format_unified_video_txt(
             unified,
+            simple=st.session_state.get("video_simple_current"),
             brand=brand,
             model=model,
             colorway=colorway,
@@ -2569,23 +2578,85 @@ def render_video_unified_ui(*, lang: str, key_prefix: str = "vid", product_mode:
         )
 
 
+def _simple_video_from_session(*, lang: str, product_mode: bool = True) -> dict:
+    """Simple single-shot (~6s) prompts from current session context (no quota, deterministic)."""
+    ss = st.session_state
+    if product_mode:
+        _fmt = str(ss.get("ad_format_val", "") or "")
+        _single = ("Single" in _fmt) or ("1 Εικόνα" in _fmt) or not _fmt
+        try:
+            _sc = int(ss.get("slide_count_val", 3) or 3)
+        except (TypeError, ValueError):
+            _sc = 3
+        return build_simple_video_prompts(
+            brand=ss.get("brand_val", "") or "",
+            model=ss.get("model_val", "") or "",
+            colorway=ss.get("colorway_val", "") or "",
+            env=ss.get("env_desc_en") or ss.get("env_desc_val", "") or "",
+            props=ss.get("props_desc_en") or ss.get("props_desc_val", "") or "",
+            problem=ss.get("problem_desc_en") or ss.get("problem_desc_val", "") or "",
+            appearance=ss.get("appearance_val", "eu") or "eu",
+            mode="single" if _single else "carousel",
+            slide_count=_sc,
+            lang=lang,
+            vibe=ss.get("scene_vibe_val", "auto") or "auto",
+            person_in_source=_video_person_src(),
+            product_mode=True,
+        )
+    cr = ss.get("content_result") or {}
+    _slides = cr.get("slides") or [] if isinstance(cr, dict) else []
+    return build_simple_video_prompts(
+        appearance=ss.get("appearance_val", "eu") or "eu",
+        mode="content",
+        slide_count=(cr.get("slide_count") if isinstance(cr, dict) else None) or len(_slides) or 3,
+        slide_texts=_slides or None,
+        lang=lang,
+        topic=(cr.get("topic_en") if isinstance(cr, dict) else "") or "",
+        person_in_source=_video_person_src(),
+        product_mode=False,
+    )
+
+
+def render_video_simple_ui(simple: dict, *, lang: str, key_prefix: str = "vid") -> None:
+    """Recommended simple single-shot prompts: one st.code per photo / slide + .txt download."""
+    if not (isinstance(simple, dict) and simple.get("prompts")):
+        return
+    st.markdown(f"#### 🎬 {t('video_simple_title', lang)}")
+    st.caption(t("video_simple_help", lang))
+    st.info(simple.get("howto_el") if lang == "el" else simple.get("howto_en"))
+    _music_s = simple.get("music_summary_el") if lang == "el" else simple.get("music_summary_en")
+    st.caption(f"⏱ {simple.get('duration_hint') or '~6s'}" + (f" · 🎵 {_music_s}" if _music_s else ""))
+    prompts = simple.get("prompts") or []
+    for p in prompts:
+        if len(prompts) > 1:
+            st.markdown(f"**{t('video_simple_slide_label', lang, n=p.get('index'))}**")
+        st.caption(t("video_simple_prompt_label", lang))
+        st.code(p.get("prompt_en") or "", language="text")
+    _topic = ""
+    _cr = st.session_state.get("content_result")
+    if isinstance(_cr, dict) and simple.get("mode") == "content":
+        _topic = _cr.get("topic_en") or ""
+    _is_content = simple.get("mode") == "content"
+    st.download_button(
+        label=t("video_simple_download", lang),
+        data=format_simple_video_txt(
+            simple,
+            brand="" if _is_content else st.session_state.get("brand_val", ""),
+            model="" if _is_content else st.session_state.get("model_val", ""),
+            colorway="" if _is_content else st.session_state.get("colorway_val", ""),
+            topic=_topic,
+        ),
+        file_name="video_simple.txt",
+        mime="text/plain",
+        key=f"{key_prefix}_simple_dl",
+    )
+
+
 def render_video_tab_ui(*, lang: str, key_prefix: str = "vid", product_mode: bool = True, video_pack=None) -> None:
-    """Video tab: mode switch (unified default) + unified or beats UI."""
+    """Video tab: person option, recommended simple single-shot prompts, then mode switch
+    (unified default) + unified or beats UI."""
     if "video_prompt_mode" not in st.session_state:
         st.session_state["video_prompt_mode"] = "unified"
-    mode_opts = ["unified", "beats"]
-    labels = {
-        "unified": t("video_mode_unified", lang),
-        "beats": t("video_mode_beats", lang),
-    }
-    # Keep widget value synced with canonical session key
-    st.radio(
-        t("video_mode_label", lang),
-        options=mode_opts,
-        format_func=lambda k: labels.get(k, k),
-        key="video_prompt_mode",
-        horizontal=True,
-    )
     # Source photo has a person? (auto / yes / no) — default No (product only)
     if "video_person_src_val" not in st.session_state:
         st.session_state["video_person_src_val"] = PERSON_SOURCE_DEFAULT
@@ -2601,6 +2672,28 @@ def render_video_tab_ui(*, lang: str, key_prefix: str = "vid", product_mode: boo
         key="video_person_src_val",
         horizontal=True,
         help=t("video_person_help", lang),
+    )
+    # Recommended: simple single-shot (~6s) per photo — above the longer prompts
+    try:
+        _simple = _simple_video_from_session(lang=lang, product_mode=product_mode)
+    except Exception:
+        _simple = None
+    st.session_state["video_simple_current"] = _simple
+    render_video_simple_ui(_simple, lang=lang, key_prefix=key_prefix)
+    st.divider()
+    st.markdown(f"##### {t('video_other_prompts', lang)}")
+    mode_opts = ["unified", "beats"]
+    labels = {
+        "unified": t("video_mode_unified", lang),
+        "beats": t("video_mode_beats", lang),
+    }
+    # Keep widget value synced with canonical session key
+    st.radio(
+        t("video_mode_label", lang),
+        options=mode_opts,
+        format_func=lambda k: labels.get(k, k),
+        key="video_prompt_mode",
+        horizontal=True,
     )
     _psrc = _video_person_src()
     mode = st.session_state.get("video_prompt_mode") or "unified"

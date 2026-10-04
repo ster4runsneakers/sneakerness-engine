@@ -347,10 +347,19 @@ def music_key_for_scene(env: str = "", props: str = "", problem: str = "", vibe:
 
 
 def music_clause_for_scene(env: str = "", props: str = "", problem: str = "", vibe: str = "",
-                           extra: str = "", *, story: bool = False) -> str:
-    """English AUDIO block for Grok Video prompts: scene-matched instrumental, no voice."""
+                           extra: str = "", *, story: bool = False, compact: bool = False) -> str:
+    """English AUDIO block for Grok Video prompts: scene-matched instrumental, no voice.
+
+    compact=True returns a short audio-first sentence for the simple single-shot prompt.
+    """
     key = music_key_for_scene(env, props, problem, vibe, extra)
     style, _el, _en, ambient = MUSIC_PROFILES.get(key, MUSIC_PROFILES["default"])
+    if compact:
+        return (
+            f"AUDIO FIRST: instrumental music only from 0s to the end — {style}. "
+            "No voice at any point: no voiceover, no narration, no spoken words, no singing. "
+            "Any text on the image is a silent graphic, never read aloud."
+        )
     scope = (
         "one consistent track across the whole video that matches the overall story arc, "
         "building gently and resolving on the final hold"
@@ -603,10 +612,23 @@ def format_video_prompts_txt(
     model: str = "",
     colorway: str = "",
     topic: str = "",
+    simple: Optional[dict] = None,
+    include_simple: bool = True,
 ) -> str:
-    """Plain-text export for download / ZIP."""
+    """Plain-text export for download / ZIP.
+
+    The simple single-shot prompts (recommended) are written first when available —
+    from `simple` if given, else from video_pack["simple"].
+    """
     beats = video_pack.get("beats") or []
-    lines = [
+    _simple = simple if simple is not None else video_pack.get("simple")
+    lines: list[str] = []
+    if include_simple and isinstance(_simple, dict) and _simple.get("prompts"):
+        lines.append(format_simple_video_txt(_simple, brand=brand, model=model, colorway=colorway,
+                                             topic=topic).rstrip())
+        lines.append("")
+        lines.append("")
+    lines += [
         "Sneakerness — Grok Video / AI video beats",
         "How to use: Beat 1 → Generate → Extend with Beat 2 → Extend with Beat 3+",
         "",
@@ -775,8 +797,18 @@ def build_grok_video_beats(
             }
         )
 
+    try:
+        _simple = build_simple_video_prompts(
+            brand=brand, model=model, colorway=colorway, env=env, props=props, problem=problem,
+            appearance=appearance, mode=mode_l, slide_count=n, slide_texts=slide_texts,
+            lang=lang, topic=topic, vibe=vibe, person_in_source=person_src,
+        )
+    except Exception:
+        _simple = None
+
     return {
         "beats": beats,
+        "simple": _simple,
         "howto_el": HOWTO_EL,
         "howto_en": HOWTO_EN,
         "duration_hint": _duration_hint(n),
@@ -1088,11 +1120,22 @@ def format_unified_video_txt(
     model: str = "",
     colorway: str = "",
     topic: str = "",
+    simple: Optional[dict] = None,
 ) -> str:
-    """Plain-text export for download / ZIP (video_unified.txt)."""
+    """Plain-text export for download / ZIP (video_unified.txt).
+
+    If `simple` (build_simple_video_prompts result) is given, the recommended simple
+    single-shot prompts are written first.
+    """
     if not isinstance(unified, dict):
         return ""
-    lines = [
+    lines: list[str] = []
+    if isinstance(simple, dict) and simple.get("prompts"):
+        lines.append(format_simple_video_txt(simple, brand=brand, model=model, colorway=colorway,
+                                             topic=topic).rstrip())
+        lines.append("")
+        lines.append("")
+    lines += [
         "Sneakerness — Grok Video UNIFIED prompt (single Generate)",
         "How to use: paste the English prompt below once into Grok Video → Generate (~16s, 9:16).",
         "Do NOT Extend per beat — timed segments are inside this one prompt.",
@@ -1116,6 +1159,207 @@ def format_unified_video_txt(
     lines.append("")
     lines.append(_clean(unified.get("prompt_en")))
     lines.append("")
+    return "\n".join(lines).rstrip() + "\n"
+
+
+# ---------------------------------------------------------------------------
+# SIMPLE SINGLE-SHOT (~6s) — recommended for Grok image-to-video
+# Real tests: timed multi-segment prompts make Grok cut scenes (~6s), melt props and
+# duplicate the watermark; one continuous slow push-in stays clean.
+# ---------------------------------------------------------------------------
+SIMPLE_HOWTO_EN = (
+    "Recommended. Upload ONE photo to Grok image-to-video and paste its simple prompt below "
+    "(~6s, one continuous shot, music only). For a carousel, make one short clip per photo "
+    "and join them in CapCut."
+)
+SIMPLE_HOWTO_EL = (
+    "Προτείνεται. Ανέβασε ΜΙΑ φωτογραφία στο Grok (εικόνα σε βίντεο) και επικόλλησε το απλό "
+    "prompt της (~6 δευτ., ένα συνεχές πλάνο, μόνο μουσική). Για καρουζέλ φτιάξε ένα μικρό "
+    "βίντεο για κάθε φωτογραφία και ένωσέ τα στο CapCut."
+)
+
+SIMPLE_NEGATIVES = (
+    "Avoid: voiceover, narration, cuts, transitions, scene changes, morphing, melting objects, "
+    "disappearing text, duplicate watermark, extra limbs."
+)
+
+
+def _simple_camera(role: str) -> str:
+    if role in ("hook", "lifestyle"):
+        return "Camera: very slow, gentle push-in only, with very slight parallax at most."
+    if role in ("cta", "end", "product_cta", "specs_cta"):
+        return "Camera: very slow, gentle push-in only, almost still, settling into a calm hold."
+    return "Camera: very slow, gentle push-in only."
+
+
+def build_simple_single_shot_prompt(
+    *,
+    brand: str = "",
+    model: str = "",
+    colorway: str = "",
+    audio_clause: str = "",
+    has_person: bool = False,
+    role: str = "product",
+    aspect: str = "9:16",
+    duration_s: int = 6,
+) -> str:
+    """One short English prompt for a single photo: one continuous shot, music only."""
+    pair = " ".join(x for x in (_clean(brand), _clean(model), _clean(colorway)) if x)
+    shoes = f"The shoes ({pair})" if pair else "The shoes"
+    if has_person:
+        person = (
+            "The person stays still in the same pose, only subtle breathing — no standing up, "
+            "no walking, no new limbs."
+        )
+    else:
+        person = "No person appears: no legs, feet or hands enter the frame."
+    parts = [
+        audio_clause or music_clause_for_scene(compact=True),
+        f"Image-to-video, {aspect} vertical, about {duration_s} seconds. "
+        "ONE continuous shot, no cuts, no transitions, no scene changes.",
+        _simple_camera(role),
+        "Everything in the frame stays exactly as in the photo: people, bench, props and background "
+        "stay still and unchanged; nothing appears, disappears, melts or morphs.",
+        person,
+        f"{shoes} stay still, same design and colorway in every frame.",
+        "On-image text, badge, button and watermark stay exactly as in the photo — same position and "
+        "size, never duplicate, never disappear.",
+        SIMPLE_NEGATIVES,
+    ]
+    return " ".join(p.strip() for p in parts if p and p.strip())
+
+
+def build_simple_video_prompts(
+    brand: str = "",
+    model: str = "",
+    colorway: str = "",
+    env: str = "",
+    props: str = "",
+    problem: str = "",
+    appearance: str = "eu",
+    mode: str = "single",
+    slide_count: int = 1,
+    slide_texts: Optional[list] = None,
+    slide_hints: Optional[list] = None,
+    lang: str = "el",
+    topic: str = "",
+    vibe: str = "",
+    person_in_source: str = PERSON_SOURCE_DEFAULT,
+    product_mode: bool = True,
+) -> dict[str, Any]:
+    """Simple single-shot (~6s) prompts: 1 for a single photo, one per slide for carousel/content.
+
+    Returns dict: prompts [{index, role, prompt_en, has_person}], mode, howto_el/en,
+    music_summary_el/en, person_in_source, duration_hint.
+    """
+    mode_l = (_clean(mode) or "single").lower()
+    if mode_l == "single":
+        n = 1
+    else:
+        try:
+            n = int(slide_count)
+        except (TypeError, ValueError):
+            n = 3
+        if slide_texts:
+            n = len(slide_texts)
+        n = max(2, min(5, n))
+    texts = list(slide_texts or [])
+    hints = [_clean(h) for h in (slide_hints or [])]
+
+    def _frame_text(i: int) -> str:
+        bits = []
+        if i < len(hints) and hints[i]:
+            bits.append(hints[i])
+        if i < len(texts):
+            it = texts[i]
+            if isinstance(it, dict):
+                bits += [_clean(it.get("title")), _clean(it.get("body"))]
+            else:
+                bits.append(_clean(it))
+        return " ".join(b for b in bits if b)
+
+    _music_extra = " ".join(
+        x for x in ([_clean(topic)] + [_frame_text(i) for i in range(max(n, len(texts)))]) if x
+    )
+    audio = music_clause_for_scene(env, props, problem, vibe, _music_extra, compact=True)
+    music_el = music_summary_for_scene(env, props, problem, vibe, _music_extra, lang="el")
+    music_en = music_summary_for_scene(env, props, problem, vibe, _music_extra, lang="en")
+    person_src = normalize_person_source(person_in_source)
+    _scene_txt = " ".join(x for x in (_clean(env), _clean(props), _clean(problem)) if x)
+
+    if n == 1:
+        roles = ["product"]
+    else:
+        roles = list(CAROUSEL_ROLE_ARCS.get(n, CAROUSEL_ROLE_ARCS[3]))
+    use_pair = product_mode and mode_l != "content"
+    prompts = []
+    for i in range(n):
+        role = roles[i] if i < len(roles) else "product"
+        hp = resolve_person_in_source(
+            person_src, appearance=appearance, scene_text=_scene_txt, frame_text=_frame_text(i)
+        )
+        prompts.append({
+            "index": i + 1,
+            "role": role,
+            "has_person": hp,
+            "prompt_en": build_simple_single_shot_prompt(
+                brand=brand if use_pair else "",
+                model=model if use_pair else "",
+                colorway=colorway if use_pair else "",
+                audio_clause=audio,
+                has_person=hp,
+                role=role,
+            ),
+        })
+    is_el = (lang or "el").lower() == "el"
+    return {
+        "prompts": prompts,
+        "mode": "single" if n == 1 else mode_l,
+        "howto_el": SIMPLE_HOWTO_EL,
+        "howto_en": SIMPLE_HOWTO_EN,
+        "howto": SIMPLE_HOWTO_EL if is_el else SIMPLE_HOWTO_EN,
+        "music_summary_el": music_el,
+        "music_summary_en": music_en,
+        "person_in_source": person_src,
+        "duration_hint": "~6s · 9:16 · 1 shot",
+    }
+
+
+def format_simple_video_txt(
+    simple: dict[str, Any],
+    *,
+    brand: str = "",
+    model: str = "",
+    colorway: str = "",
+    topic: str = "",
+) -> str:
+    """Plain-text export of the simple single-shot prompts (recommended)."""
+    if not (isinstance(simple, dict) and simple.get("prompts")):
+        return ""
+    lines = [
+        "Sneakerness — Grok Video SIMPLE SINGLE-SHOT prompt(s) (~6s) — RECOMMENDED",
+        f"How to use: {simple.get('howto_en') or SIMPLE_HOWTO_EN}",
+        "",
+    ]
+    product = " ".join(x for x in (_clean(brand), _clean(model), _clean(colorway)) if x)
+    if product:
+        lines.append(f"Product: {product}")
+    if _clean(topic):
+        lines.append(f"Topic: {_clean(topic)}")
+    lines.append(f"Duration: {simple.get('duration_hint') or '~6s · 9:16 · 1 shot'}")
+    if _clean(simple.get("music_summary_en")):
+        lines.append(f"Audio — {_clean(simple.get('music_summary_en'))} (instrumental only, no voiceover)")
+    lines.append(f"Person in source photo: {simple.get('person_in_source') or PERSON_SOURCE_DEFAULT}")
+    lines.append("")
+    prompts = simple.get("prompts") or []
+    for p in prompts:
+        if len(prompts) == 1:
+            lines.append("========== SIMPLE PROMPT (EN) — single photo ==========")
+        else:
+            lines.append(f"========== SIMPLE PROMPT (EN) — photo {p.get('index')} ==========")
+        lines.append("")
+        lines.append(_clean(p.get("prompt_en")))
+        lines.append("")
     return "\n".join(lines).rstrip() + "\n"
 
 
