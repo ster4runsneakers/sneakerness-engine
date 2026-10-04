@@ -68,12 +68,13 @@ def _shoe_lock(brand: str, model: str, colorway: str) -> str:
     if not (b or m):
         return (
             "Generic authentic running/lifestyle footwear only — soft trademark-safe; "
-            "do not invent Nike/Adidas logos or swap brands."
+            "do not draw any logos or wordmarks and do not swap brands."
         )
     pair = " ".join(x for x in (b, m, c) if x)
     return (
         f"Lock exact pair: {pair}. Soft trademark-safe {b or 'brand'} silhouette and colors only — "
-        f"do not substitute Nike/Adidas/generic; do not invent logos."
+        f"do not substitute another brand or a generic shoe; the shoe's own design is the only branding — "
+        f"do not draw separate logos or wordmarks."
     )
 
 
@@ -100,7 +101,7 @@ def _appearance_video_clause(appearance: str) -> str:
 
 
 VIDEO_FINAL_CHECK = (
-    "Final check: correct sneaker model/colorway, accurate logo, legible correct text, "
+    "Final check: correct sneaker model/colorway with the shoe's own real design details, legible correct text, "
     "no extra fingers/limbs, no bare feet, no third-party brands."
 )
 
@@ -271,8 +272,9 @@ def music_summary_for_scene(env: str = "", props: str = "", problem: str = "", v
 
 def _no_chrome() -> str:
     return (
-        "No UI chrome: no Slide X of Y, no LEARN MORE buttons, no carousel dots; "
-        "no badges, seals, stamps, star ratings or review marks on screen. "
+        "No app interface on screen: no slide numbers, no page counter, no buttons, no arrows, "
+        "no close or swipe icons, no badges, no star ratings, no drawn brand logos or wordmarks. "
+        "Shoes grounded — worn or resting on the ground, never levitating, never on a pedestal, one pair per shot. "
         "Any on-screen text minimal, plain English, spelled exactly — no garbled or invented words. "
         "People always wear the sneakers or proper shoes — no bare feet. "
         "Props unbranded — no recognizable third-party brands/logos (no AirPods, iPhone, "
@@ -369,7 +371,7 @@ def _beat_prompt(
         topic_bit = _clean(topic) or "educational sneaker care / footwear tips"
         parts.append(
             f"Educational footwear story about: {topic_bit}. "
-            "Generic authentic sneakers OK — soft trademark-safe; no Nike/Adidas logo inventing."
+            "Generic authentic sneakers OK — soft trademark-safe; no drawn logos."
         )
         if _clean(slide_title) or _clean(slide_body):
             parts.append(
@@ -702,11 +704,11 @@ def _slide_hint_arc(n: int, hints: Optional[list] = None, slide_prompts: Optiona
         else:
             # Generic arc by position
             if i == 0:
-                h = "slide 1 hero — " + generic.get(role, generic["hook"])
+                h = "opening shot — " + generic.get(role, generic["hook"])
             elif i == n - 1:
-                h = f"slide {i+1} lifestyle/CTA close — " + generic.get(role, generic["cta"])
+                h = "closing lifestyle shot — " + generic.get(role, generic["cta"])
             else:
-                h = f"slide {i+1} detail — " + generic.get(role, generic["product"])
+                h = f"detail shot {i+1} — " + generic.get(role, generic["product"])
         out.append(h)
     return out
 
@@ -797,7 +799,7 @@ def build_unified_grok_video_prompt(
         topic_bit = _clean(topic) or "educational sneaker care / footwear tips"
         parts.append(
             f"Educational footwear story about: {topic_bit}. "
-            "Generic authentic sneakers OK — soft trademark-safe; no Nike/Adidas logo inventing."
+            "Generic authentic sneakers OK — soft trademark-safe; no drawn logos."
         )
 
     # Timed visual story through uploaded / slide frames in order

@@ -29,6 +29,8 @@ from content_carousel import (
     append_appearance_clause,
     anatomy_safety_clause,
     finalize_image_prompt,
+    on_image_text_block,
+    prompt_has_legacy_meta,
     unbrand_props,
     topic_label,
     weekly_suggestions,
@@ -216,21 +218,22 @@ def normalize_badge(value) -> str:
 
 
 def badge_image_clause(selected_badge) -> str:
-    """Single optional badge sentence for image prompts."""
+    """Single optional badge sentence for image prompts (the badge text itself sits in the text list)."""
     if normalize_badge(selected_badge) == AUTHENTIC_BADGE:
-        return (
-            "One small clean top-right badge reading exactly '100% AUTHENTIC' — the ONLY badge on the "
-            "image (no stars, no other tags, seals or stickers). "
-        )
-    return "NO badges, tags, seals, stamps, stickers or star ratings anywhere on the image. "
+        return "The small authenticity badge from the quoted lines is the only badge on the image. "
+    return "No badges, tags, seals or stickers on the image. "
+
+
+def badge_is_on(selected_badge) -> bool:
+    return normalize_badge(selected_badge) == AUTHENTIC_BADGE
 
 
 def cta_watermark_pair_clause(watermark: str) -> str:
-    """Soft CTA reads together with the domain watermark (domain still rendered only once)."""
+    """Button text reads together with the domain watermark (domain still rendered only once)."""
     if (watermark or "").strip():
         return (
-            f" Place the soft CTA just above the bottom-right watermark so together they read like "
-            f"'See details on {(watermark or '').strip()}' — the domain itself appears only once (in the watermark). "
+            " Place the button text just above the bottom-right watermark so the two read together; "
+            "the website appears only in the watermark. "
         )
     return ""
 
@@ -807,8 +810,8 @@ def _extract_overlays(ad_texts: dict | None) -> dict:
 def overlay_english_clause() -> str:
     """Hard negative: on-image overlay typography must stay Latin/English."""
     return (
-        " ALL on-image overlay / headline / body / CTA text MUST be English using Latin letters only. "
-        "NEVER use Greek letters (αβγδεζηθικλμνξοπρστυφχψω ΑΒΓ…), NEVER Cyrillic, on the image. "
+        " All on-image text must be English using Latin letters only; "
+        "never Greek or Cyrillic letters on the image. "
     )
 
 
@@ -1173,30 +1176,29 @@ def ensure_content_for_lang(lang: str, *, allow_regenerate: bool = True) -> bool
 
 
 def watermark_image_clause(watermark: str) -> str:
-    """Image-prompt watermark guidance.
+    """Image-prompt watermark guidance (sizing/placement only).
 
-    Default: no website / brand-store / SNEAKERNESS.EU text on the image.
-    If user provides a domain string: REQUIRED phone-readable bottom-right watermark
-    with the literal domain embedded in the prompt — never a vague "if provided" line.
+    Default: no website / store-name text on the image.
+    If the user provides a domain string, it is listed ONCE in the quoted text lines
+    (on_image_text_block) and rendered bottom-right, phone-readable; this clause only
+    gives sizing rules and does not repeat the literal domain (avoids duplicate renders).
     Overlay/CTA texts must NOT contain website/domain (watermark is the only on-image site text).
     Captions (meta/tiktok/pinterest/youtube) must include the domain when set.
     """
     w = (watermark or "").strip()
     if not w:
         return (
-            " By default NO website, brand-store URL, or SNEAKERNESS.EU / sneakerness "
-            "text on the image."
+            " No website, URL or store-name text on the image. "
+            "The quoted lines never contain a website or domain. "
         )
     return (
-        f" REQUIRED on-image watermark text (exactly once, bottom-right): {w} "
-        f"Render that exact string EXACTLY ONCE as clearly phone-readable text "
-        f"(~7–9% of image height, clean sans-serif, strong contrast — must be easily readable at a glance on a phone screen; not microscopic; not faint grey on busy background; subtle dark/light shadow OK), "
-        f"leaving ~2–3% margin from the edges — must be readable on a phone without zoom; "
-        f"do not also add a shortened/brand-name copy such as 'sneakerness' if the user "
-        f"typed a full domain; ban any second tiny/micro duplicate or extra corner mark; "
-        f"no other site URLs, no Explore CTA on image, not a giant headline, not dominating "
-        f"the shoe. Overlay/CTA texts must NOT contain any website/domain — the watermark "
-        f"is the only on-image site text."
+        " Watermark rules: the quoted watermark is rendered EXACTLY ONCE in the bottom-right corner "
+        "as clearly phone-readable text (~7–9% of image height, clean sans-serif, strong contrast — "
+        "easily readable at a glance on a phone screen; not microscopic; not faint grey on a busy "
+        "background; subtle dark/light shadow OK), leaving ~2–3% margin from the edges; "
+        "no second tiny/micro duplicate, no shortened or brand-name-only copy, no extra corner mark; "
+        "not a giant headline, not dominating the shoe. The other quoted lines never contain a website "
+        "or domain — the watermark is the only on-image site text. "
     )
 
 
@@ -1218,112 +1220,114 @@ def build_carousel_prompts(
     ar_flag,
     appearance_extra="",
 ):
-    """Build 2-5 Nano Banana carousel prompts with a clear story arc."""
+    """Build 2-5 Nano Banana carousel prompts with a clear story arc.
+
+    Image prompts never contain slide numbers / role labels / counters: slide order lives only
+    in app metadata (role keys). Each prompt lists its on-image text ONCE via on_image_text_block.
+    """
     _appx = f" {appearance_extra}" if (appearance_extra or "").strip() else ""
     selected_props = unbrand_props(selected_props)
     _badge = badge_image_clause(selected_badge)
+    _badge_on = badge_is_on(selected_badge)
+    _wm = (custom_watermark or "").strip()
     _cta_pair = cta_watermark_pair_clause(custom_watermark)
     _no_face = "No identifiable face" in (appearance_extra or "") or "no portrait framing" in (
         appearance_extra or ""
     ).lower()
     brand_lock = (
-        f" Hero footwear must match: {brand} {safe_model_name} {colorway}. "
-        f"Clearly recognizable {brand} footwear, correct model silhouette and typical branding cues "
-        f"— do not substitute Nike/Adidas/generic. Soft trademark-safe: correct brand family "
-        f"silhouette/colors as provided; do not invent a different brand."
+        f" Hero footwear must match: {brand} {safe_model_name} {colorway} — correct model silhouette, "
+        f"colors and the shoe's own stripes and panels; do not substitute another brand or a generic shoe."
     )
     _distinct = (
-        " CRITICAL: This slide's composition MUST be visually distinct from other slides — "
-        "different camera distance and angle; do not repeat the same bench still-life layout."
+        " This image's composition is visually distinct from the other images in the set — "
+        "different camera distance and angle; not the same bench still-life layout."
     )
     hook_txt = ad_texts.get("slide1_text", ad_texts.get("hook", ""))
     product_txt = ad_texts.get("slide2_text", ad_texts.get("body", ""))
     cta_txt = ad_texts.get("slide3_text", ad_texts.get("cta", ""))
     body_txt = ad_texts.get("body", "")
 
+    def _text(headline="", subline="", button="", badge=False):
+        return on_image_text_block(headline, subline, button, watermark=_wm, badge=badge)
+
     if _no_face:
         hook = (
             f"Create an image: WIDE environment lifestyle scene for {selected_problem}. "
-            f"COMPOSITION LOCK — Slide 1 HOOK: wide establishing shot / environment mood; "
-            f"shoe appears SMALLER in frame (not a product hero still-life); single-subject or "
-            f"empty scene only (legs/shoes of at most one person OR empty atmosphere); "
-            f"NO full-pair product still-life on a bench. "
+            f"Composition: wide establishing shot / environment mood; the shoes appear SMALLER in frame "
+            f"(not a product still-life); legs and shoes of at most one person standing or walking on the "
+            f"ground, OR an empty atmospheric scene. "
             f"No face, no portrait framing — crop strictly below the chin; no partial face at frame edge; prioritize shoes, legs, hands, props. "
-            f"Natural dramatic studio lighting. Atmospheric mood. Bold top text overlay: '{hook_txt}'. "
+            f"Natural dramatic lighting. Atmospheric mood."
+            f"{_text(headline=hook_txt)} Place the headline at the top."
             f"{_distinct} "
             f"{negative_constraint}{brand_lock}{_appx} Photorealistic 8k {ar_flag}"
         )
     else:
         hook = (
             f"Create an image: WIDE cinematic lifestyle environment of {selected_problem}. "
-            f"COMPOSITION LOCK — Slide 1 HOOK: wide establishing shot; shoe smaller in frame "
-            f"or problem-focused mood; single subject or empty scene only; NOT a bench product still-life. "
-            f"Natural dramatic studio lighting. High emotion. Bold top text overlay: '{hook_txt}'. "
+            f"Composition: wide establishing shot; the shoes smaller in frame, worn by one person on the "
+            f"ground, or a problem-focused mood with a single subject or empty scene; not a bench still-life. "
+            f"Natural dramatic lighting. High emotion."
+            f"{_text(headline=hook_txt)} Place the headline at the top."
             f"{_distinct} "
             f"{negative_constraint}{brand_lock}{_appx} Photorealistic 8k {ar_flag}"
         )
     product = (
-        f"Create an image: Clean studio PRODUCT HERO of {brand} {safe_model_name} in {colorway} "
-        f"colorway ({key_materials}) in {selected_env}. "
-        f"COMPOSITION LOCK — Slide 2 PRODUCT: three-quarter (3/4) side angle, medium camera distance, "
-        f"clean studio product hero; fewer or differently arranged props ({selected_props}) — "
-        f"NOT wide environment, NOT macro sole, NOT the same bench still-life as other slides. "
-        f"{_badge}Clean text overlay: '{product_txt}'. "
+        f"Create an image: Clean product photo of ONE pair of {brand} {safe_model_name} in {colorway} "
+        f"colorway ({key_materials}) resting naturally side by side on the ground in {selected_env}. "
+        f"Composition: three-quarter (3/4) side angle, medium camera distance, both shoes flat on the "
+        f"ground; a few props ({selected_props}) placed beside them — not a wide environment, not a macro "
+        f"of the sole, not the same bench still-life as the other images. "
+        f"{_badge}{_text(subline=product_txt, badge=_badge_on)}"
         f"{_distinct} "
-        f"{negative_constraint}{brand_lock}{_appx} Commercial studio lighting {ar_flag}"
+        f"{negative_constraint}{brand_lock}{_appx} Commercial soft daylight {ar_flag}"
     )
-    _wm_img = watermark_image_clause(custom_watermark)
     product_cta = (
-        f"Create an image: Clean studio PRODUCT HERO of {brand} {safe_model_name} in {colorway} "
-        f"colorway ({key_materials}) in {selected_env}. "
-        f"COMPOSITION LOCK — PRODUCT+CTA: three-quarter (3/4) side angle, medium camera distance, "
-        f"clean product showcase; props sparingly ({selected_props}) — NOT macro sole, NOT wide "
-        f"environment, NOT top-down flat lay. "
-        f"{_badge}"
-        f"Clean product showcase with soft CTA overlay: '{cta_txt}'.{_cta_pair}"
-        f"{_wm_img} "
+        f"Create an image: Clean product photo of ONE pair of {brand} {safe_model_name} in {colorway} "
+        f"colorway ({key_materials}) resting naturally side by side on the ground in {selected_env}. "
+        f"Composition: three-quarter (3/4) side angle, medium camera distance, both shoes flat on the "
+        f"ground; props sparingly ({selected_props}) — not a macro of the sole, not a wide environment, "
+        f"not a top-down flat lay. "
+        f"{_badge}{_text(button=cta_txt, badge=_badge_on)}{_cta_pair}"
         f"{_distinct} "
-        f"{negative_constraint}{brand_lock}{_appx} Commercial studio lighting {ar_flag}"
+        f"{negative_constraint}{brand_lock}{_appx} Commercial soft daylight {ar_flag}"
     )
     lifestyle = (
-        f"Create an image: ON-FOOT crop / lifestyle action in {selected_env} featuring EDC props: {selected_props}, "
-        f"with {brand} {safe_model_name} in {colorway} colorway ({key_materials}) naturally worn or mid-stride by ONE person only. "
-        f"COMPOSITION LOCK — LIFESTYLE: on-foot crop or mid-distance lifestyle (legs/shoes of at most one person in motion); "
-        f"NOT studio bench still-life, NOT 3/4 product hero, NOT macro sole fill. "
-        f"Atmospheric natural light. Subtle text overlay: '{body_txt}'. "
+        f"Create an image: ON-FOOT crop / lifestyle action in {selected_env} with unbranded props: {selected_props}, "
+        f"with {brand} {safe_model_name} in {colorway} colorway ({key_materials}) worn mid-stride by ONE person only, "
+        f"feet on the ground. "
+        f"Composition: on-foot crop or mid-distance lifestyle (legs and shoes of one person in motion); "
+        f"not a studio still-life, not a 3/4 product photo, not a macro of the sole. "
+        f"Atmospheric natural light.{_text(subline=body_txt)}"
         f"{_distinct} "
         f"{negative_constraint}{brand_lock}{_appx} Photorealistic lifestyle photography 8k {ar_flag}"
     )
     specs = (
-        f"Create an image: EXTREME MACRO close-up filling the entire frame with ONLY the sole and "
-        f"cushioning of {brand} {safe_model_name}. Background hint of {selected_env} only. "
-        f"Highlight materials: {key_materials}. "
-        f"COMPOSITION LOCK — DETAIL/MACRO: sole/cushioning ONLY fills the frame; NO full pair on bench, "
-        f"NO wide environment, NO 3/4 product hero — tight macro camera distance only. "
-        f"Clean overlay text: '{body_txt}'. "
+        f"Create an image: EXTREME MACRO close-up filling the frame with the sole and cushioning of "
+        f"one {brand} {safe_model_name} shoe, worn on a foot planted on the ground or resting on the ground. "
+        f"Background hint of {selected_env} only. Highlight materials: {key_materials}. "
+        f"Composition: sole and cushioning fill the frame; no full pair on a bench, no wide environment, "
+        f"no 3/4 product photo — tight macro camera distance only.{_text(subline=body_txt)}"
         f"{_distinct} "
-        f"{negative_constraint}{brand_lock}{_appx} Commercial studio lighting {ar_flag}"
+        f"{negative_constraint}{brand_lock}{_appx} Commercial soft daylight {ar_flag}"
     )
     specs_cta = (
-        f"Create an image: EXTREME MACRO close-up filling the entire frame with ONLY the sole and "
-        f"cushioning of {brand} {safe_model_name}. Background hint of {selected_env} only. "
-        f"COMPOSITION LOCK — DETAIL/MACRO+CTA: sole/cushioning ONLY fills the frame; NO full pair on bench, "
-        f"NO wide environment, NO 3/4 product hero — tight macro camera distance only. "
-        f"Soft CTA overlay: '{cta_txt}'.{_cta_pair}"
-        f"{_wm_img} "
+        f"Create an image: EXTREME MACRO close-up filling the frame with the sole and cushioning of "
+        f"one {brand} {safe_model_name} shoe, worn on a foot planted on the ground or resting on the ground. "
+        f"Background hint of {selected_env} only. "
+        f"Composition: sole and cushioning fill the frame; no full pair on a bench, no wide environment, "
+        f"no 3/4 product photo — tight macro camera distance only.{_text(button=cta_txt)}{_cta_pair}"
         f"{_distinct} "
-        f"{negative_constraint}{brand_lock}{_appx} Commercial studio lighting {ar_flag}"
+        f"{negative_constraint}{brand_lock}{_appx} Commercial soft daylight {ar_flag}"
     )
     soft_cta = (
-        f"Create an image: TOP-DOWN flat lay of {brand} {safe_model_name} in {colorway} "
-        f"colorway ({key_materials}) on {selected_env} with soft negative space. "
-        f"COMPOSITION LOCK — CTA/FLAT LAY: bird's-eye top-down flat lay OR clean side-profile silhouette "
-        f"with generous negative space — NEVER repeat prior slide's camera distance (not wide hook, "
-        f"not 3/4 product hero, not macro sole fill). "
-        f"Soft CTA overlay: '{cta_txt}'.{_cta_pair}"
-        f"{_wm_img} "
+        f"Create an image: TOP-DOWN flat lay of ONE pair of {brand} {safe_model_name} in {colorway} "
+        f"colorway ({key_materials}) lying flat on {selected_env} with soft negative space. "
+        f"Composition: bird's-eye top-down flat lay OR clean side profile of the pair on the ground, "
+        f"generous negative space — a different camera distance from the other images (not a wide scene, "
+        f"not a 3/4 product photo, not a macro of the sole).{_text(button=cta_txt)}{_cta_pair}"
         f"{_distinct} "
-        f"{negative_constraint}{brand_lock}{_appx} Commercial studio lighting {ar_flag}"
+        f"{negative_constraint}{brand_lock}{_appx} Commercial soft daylight {ar_flag}"
     )
 
     # roles: (role_i18n_key, prompt)
@@ -1357,39 +1361,18 @@ def build_carousel_prompts(
 
 
 def _product_negative_constraint(custom_watermark: str = "") -> str:
-    """Shared negatives for single + carousel image prompts (incl. English-overlay lock)."""
-    _wm_clean = (custom_watermark or "").strip()
-    if _wm_clean:
-        _wm_neg = (
-            f"REQUIRED on-image watermark text (exactly once, bottom-right): {_wm_clean} "
-            "Render that exact string EXACTLY ONCE as clearly phone-readable text in the "
-            "bottom-right corner (~7–9% of image height, clean sans-serif, strong contrast — must be easily readable at a glance on a phone screen; not microscopic; not faint grey on busy background; "
-            "subtle dark/light shadow OK), leaving ~2–3% margin from the edges — readable on "
-            "a phone without zoom; ban any second tiny/micro duplicate, shortened copy, or "
-            "extra corner mark; no giant headline, not dominating the shoe, no Explore CTA on "
-            "the image. Overlay/CTA texts must NOT contain any website/domain — the watermark "
-            "is the only on-image site text. "
-        )
-    else:
-        _wm_neg = (
-            "By default NO website / brand-store / SNEAKERNESS.EU text on the image. "
-            "Overlay/CTA texts must NOT contain any website/domain. "
-        )
+    """Shared rules for single + carousel image prompts (watermark sizing, English lock, scene match,
+    anatomy). The full negatives list (no slide numbers, UI icons, star ratings, drawn logos,
+    pedestals, levitating/stacked shoes, ...) is appended once by finalize_image_prompt."""
     return (
-        " STRICTLY NO text like 'Slide X of Y', NO carousel numbering, NO carousel dots, "
-        "NO LEARN MORE buttons, NO app UI chrome, NO page numbers. "
-        "NO review/rating badges, star ratings (★), seals, stamps or invented trust marks "
-        "(no OFFICIAL SELECTION / BESTSELLER / REVIEWED / SNEAKERNESS seals) — at most ONE badge "
-        "and only the single authenticity badge when this prompt explicitly asks for it. "
-        "No bare feet: anyone shown wears the advertised sneakers or proper shoes. "
-        "Props unbranded — no recognizable third-party brands or logos. "
-        + _wm_neg
+        watermark_image_clause(custom_watermark)
+        + "No bare feet: anyone shown wears the advertised sneakers or proper shoes. "
+        "Props unbranded — no recognizable third-party brands. "
         + overlay_english_clause()
-        + "Overlay text must match the scene: ban work-shift / 'long shifts' overlay wording "
+        + "The quoted text must match the scene: no work-shift / 'long shifts' wording "
         "when the scene is running / track / curb-after-run / park leisure; keep shift wording only for "
         "standing/work scenes; problem/hook wording must match the visible setting "
         "(no shift wording on park/dusk leisure unless the scene is clearly a workplace). "
-        "ONLY the requested overlay text."
         + anatomy_safety_clause()
     )
 
@@ -1410,7 +1393,7 @@ def build_single_visual_prompt(
     ar_flag,
     appearance_extra="",
 ) -> str:
-    """Single-layout image prompt using English overlay fields from ad_texts."""
+    """Single-layout image prompt using English overlay fields from ad_texts (each line listed once)."""
     _no_face = "No identifiable face" in (appearance_extra or "")
     hook = ad_texts.get("hook", "")
     body = ad_texts.get("body", "")
@@ -1418,38 +1401,64 @@ def build_single_visual_prompt(
     selected_props = unbrand_props(selected_props)
     _badge = badge_image_clause(selected_badge)
     _cta_pair = cta_watermark_pair_clause(custom_watermark)
+    _text = on_image_text_block(
+        hook, body, cta, watermark=custom_watermark, badge=badge_is_on(selected_badge)
+    )
+    _layout = " Headline at the top, subline in the middle area, button text near the bottom."
     _brand_lock = (
-        f" Hero footwear must match: {brand} {safe_model_name} {colorway}. "
-        f"Clearly recognizable {brand} footwear, correct model silhouette and typical "
-        f"branding cues — do not substitute Nike/Adidas/generic. Soft trademark-safe: "
-        f"correct brand family silhouette/colors as provided; do not invent a different brand."
+        f" Hero footwear must match: {brand} {safe_model_name} {colorway} — correct model silhouette, "
+        f"colors and the shoe's own stripes and panels; do not substitute another brand or a generic shoe."
     )
     if _no_face:
         return finalize_image_prompt(
-            f"Create an image: Photorealistic lifestyle/product photograph prioritizing footwear of "
-            f"{brand} {safe_model_name} in {colorway} colorway ({key_materials}) on a smooth surface "
-            f"in the foreground with {selected_props}. Soft-focus upper background may SUGGEST fatigue "
+            f"Create an image: Photorealistic lifestyle/product photograph prioritizing footwear: ONE pair of "
+            f"{brand} {safe_model_name} in {colorway} colorway ({key_materials}) resting on the ground "
+            f"in the foreground with {selected_props} (all props unbranded). Soft-focus upper background may SUGGEST fatigue "
             f"mood with at most one seated person's legs/shoes (coherent anatomy, both shoes on, properly "
             f"supported) OR empty atmosphere — never two people handling feet; crop strictly below the chin; "
             f"no partial face at frame edge; shoes, legs, hands, props only. Natural depth of field and "
-            f"continuous studio lighting. {_badge}Display headline text overlay '{hook}', "
-            f"body text overlay '{body}', and soft CTA overlay '{cta}'.{_cta_pair}"
-            f"{watermark_image_clause(custom_watermark)} {negative_constraint}{_brand_lock}"
+            f"soft natural lighting. {_badge}{_text}{_layout}{_cta_pair}"
+            f" {negative_constraint}{_brand_lock}"
             f"{(' ' + appearance_extra) if appearance_extra else ''} Photorealistic 8k, seamless single canvas {ar_flag}",
             ar_flag,
         )
     return finalize_image_prompt(
-        f"Create an image: Photorealistic vertical photograph of {brand} {safe_model_name} in "
-        f"{colorway} colorway ({key_materials}) placed on a smooth surface in the foreground, "
-        f"accompanied by {selected_props}. Soft-focus upper background may SUGGEST fatigue mood via "
+        f"Create an image: Photorealistic vertical photograph of ONE pair of {brand} {safe_model_name} in "
+        f"{colorway} colorway ({key_materials}) resting naturally on the ground in the foreground, "
+        f"accompanied by {selected_props} (all props unbranded). Soft-focus upper background may SUGGEST fatigue mood via "
         f"at most one seated person with coherent anatomy (properly supported on bench/chair/curb, "
         f"both shoes on their own feet) OR empty atmosphere related to: {selected_problem} — never "
-        f"two people handling feet. Natural depth of field and continuous studio lighting. {_badge}"
-        f"Display headline text overlay '{hook}', body text overlay '{body}', and soft CTA overlay '{cta}'.{_cta_pair}"
-        f"{watermark_image_clause(custom_watermark)} {negative_constraint}{_brand_lock}"
+        f"two people handling feet. Natural depth of field and soft natural lighting. {_badge}"
+        f"{_text}{_layout}{_cta_pair}"
+        f" {negative_constraint}{_brand_lock}"
         f"{(' ' + appearance_extra) if appearance_extra else ''} Photorealistic 8k, seamless single canvas {ar_flag}",
         ar_flag,
     )
+
+
+def sanitize_loaded_image_prompts() -> None:
+    """Clean every image prompt held in session (history, imported txt, content mode).
+
+    finalize_image_prompt is idempotent: it strips slide counters, role labels, star/review
+    words and logo-drawing cues, then appends the standing rules + negatives + final check.
+    """
+    for k in ("loaded_visual_prompt", "loaded_slide1_prompt", "loaded_slide2_prompt",
+              "loaded_slide3_prompt", "loaded_slide4_prompt", "loaded_slide5_prompt"):
+        v = st.session_state.get(k)
+        if isinstance(v, str) and v.strip():
+            st.session_state[k] = finalize_image_prompt(v)
+    for key in ("content_result",):
+        cr = st.session_state.get(key)
+        if isinstance(cr, dict):
+            for sl in cr.get("slides") or []:
+                if isinstance(sl, dict) and str(sl.get("image_prompt") or "").strip():
+                    sl["image_prompt"] = finalize_image_prompt(sl["image_prompt"])
+    for key in ("content_slides_el", "content_slides_en"):
+        lst = st.session_state.get(key)
+        if isinstance(lst, list):
+            for sl in lst:
+                if isinstance(sl, dict) and str(sl.get("image_prompt") or "").strip():
+                    sl["image_prompt"] = finalize_image_prompt(sl["image_prompt"])
 
 
 def rebuild_product_image_prompts_from_overlays_en() -> bool:
@@ -2319,7 +2328,7 @@ def describe_slides_with_gemini(uploaded_files, *, client_obj=None) -> list[str]
         if len(lines) >= len(files):
             return lines[: len(files)]
         while len(lines) < len(files):
-            lines.append(f"carousel slide {len(lines)+1} footwear frame")
+            lines.append("calm footwear shot, shoes grounded")
         return lines
     except Exception:
         return []
@@ -2850,8 +2859,11 @@ def apply_history_entry(entry: dict):
         st.session_state.get("loaded_slide4_prompt", "") or "",
         st.session_state.get("loaded_slide5_prompt", "") or "",
     ])
-    if _greek_letter_ratio(_prompt_blob) >= 0.08:
+    # Rebuild old prompts that still embed Greek overlay typography OR legacy meta labels
+    # ("Slide X of Y", "Soft CTA overlay:", star/review words, logo cues) from overlays_en.
+    if _greek_letter_ratio(_prompt_blob) >= 0.08 or prompt_has_legacy_meta(_prompt_blob):
         rebuild_product_image_prompts_from_overlays_en()
+    sanitize_loaded_image_prompts()
     _vb = entry.get("video_beats")
     if not (isinstance(_vb, dict) and _vb.get("beats")):
         _vb = rebuild_video_beats_from_context(
@@ -3855,7 +3867,7 @@ if app_mode == "content":
             st.text_input(t("content_title_label", lang), key=_tk, disabled=False)
             st.text_area(t("content_body_label", lang), height=80, key=_bk)
             st.caption(t("content_prompt_label", lang))
-            st.code(_slide.get("image_prompt", ""), language="text")
+            st.code(finalize_image_prompt(_slide.get("image_prompt", "") or ""), language="text")
         st.markdown(t("content_captions_section", lang))
         _c_tabs = st.tabs([
             t("tab_meta", lang, lang_name=t("lang_name", lang)),
@@ -4553,7 +4565,7 @@ if st.session_state.get("show_loaded_pack"):
     st.caption(t("overlay_lang_help", lang))
     if st.session_state.get("loaded_visual_prompt"):
         st.markdown(t("prompt_single", lang))
-        st.code(st.session_state["loaded_visual_prompt"], language="text")
+        st.code(finalize_image_prompt(st.session_state["loaded_visual_prompt"]), language="text")
     elif st.session_state.get("loaded_slide1_prompt"):
         st.markdown(t("prompt_carousel", lang))
         _loaded_slides = [
@@ -4581,7 +4593,7 @@ if st.session_state.get("show_loaded_pack"):
                 continue
             role = t(_roles[i - 1], lang)
             st.write(t("slide_label", lang, n=i, role=role))
-            st.code(prompt, language="text")
+            st.code(finalize_image_prompt(prompt), language="text")
     st.markdown(t("captions_section", lang, lang_name=t("lang_name", lang)))
     tab_h1, tab_h2, tab_h3, tab_h4, tab_h5 = st.tabs([
         t("tab_meta", lang, lang_name=t("lang_name", lang)),

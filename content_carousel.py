@@ -111,16 +111,87 @@ def appearance_clause(key: str) -> str:
 def overlay_english_image_clause() -> str:
     """Hard lock: typography rendered on generated images must stay Latin/English."""
     return (
-        " ALL on-image overlay / headline / body / CTA text MUST be English using Latin letters only. "
-        "NEVER use Greek letters (αβγδεζηθικλμνξοπρστυφχψω ΑΒΓ…), NEVER Cyrillic, on the image."
+        " All on-image text must be English using Latin letters only; "
+        "never Greek or Cyrillic letters on the image."
     )
 
 
 FINAL_CHECK_LINE = (
-    "Final check: correct sneaker model/colorway, accurate logo, legible correct text, "
+    "Final check: correct sneaker model/colorway with the shoe's own real design details, "
+    "each quoted text line legible, spelled correctly and shown once, "
     "no extra fingers/limbs, no bare feet, no third-party brands."
 )
-_IMAGE_RULES_MARKER = "ON-IMAGE TEXT & PROPS RULES"
+# Older final-check wording (kept only so finalize_image_prompt can strip it from old prompts).
+_LEGACY_FINAL_CHECK_LINES = (
+    "Final check: correct sneaker model/colorway, accurate logo, legible correct text, "
+    "no extra fingers/limbs, no bare feet, no third-party brands.",
+)
+# Plain-sentence marker of the standing rules (no ALL-CAPS heading the model could render).
+_IMAGE_RULES_MARKER = "Keep on-image text minimal"
+_LEGACY_IMAGE_RULES_MARKER = "ON-IMAGE TEXT & PROPS RULES"
+
+TEXT_ONCE_LINE = (
+    "Render each text line exactly once. Do not render any labels, placeholders, slide numbers, "
+    "page counters, instructions or words from this prompt other than the quoted lines."
+)
+SPELLED_EXACTLY_LINE = "All text spelled exactly as written, no ligatures or misspellings."
+GROUNDED_SHOES_LINE = (
+    "Shoes are grounded: worn by the person or resting naturally on the ground or floor; "
+    "one pair per shot."
+)
+BRAND_DESIGN_LINE = (
+    "The brand shows only through the real shoe design itself (its own stripes, panels and colors); "
+    "do not draw any separate logo, emblem or wordmark anywhere on the image."
+)
+IMAGE_NEGATIVES_LINE = (
+    "Negatives: no slide numbers, no page counter, no placeholder text, no duplicated text, "
+    "no UI icons, no arrows, no close buttons, no swipe indicators, no app interface, "
+    "no star ratings, no drawn brand logos or wordmarks, no extra logos, no levitating or "
+    "floating shoes, no pedestals or cylinders, no stacked shoes, no bare feet, no barefoot people, "
+    "no garbled or misspelled text, no third-party logos."
+)
+
+
+def _quote_line(text) -> str:
+    """One on-image line, trimmed, double quotes swapped so the quoting stays unambiguous."""
+    t = re.sub(r"\s+", " ", str(text or "")).strip().strip('"').strip()
+    t = t.replace('"', "'")
+    t = re.sub(r"[★☆]+", "", t).strip()
+    return t
+
+
+def on_image_text_block(
+    headline: str = "",
+    subline: str = "",
+    button: str = "",
+    *,
+    watermark: str = "",
+    badge: bool = False,
+) -> str:
+    """The ONLY on-image text, listed once, in one clear sentence.
+
+    No role labels like 'Hook:' / 'CTA overlay:' and no slide counters — just the quoted lines.
+    """
+    parts = []
+    h, b, c, w = _quote_line(headline), _quote_line(subline), _quote_line(button), _quote_line(watermark)
+    if h:
+        parts.append(f'headline "{h}"')
+    if b:
+        parts.append(f'subline "{b}"')
+    if c:
+        parts.append(f'button text "{c}"')
+    if badge:
+        parts.append('small badge "100% AUTHENTIC" top-right')
+    if w:
+        parts.append(f'watermark "{w}" bottom-right')
+    if not parts:
+        return " No text, letters or words anywhere on the image."
+    return (
+        " Text on image (render each exactly once, nothing else): "
+        + " ; ".join(parts)
+        + ". " + SPELLED_EXACTLY_LINE + " " + TEXT_ONCE_LINE
+    )
+
 
 # Third-party brand / product names that must never appear as props on the image.
 _THIRD_PARTY_PROP_SWAPS = (
@@ -150,61 +221,136 @@ def unbrand_props(text: str) -> str:
     return re.sub(r"\bunbranded\s+unbranded\b", "unbranded", out, flags=re.IGNORECASE)
 
 
-def image_text_rules_clause() -> str:
-    """Standing rules for EVERY image prompt (text, badges, feet, props, CTA)."""
+def image_text_rules_clause(include_text_once: bool = True) -> str:
+    """Standing rules for EVERY image prompt (text, badges, feet, props, grounding, negatives)."""
     return (
-        f" {_IMAGE_RULES_MARKER}: keep on-image text minimal — render ONLY the exact quoted words "
-        "given in this prompt, each word spelled exactly as written; headline max ~6 plain common words; "
+        f" {_IMAGE_RULES_MARKER}: only the quoted lines of this prompt appear on the image; "
+        "headline max 6 plain common words, subline max 8, button text max 6; "
         "all text spelled exactly as written, no ligatures or misspellings, no invented words. "
-        "NO review/rating badges, NO stars (★), NO seals, stamps, ribbons, trust marks or award "
-        "badges — at most ONE badge on the whole image, and only the single authenticity badge "
-        "when this prompt explicitly asks for it. Soft CTA only (e.g. 'See details'); no crowded badges or stickers. "
-        "Any person shown must wear the advertised sneakers or proper shoes — no bare feet, "
-        "no barefoot model, no socks-only feet. Props must be unbranded: no recognizable third-party "
-        "brands or logos (no AirPods, iPhone, Apple Watch-like devices, no other sneaker/sportswear "
-        "logos besides the advertised brand). Negatives: bare feet, barefoot, garbled text, fake "
-        "words, misspelled text, star ratings, review badges, third-party logos. "
+        "At most one badge on the whole image, and only the single authenticity badge when the "
+        "quoted lines include it. "
+        "Any person shown wears the advertised sneakers or proper shoes (no socks-only feet). "
+        "Props are unbranded: no recognizable third-party devices, cups, cans or sportswear. "
+        + GROUNDED_SHOES_LINE + " "
+        + BRAND_DESIGN_LINE + " "
+        + (TEXT_ONCE_LINE + " " if include_text_once else "")
+        + IMAGE_NEGATIVES_LINE + " "
     )
 
 
-def finalize_image_prompt(prompt: str, ar_flag: str = "") -> str:
-    """Inject standing image rules (once) and end with the final checklist line.
+# --- Legacy meta-label cleanup -------------------------------------------------------------
+# Old prompts (history, imported txt, LLM output) contained labels the image model rendered
+# literally: "Slide X of Y", "Soft CTA overlay:", "COMPOSITION LOCK — Slide 1 HOOK:", star/review
+# words, "accurate logo", "typical branding cues" (-> drawn logos). Rewrite / drop them.
+_LEGACY_META_SUBS = (
+    # Old standing-rules clause (b0b5332) — replaced by the new clause.
+    (r"\s*ON-IMAGE TEXT & PROPS RULES:.*?third-party logos\.\s*", " "),
+    # Old negative block about slide counters / UI chrome / review badges.
+    (r"STRICTLY NO text like '?Slide X of Y'?[^.]*\.", " "),
+    (r"NO review/rating badges,[^.]*?\([^)]*\)[^.]*\.", " "),
+    (r"NO review/rating badges[^.]*\.", " "),
+    (r"\(no OFFICIAL[^)]*\)", " "),
+    (r"NEVER render Slide X of Y[^.]*\.", " "),
+    (r"No UI chrome:[^;.]*;", " "),
+    (r"no badges, seals, stamps, star ratings or review marks on screen\.", " "),
+    (r"NO badges, tags, seals, stamps, stickers or star ratings anywhere on the image\.", "No badges on the image."),
+    (r"\(no stars, no other tags, seals or stickers\)", ""),
+    (r",?\s*no stars,?\s*no review seals,?", ","),
+    (r"'?\b[Ss]lide\s+[XN]\s+of\s+[YM]\b'?", " "),
+    (r"\b[Ss]lide\s+\d+\s+of\s+\d+\b", " "),
+    (r"\b(?:REVIEWED|ULTRA COMFORT|BESTSELLER(?: SELECTION)?|OFFICIAL(?: SNEAKERNESS)? SELECTION)\b\s*", ""),
+    (r"[★☆]+", ""),
+    # Old English-only lock wording (listed role words + Greek alphabet the model could copy).
+    (r"ALL on-image overlay / headline / body / CTA text MUST be English using Latin letters only\.\s*"
+     r"NEVER use Greek letters \([^)]*\), NEVER Cyrillic, on the image\.",
+     "All on-image text must be English using Latin letters only; never Greek or Cyrillic letters on the image."),
+    (r"This slide's composition MUST be visually distinct from other slides",
+     "This image's composition is visually distinct from the other images in the set"),
+    (r"By default NO website.{0,80}?text on the image\.", "No website or URL text on the image."),
+    (r"\bONLY the requested overlay text\.", "Only the quoted text lines."),
+    # Section headings that read like labels.
+    (r"COMPOSITION LOCK\s*[—–-]\s*(?:Slide\s*\d+\s*)?[A-Z/+ ]*:\s*", "Composition: "),
+    (r"ANATOMY & COMPOSITION SAFETY \(CRITICAL\):\s*", ""),
+    (r"\bCRITICAL:\s*", ""),
+    # Overlay role labels -> neutral quoted lines.
+    (r"Display headline text overlay\s*'", "headline '"),
+    (r"(?:Bold top |Clean |Subtle )?text overlay:\s*'", "on-image text '"),
+    (r"Clean overlay text:\s*'", "on-image text '"),
+    (r"body text overlay\s*'", "subline '"),
+    (r"(?:Clean product showcase with )?[Ss]oft CTA overlay:?\s*'", "button text '"),
+    (r"Clean short typography overlay matching(?: the title)?:\s*", "Small clean headline text: "),
+    (r"calm negative space", "calm negative space"),
+    (r"\s*Place the soft CTA just above the bottom-right watermark[^—]*—[^.]*\.\s*\)?\.?", " "),
+    # Logo-drawing triggers.
+    (r"typical branding cues", "the shoe's own real design details"),
+    (r"accurate logo", "the shoe's own real design details"),
+    (r"no drawn logos", "no drawn logos"),
+)
 
-    If the prompt ends with an aspect flag (e.g. '--ar 1:1'), the checklist goes
+
+def sanitize_image_prompt_meta(prompt: str) -> str:
+    """Strip/neutralize meta labels, slide counters, star/review words and logo-drawing cues."""
+    out = str(prompt or "")
+    for pat, rep in _LEGACY_META_SUBS:
+        out = re.sub(pat, rep, out, flags=re.DOTALL)
+    for line in _LEGACY_FINAL_CHECK_LINES:
+        out = out.replace(line, " ")
+    out = re.sub(r"\s+([.,])", r"\1", out)
+    out = re.sub(r"\.\s*\.", ".", out)
+    return re.sub(r"\s{2,}", " ", out).strip()
+
+
+def prompt_has_legacy_meta(prompt: str) -> bool:
+    """True if a stored prompt still carries old meta labels / counters / star words."""
+    p = str(prompt or "")
+    return bool(re.search(
+        r"Slide\s+[XN\d]+\s+of|COMPOSITION LOCK|CTA overlay|text overlay|[★☆]|REVIEWED|BESTSELLER|"
+        + re.escape(_LEGACY_IMAGE_RULES_MARKER) + r"|accurate logo|typical branding cues",
+        p, flags=re.IGNORECASE,
+    ))
+
+
+def finalize_image_prompt(prompt: str, ar_flag: str = "") -> str:
+    """Clean meta labels, inject standing image rules (once) and end with the final checklist line.
+
+    Idempotent. If the prompt ends with an aspect flag (e.g. '--ar 1:1'), the checklist goes
     right before it so the flag stays last.
     """
     p = str(prompt or "").strip()
     if not p:
         return p
     p = p.replace(FINAL_CHECK_LINE, "").strip()
+    p = sanitize_image_prompt_meta(p)
     flag = (ar_flag or "").strip()
-    if not flag:
-        m = re.search(r"(--ar\s+\d+:\d+)\s*$", p)
-        flag = m.group(1) if m else ""
+    found = re.findall(r"--ar\s+\d+:\d+", p)
+    if not flag and found:
+        flag = found[-1]
     tail = ""
-    if flag and p.endswith(flag):
-        p = p[: -len(flag)].rstrip()
+    if flag:
+        # Aspect flag always goes last (some callers appended clauses after it).
+        p = re.sub(r"\s*--ar\s+\d+:\d+\s*", " ", p).strip()
         tail = " " + flag
     if _IMAGE_RULES_MARKER not in p:
-        p = p + image_text_rules_clause()
+        if p and p[-1] not in ".!?":
+            p = p + "."
+        p = p + image_text_rules_clause(include_text_once=TEXT_ONCE_LINE not in p)
     return (p.rstrip() + " " + FINAL_CHECK_LINE + tail).strip()
 
 
 def anatomy_safety_clause() -> str:
     return (
-        " ANATOMY & COMPOSITION SAFETY (CRITICAL): "
-        "Maximum ONE person in frame (prefer zero people / product-only when possible). "
+        " Anatomy and composition: maximum ONE person in frame (prefer zero people / product-only when possible). "
         "If a person is shown: coherent realistic anatomy only — exactly two arms, two legs, two feet; "
-        "every visible limb clearly attached to that one body; person must be properly supported "
-        "(sitting on a real bench/chair/curb or standing on the ground — NEVER floating mid-air). "
-        "Shoes must either (a) be worn correctly on that person's feet, or (b) be a separate product "
-        "still-life with NO people interacting with them. "
-        "BAN: two people interacting with feet/legs, holding/removing socks or shoes from another person, "
+        "every visible limb clearly attached to that one body; the person is properly supported "
+        "(sitting on a real bench/chair/curb or standing on the ground). "
+        "Shoes are either (a) worn correctly on that person's feet, or (b) one pair resting naturally "
+        "on the ground or floor with NO people interacting with them. "
+        "Avoid: two people interacting with feet/legs, holding/removing socks or shoes from another person, "
         "extra limbs, detached legs, merged bodies, impossible joints, disembodied feet, "
-        "duplicate pairs of shoes that do not match the feet, hands grabbing random floating legs, "
-        "bare feet / barefoot people (anyone shown wears sneakers or proper shoes). "
-        "Prefer simple readable commercial composition: product hero OR single waist-down tired worker "
-        "on a bench with BOTH shoes on their own feet. "
+        "duplicate pairs of shoes that do not match the feet, bare feet / barefoot people "
+        "(anyone shown wears sneakers or proper shoes). "
+        "Prefer simple readable commercial composition: one pair on the ground OR a single waist-down "
+        "person with BOTH shoes on their own feet. "
     )
 
 
@@ -377,42 +523,42 @@ def _fallback_carousel(
             "That end-of-day ache often starts with shoes that never get a quick check. Spotting the problem in this quiet scene is the first useful step.",
             "Κουρασμένα πόδια μετά από μεγάλες μέρες;",
             "Ο πόνος στο τέλος της ημέρας συχνά ξεκινά από παπούτσια που δεν ελέγχονται ποτέ γρήγορα. Το να δεις το πρόβλημα σε αυτή την ήσυχη σκηνή είναι το πρώτο χρήσιμο βήμα.",
-            f"Soft editorial photo of empty everyday sneakers by a window at dusk, calm tired-day mood, educational, no logos as hero text, no celebrities. Clean short typography overlay matching the title: Tired feet after long days? Soft-discovery, not an ad. Photorealistic 8k {ar_flag}",
+            f"Soft editorial photo of empty everyday sneakers by a window at dusk, calm tired-day mood, educational, no drawn logos, no celebrities. {on_image_text_block('Tired feet after long days?')} Photorealistic 8k {ar_flag}",
         ),
         (
             "Start with a two-hour check",
             "After two hours on your feet, notice midsole compression, upper creases, and toe pinch. This close-up check shows what to fix next — before soreness becomes a habit.",
             "Ξεκίνα με έλεγχο στις δύο ώρες",
             "Μετά από δύο ώρες όρθιος, πρόσεξε συμπίεση midsole, τσακίσεις upper και πίεση στα δάχτυλα. Αυτός ο κοντινός έλεγχος δείχνει τι να διορθώσεις μετά — πριν ο πόνος γίνει συνήθεια.",
-            f"Close-up lifestyle still of sneaker midsole and upper on a clean desk, natural light, Kinfolk aesthetic, educational. Clean short typography overlay matching: Start with a two-hour check. Soft-discovery, not hard sell. Photorealistic 8k {ar_flag}",
+            f"Close-up lifestyle still of sneaker midsole and upper on a clean desk, natural light, Kinfolk aesthetic, educational. {on_image_text_block('Start with a two-hour check')} Photorealistic 8k {ar_flag}",
         ),
         (
             "Clean gently, dry slowly",
             "Once the pair is worth keeping, use a soft brush and mild soap where safe, then air-dry away from radiators. Gentle cleaning protects materials so cushioning lasts longer.",
             "Καθάρισε απαλά, στέγνωσε αργά",
             "Όταν το ζευγάρι αξίζει να το κρατήσεις, χρησιμοποίησε μαλακή βούρτσα και ήπιο σαπούνι όπου είναι ασφαλές, μετά άφησέ τα να στεγνώσουν μακριά από καλοριφέρ. Ο απαλός καθαρισμός προστατεύει τα υλικά ώστε η απορρόφηση να διαρκεί περισσότερο.",
-            f"Hands gently brushing a sneaker with a soft brush, towels nearby, calm tutorial feel, no brand hard-sell. Clean short typography overlay matching: Clean gently, dry slowly. Photorealistic 8k {ar_flag}",
+            f"Hands gently brushing a sneaker with a soft brush, towels nearby, calm tutorial feel, no brand hard-sell. {on_image_text_block('Clean gently, dry slowly')} Photorealistic 8k {ar_flag}",
         ),
         (
             "Rotate and let foam rebound",
             "Alternating pairs between wear days lets midsole foam rebound and keeps odor down. Resting shoes on the shelf is a free comfort upgrade you can see.",
             "Εναλλαγή και άσε τον αφρό να επανέλθει",
             "Η εναλλαγή ζευγαριών ανάμεσα στις μέρες χρήσης αφήνει τον αφρό midsole να επανέλθει και μειώνει τις οσμές. Η ξεκούραση στο ράφι είναι δωρεάν αναβάθμιση άνεσης που φαίνεται.",
-            f"Two pairs of everyday sneakers side by side on a shelf, soft daylight, organized storage, educational still life. Clean short typography overlay matching: Rotate and let foam rebound. Photorealistic 8k {ar_flag}",
+            f"One pair of everyday sneakers resting on a low wooden shelf, soft daylight, organized storage, educational still life. {on_image_text_block('Rotate and let foam rebound')} Photorealistic 8k {ar_flag}",
         ),
         (
             "Match material to the day",
             "Mesh breathes on warm walks, suede needs rain care, foam cushions standing hours. Matching what you see in the shoe to how you use it breaks the same tired-feet loop.",
             "Ταίριαξε υλικό με την ημέρα",
             "Το mesh αναπνέει σε ζεστές βόλτες, το σουέτ χρειάζεται φροντίδα στη βροχή, ο αφρός απορροφά ώρες όρθιας στάσης. Το να ταιριάζεις αυτό που βλέπεις στο παπούτσι με το πώς το χρησιμοποιείς σπάει τον ίδιο κύκλο κουρασμένων ποδιών.",
-            f"Macro texture still of mesh and suede in one calm frame, soft studio light, educational product photography. Clean short typography overlay matching: Match material to the day. Photorealistic 8k {ar_flag}",
+            f"Macro texture still of mesh and suede in one calm frame, soft studio light, educational product photography. {on_image_text_block('Match material to the day')} Photorealistic 8k {ar_flag}",
         ),
         (
             "Save this tip for later",
             "You now have a simple loop: check, care, rotate, match materials. Save this carousel and follow for the next calm footwear tip.",
             "Αποθήκευσε αυτή τη συμβουλή για αργότερα",
             "Τώρα έχεις έναν απλό κύκλο: έλεγχος, φροντίδα, εναλλαγή, ταίριασμα υλικών. Αποθήκευσε αυτό το carousel και ακολούθησε για την επόμενη ήρεμη συμβουλή υποδημάτων.",
-            f"Minimal flat-lay of sneakers with notebook and coffee, negative space for soft CTA, calm discovery mood, no celebrity, no hard sell. Clean short typography overlay matching: Save this tip for later. Photorealistic 8k {ar_flag}",
+            f"Minimal flat-lay of one pair of sneakers lying on the floor with an unbranded notebook and plain coffee cup, calm negative space, calm discovery mood, no celebrity, no hard sell. {on_image_text_block('Save this tip for later')} Photorealistic 8k {ar_flag}",
         ),
     ]
     slides = []
@@ -431,8 +577,8 @@ def _fallback_carousel(
             )
             prompt = (
                 f"Soft editorial photo of empty everyday sneakers by a window, calm morning light, "
-                f"educational mood, no logos as hero text, no celebrities. Clean short typography overlay "
-                f"matching: A calmer way to think about sneakers. Soft-discovery, not an ad. "
+                f"educational mood, no drawn logos, no celebrities, soft-discovery mood. "
+                f"{on_image_text_block('A calmer way to think about sneakers')} "
                 f"Photorealistic 8k {ar_flag}"
             )
         elif i == slide_count - 1:
@@ -447,9 +593,9 @@ def _fallback_carousel(
                 "Εξερεύνησε περισσότερες ήρεμες συμβουλές υποδημάτων όποτε θες — soft discovery, όχι διαφήμιση."
             )
             prompt = (
-                f"Minimal flat-lay of sneakers with notebook and coffee, negative space for soft CTA, "
-                f"calm discovery mood, no celebrity, no hard sell. Clean short typography overlay matching: "
-                f"Follow for the next tip. Photorealistic 8k {ar_flag}"
+                f"Minimal flat-lay of one pair of sneakers lying on the floor with an unbranded notebook and plain coffee cup, calm negative space, "
+                f"calm discovery mood, no celebrity, no hard sell. "
+                f"{on_image_text_block('Follow for the next tip')} Photorealistic 8k {ar_flag}"
             )
         title = title_el if lang == "el" else title_en
         body = body_el if lang == "el" else body_en
@@ -613,11 +759,14 @@ def generate_content_carousel(
         "do not invent a different setting than slides 1..N show. "
         "When a person/model appearance guidance is provided in the user prompt, reflect it "
         "consistently in every image_prompt. "
-        "HARD IMAGE RULES for every image_prompt: NEVER render Slide X of Y, LEARN MORE buttons, "
-        "carousel dots, app UI chrome, or ANY badges/seals/stamps/star ratings/review marks "
-        "(no OFFICIAL SELECTION, BESTSELLER, REVIEWED ★★★★★, SNEAKERNESS seals). "
-        "On-image text: at most one short headline (max ~6 plain common English words) quoted exactly "
-        "in the image_prompt, plus 'all text spelled exactly as written, no ligatures or misspellings'. "
+        "IMAGE PROMPT RULES (write image_prompt as a plain scene description): never put slide "
+        "numbers, page counters, role labels (hook/body/CTA), section headings, UI words (buttons, "
+        "arrows, dots, swipe, close icons) or any badge/rating/review wording inside image_prompt. "
+        "On-image text: at most one short headline (max 6 plain common English words), written ONLY as: "
+        "Text on image (render each exactly once, nothing else): headline \"...\". "
+        "Shoes grounded: worn by the one person or one pair resting naturally on the ground or floor; "
+        "never on pedestals, cylinders or stacked; never floating. Do not ask for a drawn brand logo or "
+        "wordmark — the shoe's own design is the only branding. "
         "No bare feet — anyone shown wears sneakers or proper shoes. Props unbranded only: no "
         "recognizable third-party brands/logos (no AirPods, iPhone, Apple Watch-like devices). "
         "End every image_prompt with: '" + FINAL_CHECK_LINE + "' then the aspect flag. "
@@ -675,12 +824,12 @@ CRITICAL CONSTRAINTS:
 5b. CRITICAL SHARED-CAPTION LOCK: ig_caption, tiktok_caption, pinterest_caption, and youtube_caption MUST summarize the SAME story/scenes as slides 1..N image_prompts — do NOT invent a different setting than the slides depict.
 6. Each slide needs short on-screen title + short body (readable on phone).
 7. Each slide needs an image generation prompt in Nano Banana / Midjourney style: soft-discovery aesthetic, photorealistic or clean editorial, calm lighting, no hard-sell product packaging UI, no celebrity faces.
-8. Optional short on-image overlay: image_prompt MAY include ONE short 2-6 plain common word ENGLISH (Latin letters only) overlay as clean typography, quoted exactly in single quotes, followed by "all text spelled exactly as written, no ligatures or misspellings" — do NOT put Greek letters on the image even if the slide title is Greek; prefer a short English paraphrase of the title. Prefer soft-discovery aesthetic. Keep NO "Slide X of Y", NO carousel numbering, NO carousel dots, NO LEARN MORE buttons, NO app UI chrome, NO badges/seals/stamps/star ratings/review marks of any kind (no OFFICIAL/BESTSELLER/REVIEWED/SNEAKERNESS seals), NO hard sell. ALL on-image overlay / headline / body / CTA text MUST be English using Latin letters only. NEVER use Greek letters (αβγ…), NEVER Cyrillic, on the image.
+8. Optional on-image text: image_prompt MAY include ONE short 2-6 plain common word ENGLISH (Latin letters only) headline, written ONLY in this exact form: Text on image (render each exactly once, nothing else): headline "..." — then "All text spelled exactly as written, no ligatures or misspellings." Do NOT put Greek letters on the image even if the slide title is Greek; prefer a short English paraphrase of the title. Never write slide numbers, page counters, role labels (hook/body/CTA/overlay), section headings, UI words (buttons, arrows, dots, swipe, close icons) or any badge/rating/review words inside image_prompt. No hard sell. ALL on-image text MUST be English using Latin letters only, never Greek or Cyrillic letters.
 9. Append aspect flag exactly as: {ar_flag} at the end of every image_prompt.
 10. By default NEVER put SNEAKERNESS.EU / sneakerness / any website on the image. If an explicit watermark/domain is provided in this prompt: REQUIRED — render watermark EXACTLY ONCE using that exact user string only (ban any second tiny/micro duplicate, shortened copy, or extra corner mark; do not also add "sneakerness" when the user typed a full domain) as clearly phone-readable bottom-right watermark (~7–9% of image height, clean sans-serif, strong contrast — must be easily readable at a glance on a phone screen; not microscopic; not faint grey on busy background; subtle dark/light shadow OK), ~2–3% margin from edges — readable on a phone without zoom; no giant headline, not dominating the shoe, no Explore CTA sentence on image. Overlay/CTA texts must NOT contain any website/domain — the watermark is the only on-image site text. MUST include the domain once naturally in ig/tiktok/pinterest/youtube captions when provided; do not force site into every image_prompt.
 11. Overlay text must match the depicted scene (do not put work-shift / "long shifts" wording on a running / track / curb-after-run / park leisure scene; keep work wording only for standing/work scenes; problem/hook wording must match the visible setting).
 12. If HARD APPEARANCE / no_face is active: crop strictly below the chin; no partial face at frame edge; write image_prompt as lifestyle/product framing with shoes/legs/hands/props - never portrait, face close-up, looking at camera, or headshot language. Prefer legs/shoes of at most one person OR product-only.
-13. ANATOMY & COMPOSITION SAFETY (apply to EVERY image_prompt): Maximum ONE person (prefer product-only). Coherent anatomy only — exactly two arms, two legs, two feet; limbs attached; person supported on bench/chair/curb/ground — NEVER floating. Shoes worn on that person OR separate still-life with no people. BAN: two people handling feet/legs, holding/removing socks/shoes from another, extra/detached limbs, merged bodies, disembodied feet, mismatched duplicate shoes, hands grabbing floating legs, bare feet (anyone shown wears sneakers or proper shoes — add "no bare feet" to negatives).
+13. Anatomy and composition (apply to EVERY image_prompt): Maximum ONE person (prefer product-only). Coherent anatomy only — exactly two arms, two legs, two feet; limbs attached; person supported on bench/chair/curb/ground. Shoes worn on that person OR one pair resting naturally on the ground/floor with no people — one pair per shot, never on a pedestal/cylinder, never stacked, never levitating. Avoid: two people handling feet/legs, holding/removing socks/shoes from another, extra/detached limbs, merged bodies, disembodied feet, mismatched duplicate shoes, bare feet (anyone shown wears sneakers or proper shoes — add "no bare feet" to negatives). Do not ask for a drawn brand logo or wordmark; the real shoe design is the only branding.
 14. PROPS: unbranded only — no recognizable third-party brands or logos (no AirPods, iPhone, Apple Watch-like devices, branded cups/cans); write "unbranded" for tech props.
 15. FINAL LINE: end every image_prompt with "{FINAL_CHECK_LINE}" right before {ar_flag}.
 {insight_block}{appearance_block}
