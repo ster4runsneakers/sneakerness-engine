@@ -116,6 +116,80 @@ def overlay_english_image_clause() -> str:
     )
 
 
+FINAL_CHECK_LINE = (
+    "Final check: correct sneaker model/colorway, accurate logo, legible correct text, "
+    "no extra fingers/limbs, no bare feet, no third-party brands."
+)
+_IMAGE_RULES_MARKER = "ON-IMAGE TEXT & PROPS RULES"
+
+# Third-party brand / product names that must never appear as props on the image.
+_THIRD_PARTY_PROP_SWAPS = (
+    (r"\bair\s*pods?\b", "unbranded wireless earbuds"),
+    (r"\bi\s*phones?\b", "unbranded smartphone"),
+    (r"\bi\s*pads?\b", "unbranded tablet"),
+    (r"\bmac\s*books?\b", "unbranded laptop"),
+    (r"\bapple\s+watch(es)?\b", "unbranded smartwatch"),
+    (r"\bgalaxy\s+(buds|watch)\b", "unbranded \\1"),
+    (r"\bgarmin\b", "unbranded"),
+    (r"\bpolaroid\b", "unbranded instant"),
+    (r"\bgo\s*pro\b", "unbranded action camera"),
+    (r"\bkindle\b", "unbranded e-reader"),
+    (r"\bstarbucks\b", "unbranded"),
+    (r"\bcoca[- ]?cola\b|\bcoke\b", "unlabeled soda"),
+    (r"\bred\s*bull\b", "unlabeled energy drink"),
+    (r"\bray[- ]?ban\b", "unbranded"),
+    (r"\bbeats\s+(headphones|earbuds)\b", "unbranded \\1"),
+)
+
+
+def unbrand_props(text: str) -> str:
+    """Swap recognizable third-party product names in prop text for unbranded wording."""
+    out = str(text or "")
+    for pat, rep in _THIRD_PARTY_PROP_SWAPS:
+        out = re.sub(pat, rep, out, flags=re.IGNORECASE)
+    return re.sub(r"\bunbranded\s+unbranded\b", "unbranded", out, flags=re.IGNORECASE)
+
+
+def image_text_rules_clause() -> str:
+    """Standing rules for EVERY image prompt (text, badges, feet, props, CTA)."""
+    return (
+        f" {_IMAGE_RULES_MARKER}: keep on-image text minimal — render ONLY the exact quoted words "
+        "given in this prompt, each word spelled exactly as written; headline max ~6 plain common words; "
+        "all text spelled exactly as written, no ligatures or misspellings, no invented words. "
+        "NO review/rating badges, NO stars (★), NO seals, stamps, ribbons, trust marks or award "
+        "badges — at most ONE badge on the whole image, and only the single authenticity badge "
+        "when this prompt explicitly asks for it. Soft CTA only (e.g. 'See details'); no crowded badges or stickers. "
+        "Any person shown must wear the advertised sneakers or proper shoes — no bare feet, "
+        "no barefoot model, no socks-only feet. Props must be unbranded: no recognizable third-party "
+        "brands or logos (no AirPods, iPhone, Apple Watch-like devices, no other sneaker/sportswear "
+        "logos besides the advertised brand). Negatives: bare feet, barefoot, garbled text, fake "
+        "words, misspelled text, star ratings, review badges, third-party logos. "
+    )
+
+
+def finalize_image_prompt(prompt: str, ar_flag: str = "") -> str:
+    """Inject standing image rules (once) and end with the final checklist line.
+
+    If the prompt ends with an aspect flag (e.g. '--ar 1:1'), the checklist goes
+    right before it so the flag stays last.
+    """
+    p = str(prompt or "").strip()
+    if not p:
+        return p
+    p = p.replace(FINAL_CHECK_LINE, "").strip()
+    flag = (ar_flag or "").strip()
+    if not flag:
+        m = re.search(r"(--ar\s+\d+:\d+)\s*$", p)
+        flag = m.group(1) if m else ""
+    tail = ""
+    if flag and p.endswith(flag):
+        p = p[: -len(flag)].rstrip()
+        tail = " " + flag
+    if _IMAGE_RULES_MARKER not in p:
+        p = p + image_text_rules_clause()
+    return (p.rstrip() + " " + FINAL_CHECK_LINE + tail).strip()
+
+
 def anatomy_safety_clause() -> str:
     return (
         " ANATOMY & COMPOSITION SAFETY (CRITICAL): "
@@ -127,7 +201,8 @@ def anatomy_safety_clause() -> str:
         "still-life with NO people interacting with them. "
         "BAN: two people interacting with feet/legs, holding/removing socks or shoes from another person, "
         "extra limbs, detached legs, merged bodies, impossible joints, disembodied feet, "
-        "duplicate pairs of shoes that do not match the feet, hands grabbing random floating legs. "
+        "duplicate pairs of shoes that do not match the feet, hands grabbing random floating legs, "
+        "bare feet / barefoot people (anyone shown wears sneakers or proper shoes). "
         "Prefer simple readable commercial composition: product hero OR single waist-down tired worker "
         "on a bench with BOTH shoes on their own feet. "
     )
@@ -383,7 +458,7 @@ def _fallback_carousel(
         slides.append({
             "title": title,
             "body": body,
-            "image_prompt": append_appearance_clause(prompt, appearance),
+            "image_prompt": finalize_image_prompt(append_appearance_clause(prompt, appearance), ar_flag),
         })
     if lang == "el":
         return {
@@ -539,8 +614,13 @@ def generate_content_carousel(
         "When a person/model appearance guidance is provided in the user prompt, reflect it "
         "consistently in every image_prompt. "
         "HARD IMAGE RULES for every image_prompt: NEVER render Slide X of Y, LEARN MORE buttons, "
-        "carousel dots, app UI chrome, or invented badges/seals (OFFICIAL SELECTION, BESTSELLER, "
-        "SNEAKERNESS) unless the user prompt explicitly requests that exact text. "
+        "carousel dots, app UI chrome, or ANY badges/seals/stamps/star ratings/review marks "
+        "(no OFFICIAL SELECTION, BESTSELLER, REVIEWED ★★★★★, SNEAKERNESS seals). "
+        "On-image text: at most one short headline (max ~6 plain common English words) quoted exactly "
+        "in the image_prompt, plus 'all text spelled exactly as written, no ligatures or misspellings'. "
+        "No bare feet — anyone shown wears sneakers or proper shoes. Props unbranded only: no "
+        "recognizable third-party brands/logos (no AirPods, iPhone, Apple Watch-like devices). "
+        "End every image_prompt with: '" + FINAL_CHECK_LINE + "' then the aspect flag. "
         "NEVER auto-brand SNEAKERNESS.EU / sneakerness on the image by default. "
         "If an explicit watermark/domain string is provided: REQUIRED — render watermark "
         "EXACTLY ONCE using that exact user string only (ban any second tiny/micro duplicate, "
@@ -595,12 +675,14 @@ CRITICAL CONSTRAINTS:
 5b. CRITICAL SHARED-CAPTION LOCK: ig_caption, tiktok_caption, pinterest_caption, and youtube_caption MUST summarize the SAME story/scenes as slides 1..N image_prompts — do NOT invent a different setting than the slides depict.
 6. Each slide needs short on-screen title + short body (readable on phone).
 7. Each slide needs an image generation prompt in Nano Banana / Midjourney style: soft-discovery aesthetic, photorealistic or clean editorial, calm lighting, no hard-sell product packaging UI, no celebrity faces.
-8. Optional short on-image overlay: image_prompt MAY include a short 2-5 word ENGLISH (Latin letters only) overlay as clean typography — do NOT put Greek letters on the image even if the slide title is Greek; prefer a short English paraphrase of the title. Prefer soft-discovery aesthetic. Keep NO "Slide X of Y", NO carousel numbering, NO carousel dots, NO LEARN MORE buttons, NO app UI chrome, NO invented OFFICIAL/BESTSELLER/SNEAKERNESS seals, NO hard sell. ALL on-image overlay / headline / body / CTA text MUST be English using Latin letters only. NEVER use Greek letters (αβγ…), NEVER Cyrillic, on the image.
+8. Optional short on-image overlay: image_prompt MAY include ONE short 2-6 plain common word ENGLISH (Latin letters only) overlay as clean typography, quoted exactly in single quotes, followed by "all text spelled exactly as written, no ligatures or misspellings" — do NOT put Greek letters on the image even if the slide title is Greek; prefer a short English paraphrase of the title. Prefer soft-discovery aesthetic. Keep NO "Slide X of Y", NO carousel numbering, NO carousel dots, NO LEARN MORE buttons, NO app UI chrome, NO badges/seals/stamps/star ratings/review marks of any kind (no OFFICIAL/BESTSELLER/REVIEWED/SNEAKERNESS seals), NO hard sell. ALL on-image overlay / headline / body / CTA text MUST be English using Latin letters only. NEVER use Greek letters (αβγ…), NEVER Cyrillic, on the image.
 9. Append aspect flag exactly as: {ar_flag} at the end of every image_prompt.
 10. By default NEVER put SNEAKERNESS.EU / sneakerness / any website on the image. If an explicit watermark/domain is provided in this prompt: REQUIRED — render watermark EXACTLY ONCE using that exact user string only (ban any second tiny/micro duplicate, shortened copy, or extra corner mark; do not also add "sneakerness" when the user typed a full domain) as clearly phone-readable bottom-right watermark (~7–9% of image height, clean sans-serif, strong contrast — must be easily readable at a glance on a phone screen; not microscopic; not faint grey on busy background; subtle dark/light shadow OK), ~2–3% margin from edges — readable on a phone without zoom; no giant headline, not dominating the shoe, no Explore CTA sentence on image. Overlay/CTA texts must NOT contain any website/domain — the watermark is the only on-image site text. MUST include the domain once naturally in ig/tiktok/pinterest/youtube captions when provided; do not force site into every image_prompt.
 11. Overlay text must match the depicted scene (do not put work-shift / "long shifts" wording on a running / track / curb-after-run / park leisure scene; keep work wording only for standing/work scenes; problem/hook wording must match the visible setting).
 12. If HARD APPEARANCE / no_face is active: crop strictly below the chin; no partial face at frame edge; write image_prompt as lifestyle/product framing with shoes/legs/hands/props - never portrait, face close-up, looking at camera, or headshot language. Prefer legs/shoes of at most one person OR product-only.
-13. ANATOMY & COMPOSITION SAFETY (apply to EVERY image_prompt): Maximum ONE person (prefer product-only). Coherent anatomy only — exactly two arms, two legs, two feet; limbs attached; person supported on bench/chair/curb/ground — NEVER floating. Shoes worn on that person OR separate still-life with no people. BAN: two people handling feet/legs, holding/removing socks/shoes from another, extra/detached limbs, merged bodies, disembodied feet, mismatched duplicate shoes, hands grabbing floating legs.
+13. ANATOMY & COMPOSITION SAFETY (apply to EVERY image_prompt): Maximum ONE person (prefer product-only). Coherent anatomy only — exactly two arms, two legs, two feet; limbs attached; person supported on bench/chair/curb/ground — NEVER floating. Shoes worn on that person OR separate still-life with no people. BAN: two people handling feet/legs, holding/removing socks/shoes from another, extra/detached limbs, merged bodies, disembodied feet, mismatched duplicate shoes, hands grabbing floating legs, bare feet (anyone shown wears sneakers or proper shoes — add "no bare feet" to negatives).
+14. PROPS: unbranded only — no recognizable third-party brands or logos (no AirPods, iPhone, Apple Watch-like devices, branded cups/cans); write "unbranded" for tech props.
+15. FINAL LINE: end every image_prompt with "{FINAL_CHECK_LINE}" right before {ar_flag}.
 {insight_block}{appearance_block}
 Return strict JSON:
 {{
@@ -652,6 +734,7 @@ Exactly {slide_count} objects inside "slides".
                     if "Latin letters only" not in prompt:
                         prompt = (prompt + " " + overlay_english_image_clause()).strip()
                     prompt = append_appearance_clause(prompt, _appearance_key)
+                    prompt = finalize_image_prompt(prompt, ar_flag)
                     normalized.append(
                         {
                             "title": str(s.get("title") or "").strip() or "Tip",

@@ -45,9 +45,10 @@ def generate_dynamic_campaign():
     
     CRITICAL VISUAL PROMPT RULES (SUBMITTED_PROMPT):
     - Single continuous 9:16 vertical canvas composition.
-    - Top-left badge: '100% AUTHENTIC GUARANTEED' (Render ONCE ONLY at absolute top-left).
-    - Top-right badge: 'REVIEWED ★★★★★' (Render ONCE ONLY at absolute top-right).
-    - STRICT NEGATIVE INSTRUCTION: ABSOLUTELY NO DUPLICATE BADGES. Do NOT repeat, mirror, or recreate badges, logos, or trust seals on the bottom panel or lower half.
+    - Badges: at most ONE badge, top-right, reading exactly '100% AUTHENTIC'. NO review/rating badges, NO stars (★), NO seals, stamps or invented trust marks.
+    - On-image text minimal: quote every word exactly; headline max ~6 plain common words; all text spelled exactly as written, no ligatures or misspellings.
+    - People (if any) wear the advertised sneakers or proper shoes — no bare feet. Props unbranded: no recognizable third-party brands/logos (no AirPods, iPhone, Apple Watch-like devices).
+    - Soft CTA only (e.g. 'See details'); no crowded badges.
     - Clean bottom area featuring the product and subtle lifestyle props. By default NO website/SNEAKERNESS.EU watermark on the image. If a watermark field is set: REQUIRED — render watermark EXACTLY ONCE using that exact user domain string only (ban any second tiny/micro duplicate, shortened copy, or extra corner mark; do not also add "sneakerness" when the user typed a full domain) as clearly phone-readable bottom-right text (~7–9% of image height, clean sans-serif, strong contrast — must be easily readable at a glance on a phone screen; not microscopic; not faint grey on busy background; subtle dark/light shadow OK), ~2–3% margin from edges — readable on a phone without zoom (no giant headline / Explore CTA / not dominating the shoe). Overlay/CTA texts must NOT contain any website/domain — the watermark is the only on-image site text.
 
     OUTPUT FORMAT:
@@ -57,11 +58,11 @@ def generate_dynamic_campaign():
         "tiktok_script": {{
             "hook": "...",
             "body": "...",
-            "cta": "Explore more specs."
+            "cta": "See details."
         }},
         "social_caption": "...",
         "pomelli_brief": {{
-            "submitted_prompt": "Photorealistic 3-part vertical storytelling ad layout, single continuous frame, top-left badge '100% AUTHENTIC GUARANTEED' (ONCE ONLY), top-right badge 'REVIEWED ★★★★★' (ONCE ONLY), no duplicate badges on bottom section, high detail footwear product shot, neutral tones, 9:16 aspect ratio",
+            "submitted_prompt": "Photorealistic 3-part vertical storytelling ad layout, single continuous frame, single top-right badge '100% AUTHENTIC' (ONCE ONLY, the only badge), no stars, no review seals, all text spelled exactly as written, no ligatures or misspellings, no bare feet, unbranded props only, high detail footwear product shot, neutral tones, 9:16 aspect ratio. Final check: correct sneaker model/colorway, accurate logo, legible correct text, no extra fingers/limbs, no bare feet, no third-party brands.",
             "title": "...",
             "description": "...",
             "goal": "Educate and promote product discovery"

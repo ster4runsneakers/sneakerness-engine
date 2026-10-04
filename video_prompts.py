@@ -98,10 +98,20 @@ def _appearance_video_clause(appearance: str) -> str:
     return "No faces unless required; prefer waist/knees-down footwear focus."
 
 
+VIDEO_FINAL_CHECK = (
+    "Final check: correct sneaker model/colorway, accurate logo, legible correct text, "
+    "no extra fingers/limbs, no bare feet, no third-party brands."
+)
+
+
 def _no_chrome() -> str:
     return (
-        "No UI chrome: no Slide X of Y, no LEARN MORE buttons, no carousel dots, "
-        "no invented badges (OFFICIAL SELECTION / BESTSELLER) unless explicitly in watermark field."
+        "No UI chrome: no Slide X of Y, no LEARN MORE buttons, no carousel dots; "
+        "no badges, seals, stamps, star ratings or review marks on screen. "
+        "Any on-screen text minimal, plain English, spelled exactly — no garbled or invented words. "
+        "People always wear the sneakers or proper shoes — no bare feet. "
+        "Props unbranded — no recognizable third-party brands/logos (no AirPods, iPhone, "
+        "Apple Watch-like devices)."
     )
 
 
@@ -203,6 +213,7 @@ def _beat_prompt(
     parts.append(motion_focus)
     parts.append(_watermark_clause(watermark, final_beat=is_final))
     parts.append("Natural light continuity. Cinematic, sharp, no morphing shoes.")
+    parts.append(VIDEO_FINAL_CHECK)
     return " ".join(p.strip() for p in parts if p and p.strip())
 
 
@@ -444,7 +455,7 @@ def _anatomy_video_clause() -> str:
         "coherent anatomy — exactly two arms, two legs, two feet, limbs attached; "
         "person supported on ground/bench — never floating; shoes worn on that person OR "
         "product still-life with no people; BAN multi-person foot chaos, extra/detached limbs, "
-        "merged bodies, disembodied feet."
+        "merged bodies, disembodied feet, bare feet."
     )
 
 
@@ -620,6 +631,7 @@ def build_unified_grok_video_prompt(
         parts.append("Watermark only in the final seconds if set; keep earlier frames clean.")
     else:
         parts.append("No watermark, no domain text on screen.")
+    parts.append(VIDEO_FINAL_CHECK)
 
     prompt_en = " ".join(p.strip() for p in parts if p and str(p).strip())
 

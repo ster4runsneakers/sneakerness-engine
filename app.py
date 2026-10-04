@@ -1,6 +1,7 @@
 # app.py - Sneaker Image Studio (Dynamic Creative Edition)
 import os
 import json
+import re
 import time
 import random
 import hashlib
@@ -27,6 +28,8 @@ from content_carousel import (
     appearance_clause,
     append_appearance_clause,
     anatomy_safety_clause,
+    finalize_image_prompt,
+    unbrand_props,
     topic_label,
     weekly_suggestions,
     generate_content_carousel,
@@ -195,25 +198,75 @@ if not api_key:
 client = genai.Client(api_key=api_key)
 
 # 1. DEFINITIONS
-CATEGORY_BADGES = [
-    "REVIEWED ★★★★★", 
-    "DAILY APPROVED ★★★★★", 
-    "CUSHIONING APPROVED", 
-    "RUNNING TECH", 
-    "HERITAGE DROP", 
-    "STREET CLASSIC",
-    "ULTRA COMFORT ★★★★★",
-    "BESTSELLER SELECTION"
-]
+# Badges: max ONE per image, and only '100% AUTHENTIC' (off by default).
+# Star/review badges (REVIEWED ★★★★★, ULTRA COMFORT ★★★★★, BESTSELLER SELECTION, ...) and the
+# top-left tag clutter (OFFICIAL SNEAKERNESS SELECTION, LIMITED EDITION DROP, ...) were removed:
+# image models garble them (e.g. 'REVIEWED ★★★★★ DOUARIDS') and fake review seals mislead.
+BADGE_NONE = "none"
+AUTHENTIC_BADGE = "100% AUTHENTIC"
+CATEGORY_BADGES = [BADGE_NONE, AUTHENTIC_BADGE]
+# Legacy: top-left tag no longer rendered; kept so old session/history keys stay valid.
+AUTHENTICITY_TAGS = [BADGE_NONE]
 
-AUTHENTICITY_TAGS = [
-    "100% AUTHENTIC GUARANTEED",
-    "LIMITED EDITION DROP",
-    "PREMIUM COMFORT EDITION",
-    "OFFICIAL SNEAKERNESS SELECTION",
-    "ORIGINAL HERITAGE DROP",
-    "VERIFIED AUTHENTIC"
-]
+
+def normalize_badge(value) -> str:
+    """Map any stored/legacy badge value to BADGE_NONE or AUTHENTIC_BADGE (unknown -> none)."""
+    v = str(value or "").strip().upper()
+    return AUTHENTIC_BADGE if v == AUTHENTIC_BADGE else BADGE_NONE
+
+
+def badge_image_clause(selected_badge) -> str:
+    """Single optional badge sentence for image prompts."""
+    if normalize_badge(selected_badge) == AUTHENTIC_BADGE:
+        return (
+            "One small clean top-right badge reading exactly '100% AUTHENTIC' — the ONLY badge on the "
+            "image (no stars, no other tags, seals or stickers). "
+        )
+    return "NO badges, tags, seals, stamps, stickers or star ratings anywhere on the image. "
+
+
+def cta_watermark_pair_clause(watermark: str) -> str:
+    """Soft CTA reads together with the domain watermark (domain still rendered only once)."""
+    if (watermark or "").strip():
+        return (
+            f" Place the soft CTA just above the bottom-right watermark so together they read like "
+            f"'See details on {(watermark or '').strip()}' — the domain itself appears only once (in the watermark). "
+        )
+    return ""
+
+
+_OVERLAY_WORD_LIMITS = {
+    "hook": 6, "body": 8, "cta": 6,
+    "slide1_text": 6, "slide2_text": 8, "slide3_text": 6,
+}
+_OVERLAY_TRAILING_STOP = {"a", "an", "the", "and", "or", "of", "to", "for", "with", "in", "on", "at", "your", "all", "by", "from"}
+
+
+def clamp_overlay_texts(ad_texts):
+    """Keep on-image overlay text short + plain: word caps, no stars/URLs/odd glyphs."""
+    if not isinstance(ad_texts, dict):
+        return ad_texts
+    out = dict(ad_texts)
+    for k, limit in _OVERLAY_WORD_LIMITS.items():
+        v = out.get(k)
+        if not isinstance(v, str) or not v.strip():
+            continue
+        _url = r"(?:https?://\S+|www\.\S+|\b[\w-]+\.(?:eu|com|gr|net|org|shop|store)\b)"
+        t_ = re.sub(r"\b(?:at|on|via|from)\s+" + _url, "", v, flags=re.IGNORECASE)
+        t_ = re.sub(_url, "", t_)
+        t_ = re.sub(r"[★☆✓✔®™©#|•]+", " ", t_)
+        t_ = re.sub(r"\s+", " ", t_).strip(" -–—,;:")
+        words = t_.split()
+        if len(words) > limit:
+            words = words[:limit]
+            while len(words) > 2 and words[-1].lower().strip(",.;:!?") in _OVERLAY_TRAILING_STOP:
+                words.pop()
+            t_ = " ".join(words).rstrip(",;:-–—")
+            if not t_.endswith((".", "!", "?")):
+                t_ += "."
+        out[k] = t_ or ("See details." if k in ("cta", "slide3_text") else v)
+    return out
+
 
 # 2. HELPER FUNCTIONS
 def auto_analyze_shoe(brand_name, model_name, image_bytes=None, mime_type="image/jpeg", vibe="auto"):
@@ -248,8 +301,8 @@ CRITICAL IDENTIFICATION & DYNAMIC SCENE CREATION RULES:
 3. "colorway": Describe the exact observed colors in the image (e.g., "Cream / Red / Navy Blue").
 4. "specs": Technical specifications specific to this exact model (e.g., Vibram Megagrip outsole, dual-density EVA midsole, breathable mesh upper).
 5. "env_desc": Write a detailed, hyper-relevant 1-sentence English description of the IDEAL background environment tailored to this shoe's archetype.
-6. "props_desc": Write a 1-sentence English list of 3-4 EDC props placed on the surface next to the shoe that match its lifestyle/vibe.
-7. "problem_desc": Write a 1-sentence English description of a realistic human pain-point/problem scene matching this shoe's category. Prefer product-only OR single-person legs/feet/shoes framing; faces not required. Never describe two people interacting with feet/legs/socks/shoes. Prefer both shoes worn on that one person, or shoes as a still-life with no people.
+6. "props_desc": Write a 1-sentence English list of 3-4 EDC props placed on the surface next to the shoe that match its lifestyle/vibe. Props MUST be unbranded (write "unbranded" for tech items, e.g. "unbranded wireless earbuds case", "unbranded smartwatch"); never name AirPods, iPhone, Apple Watch, Polaroid or any other third-party brand.
+7. "problem_desc": Write a 1-sentence English description of a realistic human pain-point/problem scene matching this shoe's category. Prefer product-only OR single-person legs/feet/shoes framing; faces not required. Never describe two people interacting with feet/legs/socks/shoes. Prefer both shoes worn on that one person, or shoes as a still-life with no people. Never bare feet / barefoot.
 
 HARD BANS (do NOT default to these unless the shoe truly matches that exact vibe, and even then invent a NEW wording):
 - tired worker sitting on stairs / sore feet with work boots
@@ -264,7 +317,7 @@ REQUIREMENTS:
   * Trail: muddy pine singletrack + poles / map / gaiters — ONE hiker's mud-caked shoes paused on a rock (both shoes on)
   * Gym: neon rubber-mat floor + chalk / straps / bands — ONE athlete's feet planted under a squat rack, both shoes on
   * Rainy commute: wet metro tiles + umbrella / transit card / thermos — ONE commuter's shoes beading rain on the platform
-  * Boutique street: cobblestone shopfront light + crossbody / Polaroid / iced matcha — ONE person's cropped stylish legs on a ledge, both sneakers on
+  * Boutique street: cobblestone shopfront light + crossbody / unbranded instant camera / iced matcha — ONE person's cropped stylish legs on a ledge, both sneakers on
   * Everyday lifestyle (beach / mountain / city / cafe): Mediterranean coastal promenade, hillside overlook, plateia golden hour, neighborhood cafe terrace, Aegean stone street, or park weekend path — ONE person soft pause OR product-only; soft static poses; distant crowd bokeh OK; not race running or multi-person foot chaos
   * Airport travel: departure hall daylight + boarding pass / neck pillow / carry-on — ONE traveler seated at the gate, both shoes on
   * Post-run recovery: curb outside a track at dusk + ice pack / recovery drink / massage ball — ONE runner seated on the curb rubbing own calves, BOTH shoes still on (or product-only shoes beside the curb — no second person)
@@ -382,12 +435,12 @@ def _scene_aware_ad_copy_fallback(brand_name, clean_model_name, wm_clean, lang="
     # Overlays always EN (Latin). Captions follow lang.
     packs = {
         "beach": {
-            "hook": f"Easy steps on the promenade. Discover {brand_name} {clean_model_name}.",
+            "hook": "Easy steps on the promenade.",
             "body": "Light cushioning for seaside strolls and soft walks.",
-            "cta": "Discover more.",
+            "cta": "See details.",
             "slide1_text": "Promenade comfort, soft underfoot.",
             "slide2_text": f"Discover {brand_name} {clean_model_name}.",
-            "slide3_text": "Explore the full specs.",
+            "slide3_text": "See details.",
             "el": {
                 "meta": f"Βόλτα στην παραλιακή με άνεση κάτω από τα πόδια. Εξερεύνησε πώς το {brand_name} {clean_model_name} συνοδεύει χαλαρούς ρυθμούς δίπλα στη θάλασσα.{site_el}",
                 "tiktok": f"Παραλιακή βόλτα χωρίς βαριά πόδια; Δες το {brand_name} {clean_model_name}{site_el_short}! 👟 #Sneakerness #{brand_name}",
@@ -402,12 +455,12 @@ def _scene_aware_ad_copy_fallback(brand_name, clean_model_name, wm_clean, lang="
             },
         },
         "trail": {
-            "hook": f"Trail miles, softer landings. Discover {brand_name} {clean_model_name}.",
+            "hook": "Trail miles, softer landings.",
             "body": "Grip and cushion for overlooks and hikes.",
-            "cta": "Discover more.",
+            "cta": "See details.",
             "slide1_text": "Trail comfort after the climb.",
             "slide2_text": f"Discover {brand_name} {clean_model_name}.",
-            "slide3_text": "Explore the full specs.",
+            "slide3_text": "See details.",
             "el": {
                 "meta": f"Μονοπάτι και θέα — άνεση που ακολουθεί το βήμα σου. Εξερεύνησε το {brand_name} {clean_model_name} για trail και ήπιες πεζοπορίες.{site_el}",
                 "tiktok": f"Μετά την ανάβαση, πιο μαλακό πάτημα; Δες το {brand_name} {clean_model_name}{site_el_short}! 👟 #Sneakerness #{brand_name}",
@@ -422,12 +475,12 @@ def _scene_aware_ad_copy_fallback(brand_name, clean_model_name, wm_clean, lang="
             },
         },
         "run": {
-            "hook": f"After the run, easier steps. Discover {brand_name} {clean_model_name}.",
+            "hook": "After the run, easier steps.",
             "body": "Recovery comfort for track and easy miles.",
-            "cta": "Discover more.",
+            "cta": "See details.",
             "slide1_text": "Post-run comfort on the curb.",
             "slide2_text": f"Discover {brand_name} {clean_model_name}.",
-            "slide3_text": "Explore the full specs.",
+            "slide3_text": "See details.",
             "el": {
                 "meta": f"Μετά το τρέξιμο ή τον στίβο, πιο απαλό πάτημα. Εξερεύνησε πώς το {brand_name} {clean_model_name} στηρίζει recovery και εύκολα χιλιόμετρα.{site_el}",
                 "tiktok": f"Μετά το run, πιο ήρεμα πόδια; Δες το {brand_name} {clean_model_name}{site_el_short}! 👟 #Sneakerness #{brand_name}",
@@ -442,12 +495,12 @@ def _scene_aware_ad_copy_fallback(brand_name, clean_model_name, wm_clean, lang="
             },
         },
         "commute": {
-            "hook": f"Wet commute, drier comfort. Discover {brand_name} {clean_model_name}.",
+            "hook": "Wet commute, drier comfort.",
             "body": "Steady steps through rain and metro platforms.",
-            "cta": "Discover more.",
+            "cta": "See details.",
             "slide1_text": "Rainy commute, steadier steps.",
             "slide2_text": f"Discover {brand_name} {clean_model_name}.",
-            "slide3_text": "Explore the full specs.",
+            "slide3_text": "See details.",
             "el": {
                 "meta": f"Βροχερή διαδρομή προς το μετρό — πιο σταθερό πάτημα. Εξερεύνησε το {brand_name} {clean_model_name} για υγρές μετακινήσεις.{site_el}",
                 "tiktok": f"Βρεγμένη διαδρομή, πιο άνετα πόδια; Δες το {brand_name} {clean_model_name}{site_el_short}! 👟 #Sneakerness #{brand_name}",
@@ -462,12 +515,12 @@ def _scene_aware_ad_copy_fallback(brand_name, clean_model_name, wm_clean, lang="
             },
         },
         "standing": {
-            "hook": f"Tired of foot fatigue after long hours? Discover {brand_name} {clean_model_name}.",
-            "body": "Engineered to absorb impact and support posture all day.",
-            "cta": "Discover more.",
-            "slide1_text": "Tired of Foot Fatigue After Long Hours?",
+            "hook": "Long hours, lighter feet.",
+            "body": "Absorbs impact, supports posture all day.",
+            "cta": "See details.",
+            "slide1_text": "Long shifts, softer steps.",
             "slide2_text": f"Discover {brand_name} {clean_model_name}.",
-            "slide3_text": "Explore the full specs.",
+            "slide3_text": "See details.",
             "el": {
                 "meta": f"Οι πολλές ώρες όρθιος δεν χρειάζεται να επιβαρύνουν τα πόδια σου. Εξερεύνησε πώς το {brand_name} {clean_model_name} προσφέρει στήριξη στάσης.{site_el}",
                 "tiktok": f"Πώς αντιμετωπίζεις την κούραση στα πόδια; Δες την τεχνολογία πίσω από {brand_name} {clean_model_name}{site_el_short}! 👟 #Sneakerness #{brand_name}",
@@ -482,12 +535,12 @@ def _scene_aware_ad_copy_fallback(brand_name, clean_model_name, wm_clean, lang="
             },
         },
         "everyday": {
-            "hook": f"Everyday walks, softer steps. Discover {brand_name} {clean_model_name}.",
+            "hook": "Everyday walks, softer steps.",
             "body": "All-day cushion for city strolls and lifestyle days.",
-            "cta": "Discover more.",
+            "cta": "See details.",
             "slide1_text": "City stroll comfort, all day.",
             "slide2_text": f"Discover {brand_name} {clean_model_name}.",
-            "slide3_text": "Explore the full specs.",
+            "slide3_text": "See details.",
             "el": {
                 "meta": f"Καθημερινή βόλτα στην πόλη με πιο απαλό πάτημα. Εξερεύνησε πώς το {brand_name} {clean_model_name} συνοδεύει lifestyle ρυθμούς.{site_el}",
                 "tiktok": f"Βόλτα στην πλατεία χωρίς βαριά πόδια; Δες το {brand_name} {clean_model_name}{site_el_short}! 👟 #Sneakerness #{brand_name}",
@@ -649,18 +702,21 @@ CRITICAL CONSTRAINTS:
 
 STORY GOAL / ANGLE: {goal_instruction}
 {insight_block}{scene_lock_block}
+ON-IMAGE OVERLAY RULES (hook, body, cta, slide texts): plain common English words only, no slang spellings,
+no invented words, no stars/★, no ratings, no review claims, no badges/seals text, no hashtags, no URLs.
+hook max 6 words, body max 8 words, cta max 6 words (soft, e.g. "See details"), slide texts max 6 words (slide2 max 8).
 Return strict JSON with keys:
-1. "hook": Image top text in ENGLISH (Latin letters only), max 10 words.
-2. "body": Image mid text in ENGLISH (Latin letters only), max 10 words.
-3. "cta": Image bottom soft CTA in ENGLISH WITHOUT any website/URL/domain, max 8 words. Soft discovery only.
+1. "hook": Image top text in ENGLISH (Latin letters only), max 6 plain common words.
+2. "body": Image mid text in ENGLISH (Latin letters only), max 8 plain common words.
+3. "cta": Image bottom soft CTA in ENGLISH WITHOUT any website/URL/domain, max 6 words (e.g. "See details"). Soft discovery only.
 4. "meta_caption": Greek Facebook/Instagram caption.
 5. "tiktok_caption": Short Greek TikTok caption + 4 FYP hashtags.
 6. "hashtags_meta": 8-10 trending hashtags (Greek or bilingual OK).
 7. "pinterest_caption": Greek Pinterest pin description — 2–4 short discovery/SEO-friendly sentences (light keyword phrases OK, not spammy); optional 3–5 hashtags at end.
 8. "youtube_caption": Greek YouTube Shorts/community description — first line a strong hook; then 2–4 sentences on comfort/use; soft CTA; fewer hashtags than TikTok; MUST include the site/domain once naturally when the caption-site rule requires it.
-9. "slide1_text": Text overlay for Slide 1 in ENGLISH (Latin letters only).
-10. "slide2_text": Text overlay for Slide 2 in ENGLISH (Latin letters only).
-11. "slide3_text": Soft CTA text overlay for Slide 3 in ENGLISH WITHOUT website/URL/domain.
+9. "slide1_text": Text overlay for Slide 1 in ENGLISH (Latin letters only), max 6 plain words.
+10. "slide2_text": Text overlay for Slide 2 in ENGLISH (Latin letters only), max 8 plain words.
+11. "slide3_text": Soft CTA text overlay for Slide 3 in ENGLISH WITHOUT website/URL/domain, max 6 words (e.g. "See details").
 """
         fallback = _scene_aware_ad_copy_fallback(
             brand_name, clean_model_name, wm_clean, lang="el",
@@ -678,25 +734,28 @@ Return strict JSON with keys:
 CRITICAL CONSTRAINTS:
 1. ALL OUTPUT MUST BE IN ENGLISH.
 2. DO NOT use hard-sell verbs like "buy", "shop", "order", "purchase".
-3. Use soft discovery CTAs in overlays WITHOUT forcing a URL (e.g. "Discover more", "See the full specs"). Put the domain only in captions when provided.
+3. Use soft discovery CTAs in overlays WITHOUT forcing a URL (e.g. "See details", "Discover more"). Put the domain only in captions when provided.
 4. STRICTLY DO NOT include celebrity names or restricted player names in any text or overlay.
 5. {image_overlay_rule_en}
 6. {caption_site_rule_en}
 
 STORY GOAL / ANGLE: {goal_instruction}
 {insight_block}{scene_lock_block}
+ON-IMAGE OVERLAY RULES (hook, body, cta, slide texts): plain common English words only, no slang spellings,
+no invented words, no stars/★, no ratings, no review claims, no badges/seals text, no hashtags, no URLs.
+hook max 6 words, body max 8 words, cta max 6 words (soft, e.g. "See details"), slide texts max 6 words (slide2 max 8).
 Return strict JSON with keys:
-1. "hook": Image top text, max 10 words.
-2. "body": Image mid text, max 10 words.
-3. "cta": Image bottom soft CTA WITHOUT any website/URL/domain, max 8 words. Soft discovery only.
+1. "hook": Image top text, max 6 plain common words.
+2. "body": Image mid text, max 8 plain common words.
+3. "cta": Image bottom soft CTA WITHOUT any website/URL/domain, max 6 words (e.g. "See details"). Soft discovery only.
 4. "meta_caption": English Facebook/Instagram caption.
 5. "tiktok_caption": Short English TikTok caption + 4 FYP hashtags.
 6. "hashtags_meta": 8-10 trending English hashtags.
 7. "pinterest_caption": English Pinterest pin description — 2–4 short discovery/SEO-friendly sentences (light keyword phrases OK, not spammy); optional 3–5 hashtags at end.
 8. "youtube_caption": English YouTube Shorts/community description — first line a strong hook; then 2–4 sentences on comfort/use; soft CTA; fewer hashtags than TikTok; MUST include the site/domain once naturally when the caption-site rule requires it.
-9. "slide1_text": Text overlay for Slide 1.
-10. "slide2_text": Text overlay for Slide 2.
-11. "slide3_text": Soft CTA text overlay for Slide 3 WITHOUT website/URL/domain.
+9. "slide1_text": Text overlay for Slide 1, max 6 plain words.
+10. "slide2_text": Text overlay for Slide 2, max 8 plain words.
+11. "slide3_text": Soft CTA text overlay for Slide 3 WITHOUT website/URL/domain, max 6 words (e.g. "See details").
 """
         fallback = _scene_aware_ad_copy_fallback(
             brand_name, clean_model_name, wm_clean, lang="en",
@@ -715,11 +774,11 @@ Return strict JSON with keys:
                 )
             )
             if response and response.text:
-                return json.loads(response.text.strip())
+                return clamp_overlay_texts(json.loads(response.text.strip()))
         except Exception:
             time.sleep(1)
 
-    return fallback
+    return clamp_overlay_texts(fallback)
 
 
 # --- Bilingual social captions (EL/EN cache; image prompts & Grok beats stay EN) ---
@@ -1161,6 +1220,9 @@ def build_carousel_prompts(
 ):
     """Build 2-5 Nano Banana carousel prompts with a clear story arc."""
     _appx = f" {appearance_extra}" if (appearance_extra or "").strip() else ""
+    selected_props = unbrand_props(selected_props)
+    _badge = badge_image_clause(selected_badge)
+    _cta_pair = cta_watermark_pair_clause(custom_watermark)
     _no_face = "No identifiable face" in (appearance_extra or "") or "no portrait framing" in (
         appearance_extra or ""
     ).lower()
@@ -1206,7 +1268,7 @@ def build_carousel_prompts(
         f"COMPOSITION LOCK — Slide 2 PRODUCT: three-quarter (3/4) side angle, medium camera distance, "
         f"clean studio product hero; fewer or differently arranged props ({selected_props}) — "
         f"NOT wide environment, NOT macro sole, NOT the same bench still-life as other slides. "
-        f"Top-left tag '{selected_tag}', top-right badge '{selected_badge}'. Clean text overlay: '{product_txt}'. "
+        f"{_badge}Clean text overlay: '{product_txt}'. "
         f"{_distinct} "
         f"{negative_constraint}{brand_lock}{_appx} Commercial studio lighting {ar_flag}"
     )
@@ -1217,8 +1279,8 @@ def build_carousel_prompts(
         f"COMPOSITION LOCK — PRODUCT+CTA: three-quarter (3/4) side angle, medium camera distance, "
         f"clean product showcase; props sparingly ({selected_props}) — NOT macro sole, NOT wide "
         f"environment, NOT top-down flat lay. "
-        f"Top-left tag '{selected_tag}', top-right badge '{selected_badge}'. "
-        f"Clean product showcase with soft CTA overlay: '{cta_txt}'."
+        f"{_badge}"
+        f"Clean product showcase with soft CTA overlay: '{cta_txt}'.{_cta_pair}"
         f"{_wm_img} "
         f"{_distinct} "
         f"{negative_constraint}{brand_lock}{_appx} Commercial studio lighting {ar_flag}"
@@ -1247,7 +1309,7 @@ def build_carousel_prompts(
         f"cushioning of {brand} {safe_model_name}. Background hint of {selected_env} only. "
         f"COMPOSITION LOCK — DETAIL/MACRO+CTA: sole/cushioning ONLY fills the frame; NO full pair on bench, "
         f"NO wide environment, NO 3/4 product hero — tight macro camera distance only. "
-        f"Soft CTA overlay: '{cta_txt}'."
+        f"Soft CTA overlay: '{cta_txt}'.{_cta_pair}"
         f"{_wm_img} "
         f"{_distinct} "
         f"{negative_constraint}{brand_lock}{_appx} Commercial studio lighting {ar_flag}"
@@ -1258,7 +1320,7 @@ def build_carousel_prompts(
         f"COMPOSITION LOCK — CTA/FLAT LAY: bird's-eye top-down flat lay OR clean side-profile silhouette "
         f"with generous negative space — NEVER repeat prior slide's camera distance (not wide hook, "
         f"not 3/4 product hero, not macro sole fill). "
-        f"Soft CTA overlay: '{cta_txt}'."
+        f"Soft CTA overlay: '{cta_txt}'.{_cta_pair}"
         f"{_wm_img} "
         f"{_distinct} "
         f"{negative_constraint}{brand_lock}{_appx} Commercial studio lighting {ar_flag}"
@@ -1291,7 +1353,7 @@ def build_carousel_prompts(
             ("slide_role_specs", specs),
             ("slide_role_cta", soft_cta),
         ]
-    return roles
+    return [(role, finalize_image_prompt(p, ar_flag)) for role, p in roles]
 
 
 def _product_negative_constraint(custom_watermark: str = "") -> str:
@@ -1316,8 +1378,11 @@ def _product_negative_constraint(custom_watermark: str = "") -> str:
     return (
         " STRICTLY NO text like 'Slide X of Y', NO carousel numbering, NO carousel dots, "
         "NO LEARN MORE buttons, NO app UI chrome, NO page numbers. "
-        "Do NOT invent badges/seals like OFFICIAL SELECTION / BESTSELLER / SNEAKERNESS "
-        "unless that exact text is requested in this prompt. "
+        "NO review/rating badges, star ratings (★), seals, stamps or invented trust marks "
+        "(no OFFICIAL SELECTION / BESTSELLER / REVIEWED / SNEAKERNESS seals) — at most ONE badge "
+        "and only the single authenticity badge when this prompt explicitly asks for it. "
+        "No bare feet: anyone shown wears the advertised sneakers or proper shoes. "
+        "Props unbranded — no recognizable third-party brands or logos. "
         + _wm_neg
         + overlay_english_clause()
         + "Overlay text must match the scene: ban work-shift / 'long shifts' overlay wording "
@@ -1350,6 +1415,9 @@ def build_single_visual_prompt(
     hook = ad_texts.get("hook", "")
     body = ad_texts.get("body", "")
     cta = ad_texts.get("cta", "")
+    selected_props = unbrand_props(selected_props)
+    _badge = badge_image_clause(selected_badge)
+    _cta_pair = cta_watermark_pair_clause(custom_watermark)
     _brand_lock = (
         f" Hero footwear must match: {brand} {safe_model_name} {colorway}. "
         f"Clearly recognizable {brand} footwear, correct model silhouette and typical "
@@ -1357,30 +1425,30 @@ def build_single_visual_prompt(
         f"correct brand family silhouette/colors as provided; do not invent a different brand."
     )
     if _no_face:
-        return (
+        return finalize_image_prompt(
             f"Create an image: Photorealistic lifestyle/product photograph prioritizing footwear of "
             f"{brand} {safe_model_name} in {colorway} colorway ({key_materials}) on a smooth surface "
             f"in the foreground with {selected_props}. Soft-focus upper background may SUGGEST fatigue "
             f"mood with at most one seated person's legs/shoes (coherent anatomy, both shoes on, properly "
             f"supported) OR empty atmosphere — never two people handling feet; crop strictly below the chin; "
             f"no partial face at frame edge; shoes, legs, hands, props only. Natural depth of field and "
-            f"continuous studio lighting. Render a top-left fabric tag reading '{selected_tag}' and a "
-            f"top-right badge reading '{selected_badge}'. Display headline text overlay '{hook}', "
-            f"body text overlay '{body}', and soft CTA overlay '{cta}'."
+            f"continuous studio lighting. {_badge}Display headline text overlay '{hook}', "
+            f"body text overlay '{body}', and soft CTA overlay '{cta}'.{_cta_pair}"
             f"{watermark_image_clause(custom_watermark)} {negative_constraint}{_brand_lock}"
-            f"{(' ' + appearance_extra) if appearance_extra else ''} Photorealistic 8k, seamless single canvas {ar_flag}"
+            f"{(' ' + appearance_extra) if appearance_extra else ''} Photorealistic 8k, seamless single canvas {ar_flag}",
+            ar_flag,
         )
-    return (
+    return finalize_image_prompt(
         f"Create an image: Photorealistic vertical photograph of {brand} {safe_model_name} in "
         f"{colorway} colorway ({key_materials}) placed on a smooth surface in the foreground, "
         f"accompanied by {selected_props}. Soft-focus upper background may SUGGEST fatigue mood via "
         f"at most one seated person with coherent anatomy (properly supported on bench/chair/curb, "
         f"both shoes on their own feet) OR empty atmosphere related to: {selected_problem} — never "
-        f"two people handling feet. Natural depth of field and continuous studio lighting. Render a "
-        f"top-left fabric tag reading '{selected_tag}' and a top-right badge reading '{selected_badge}'. "
-        f"Display headline text overlay '{hook}', body text overlay '{body}', and soft CTA overlay '{cta}'."
+        f"two people handling feet. Natural depth of field and continuous studio lighting. {_badge}"
+        f"Display headline text overlay '{hook}', body text overlay '{body}', and soft CTA overlay '{cta}'.{_cta_pair}"
         f"{watermark_image_clause(custom_watermark)} {negative_constraint}{_brand_lock}"
-        f"{(' ' + appearance_extra) if appearance_extra else ''} Photorealistic 8k, seamless single canvas {ar_flag}"
+        f"{(' ' + appearance_extra) if appearance_extra else ''} Photorealistic 8k, seamless single canvas {ar_flag}",
+        ar_flag,
     )
 
 
@@ -1400,8 +1468,8 @@ def rebuild_product_image_prompts_from_overlays_en() -> bool:
     colorway = st.session_state.get("colorway_val", "") or ""
     key_materials = st.session_state.get("specs_val", "") or ""
     custom_watermark = st.session_state.get("watermark_val", "") or ""
-    selected_tag = st.session_state.get("selected_tag_val", AUTHENTICITY_TAGS[0])
-    selected_badge = st.session_state.get("selected_badge_val", CATEGORY_BADGES[0])
+    selected_tag = BADGE_NONE
+    selected_badge = normalize_badge(st.session_state.get("selected_badge_val"))
     ad_format = st.session_state.get("ad_format_val", "Single Layout Ad (1 Εικόνα)")
     aspect_ratio = st.session_state.get("aspect_ratio_val", "1:1 (Square)")
     if aspect_ratio.startswith("4:5"):
@@ -1512,10 +1580,10 @@ SCENE_PACKS = {
     "running": [
         {
             "env_desc": "quiet outdoor track at soft dawn mist with lane lines still damp from overnight dew",
-            "props_desc": "GPS watch, race bib folded once, lightweight hydration flask, chalked starting block marks",
+            "props_desc": "unbranded GPS sports watch, race bib folded once, lightweight hydration flask, chalked starting block marks",
             "problem_desc": "close-up of ONE runner's calves mid-stride after tempo intervals, BOTH shoes planted on the curb for a breath",
             "env_desc_el": "ήσυχος ανοιχτός στίβος σε απαλή ομίχλη αυγής με γραμμές διαδρόμων ακόμα υγρές από τη νυχτερινή δροσιά",
-            "props_desc_el": "ρολόι GPS, νούμερο αγώνα διπλωμένο μια φορά, ελαφρύ φλασκί ενυδάτωσης, σημάδια εκκίνησης με κιμωλία",
+            "props_desc_el": "ρολόι GPS χωρίς λογότυπο, νούμερο αγώνα διπλωμένο μια φορά, ελαφρύ φλασκί ενυδάτωσης, σημάδια εκκίνησης με κιμωλία",
             "problem_desc_el": "κοντινό πλάνο στις γάμπες ΕΝΟΣ δρομέα στη μέση του διασκελισμού μετά από tempo διαστήματα, ΚΑΙ ΤΑ ΔΥΟ παπούτσια ακουμπημένα στο πεζοδρόμιο για μια ανάσα",
         },
         {
@@ -1564,28 +1632,28 @@ SCENE_PACKS = {
         },
         {
             "env_desc": "bright functional-training studio with kettlebells lined along a white wall",
-            "props_desc": "jump rope, foam yoga block, sweat towel, heart-rate armband",
+            "props_desc": "jump rope, foam yoga block, sweat towel, unbranded heart-rate armband",
             "problem_desc": "legs mid-lunge on turf after HIIT, shoes dusty with chalk residue",
             "env_desc_el": "φωτεινό στούντιο functional training με kettlebells στη σειρά κατά μήκος άσπρου τοίχου",
-            "props_desc_el": "σκοινάκι, foam μπλοκ γιόγκα, πετσέτα ιδρώτα, περιβραχιόνιο καρδιακών παλμών",
+            "props_desc_el": "σκοινάκι, foam μπλοκ γιόγκα, πετσέτα ιδρώτα, περιβραχιόνιο καρδιακών παλμών χωρίς λογότυπο",
             "problem_desc_el": "πόδια στη μέση ενός lunge σε χλοοτάπητα μετά από HIIT, παπούτσια σκονισμένα με υπόλειμμα κιμωλίας",
         },
     ],
     "street": [
         {
             "env_desc": "boutique cobblestone side street with shopfront glass and warm late-afternoon light",
-            "props_desc": "crossbody bag, Polaroid camera, folded denim jacket, iced matcha cup",
+            "props_desc": "crossbody bag, unbranded instant film camera, folded denim jacket, iced matcha cup",
             "problem_desc": "stylish cropped legs leaning on a storefront ledge, sneakers as the hero silhouette",
             "env_desc_el": "πλακόστρωτο πλαϊνό δρομάκι μπουτίκ με βιτρίνες και ζεστό απογευματινό φως",
-            "props_desc_el": "τσάντα χιαστή, κάμερα Polaroid, διπλωμένο τζιν μπουφάν, παγωμένο ποτήρι matcha",
+            "props_desc_el": "τσάντα χιαστή, κάμερα στιγμιαίας εκτύπωσης χωρίς λογότυπο, διπλωμένο τζιν μπουφάν, παγωμένο ποτήρι matcha",
             "problem_desc_el": "κομψά κομμένα πόδια ακουμπημένα σε περβάζι βιτρίνας, τα sneakers ως ήρωας της σιλουέτας",
         },
         {
             "env_desc": "graffiti alley with soft bounce light from a neighboring cafe awning",
-            "props_desc": "skateboard deck, wireless earbuds case, enamel pin card, chain wallet",
+            "props_desc": "skateboard deck, unbranded wireless earbuds case, enamel pin card, chain wallet",
             "problem_desc": "ONE person's street-style feet crossed on a curb, BOTH shoes on, focusing on clean upper and sole stack",
             "env_desc_el": "σοκάκι με graffiti και απαλό ανακλώμενο φως από τέντα γειτονικού καφέ",
-            "props_desc_el": "σανίδα skateboard, θήκη ασύρματων ακουστικών, κάρτα με καρφίτσα σμάλτου, πορτοφόλι με αλυσίδα",
+            "props_desc_el": "σανίδα skateboard, θήκη ασύρματων ακουστικών χωρίς λογότυπο, κάρτα με καρφίτσα σμάλτου, πορτοφόλι με αλυσίδα",
             "problem_desc_el": "πόδια ΕΝΟΣ ατόμου street-style σταυρωμένα στο πεζοδρόμιο, ΚΑΙ ΤΑ ΔΥΟ παπούτσια φορεμένα, εστίαση στο καθαρό πάνω μέρος και τη στοίβα της σόλας",
         },
     ],
@@ -1600,10 +1668,10 @@ SCENE_PACKS = {
         },
         {
             "env_desc": "busy crosswalk at dusk with puddles and yellow taxi streaks in bokeh",
-            "props_desc": "folded newspaper, bike helmet, wet scarf, phone with cracked case",
+            "props_desc": "folded newspaper, bike helmet, wet scarf, unbranded phone with cracked case",
             "problem_desc": "feet stepping through a shallow puddle at a red light, shoes taking the splash",
             "env_desc_el": "πολυσύχναστη διάβαση στο σούρουπο με λακκούβες και κίτρινες γραμμές ταξί σε bokeh",
-            "props_desc_el": "διπλωμένη εφημερίδα, κράνος ποδηλάτου, βρεγμένο κασκόλ, τηλέφωνο με ραγισμένη θήκη",
+            "props_desc_el": "διπλωμένη εφημερίδα, κράνος ποδηλάτου, βρεγμένο κασκόλ, τηλέφωνο χωρίς λογότυπο με ραγισμένη θήκη",
             "problem_desc_el": "πόδια που πατάνε μέσα από ρηχή λακκούβα σε κόκκινο φανάρι, παπούτσια που παίρνουν το πιτσίλισμα",
         },
     ],
@@ -1618,10 +1686,10 @@ SCENE_PACKS = {
         },
         {
             "env_desc": "retail shop floor aisle with soft overhead LEDs and clothing racks softly blurred",
-            "props_desc": "price gun, folded stock boxes, name-badge lanyard, inventory tablet",
+            "props_desc": "price gun, folded stock boxes, blank name-badge lanyard, unbranded inventory tablet",
             "problem_desc": "ONE retail associate's legs pausing mid-aisle after a long standing shift, BOTH shoes still on their own feet",
             "env_desc_el": "διάδρομος καταστήματος retail με απαλά overhead LED και ράφια ρούχων απαλά θολά",
-            "props_desc_el": "πιστόλι τιμών, διπλωμένα κουτιά στοκ, κορδόνι με κονκάρδα ονόματος, tablet αποθέματος",
+            "props_desc_el": "πιστόλι τιμών, διπλωμένα κουτιά στοκ, κορδόνι με κενή κονκάρδα ονόματος, tablet αποθέματος χωρίς λογότυπο",
             "problem_desc_el": "πόδια ΕΝΟΣ υπαλλήλου retail που σταματούν στη μέση του διαδρόμου μετά από μεγάλη βάρδια όρθιος, ΚΑΙ ΤΑ ΔΥΟ παπούτσια ακόμα φορεμένα",
         },
     ],
@@ -1646,36 +1714,36 @@ SCENE_PACKS = {
     "recovery": [
         {
             "env_desc": "quiet curb outside a running track after sunset with streetlamps just flickering on",
-            "props_desc": "ice pack wrap, recovery drink can, sweaty singlet draped aside, massage ball",
+            "props_desc": "ice pack wrap, unlabeled recovery drink can, sweaty singlet draped aside, massage ball",
             "problem_desc": "ONE runner seated on the curb after a run, BOTH shoes still on, rubbing own tired calves — or product-only shoes beside the curb; no second person",
             "env_desc_el": "ήσυχο πεζοδρόμιο έξω από στίβο μετά το ηλιοβασίλεμα με φανούς που μόλις ανάβουν",
-            "props_desc_el": "παγοκύστη, κουτάκι recovery ποτού, ιδρωμένο φανελάκι στην άκρη, μπάλα μασάζ",
+            "props_desc_el": "παγοκύστη, κουτάκι recovery ποτού χωρίς ετικέτα, ιδρωμένο φανελάκι στην άκρη, μπάλα μασάζ",
             "problem_desc_el": "ΕΝΑΣ δρομέας καθισμένος στο πεζοδρόμιο μετά το τρέξιμο, ΚΑΙ ΤΑ ΔΥΟ παπούτσια ακόμα φορεμένα, τρίβει τις δικές του κουρασμένες γάμπες — ή μόνο τα παπούτσια δίπλα στο πεζοδρόμιο· χωρίς δεύτερο άτομο",
         },
         {
             "env_desc": "sunny apartment balcony with a yoga mat rolled halfway and city rooftops beyond",
-            "props_desc": "compression boots remote, protein shake, phone playing a stretch video, soft towel",
+            "props_desc": "compression boots remote, protein shake, unbranded phone playing a stretch video, soft towel",
             "problem_desc": "ONE person on a mat doing a recovery stretch, BOTH shoes beside the mat as product still-life (no people handling feet), or both shoes on while they roll their own calves",
             "env_desc_el": "ηλιόλουστο μπαλκόνι διαμερίσματος με στρώμα γιόγκα μισοτυλιγμένο και ταράτσες πόλης στο βάθος",
-            "props_desc_el": "τηλεχειριστήριο μπότες συμπίεσης, πρωτεϊνικό shake, τηλέφωνο με βίντεο διατάσεων, απαλή πετσέτα",
+            "props_desc_el": "τηλεχειριστήριο μπότες συμπίεσης, πρωτεϊνικό shake, τηλέφωνο χωρίς λογότυπο με βίντεο διατάσεων, απαλή πετσέτα",
             "problem_desc_el": "ΕΝΑ άτομο σε στρώμα σε διάταση recovery, ΚΑΙ ΤΑ ΔΥΟ παπούτσια δίπλα στο στρώμα ως product still-life (κανείς δεν αγγίζει πόδια άλλου), ή και τα δύο παπούτσια φορεμένα καθώς κυλάει τις δικές του γάμπες",
         },
     ],
     "basketball": [
         {
             "env_desc": "indoor hardwood court with sharp overhead lights and painted free-throw arc",
-            "props_desc": "basketball, towel on the baseline, ankle sleeve, sports drink bottle",
+            "props_desc": "basketball, towel on the baseline, ankle sleeve, unlabeled sports drink bottle",
             "problem_desc": "player legs cutting hard near the key, shoes planted for a quick stop",
             "env_desc_el": "κλειστό γήπεδο παρκέ με έντονα overhead φώτα και βαμμένο τόξο ελεύθερης βολής",
-            "props_desc_el": "μπάλα μπάσκετ, πετσέτα στη βασική γραμμή, μανίκι αστραγάλου, μπουκάλι αθλητικού ποτού",
+            "props_desc_el": "μπάλα μπάσκετ, πετσέτα στη βασική γραμμή, μανίκι αστραγάλου, μπουκάλι αθλητικού ποτού χωρίς ετικέτα",
             "problem_desc_el": "πόδια παίκτη που κόβουν απότομα κοντά στο καλάθι, παπούτσια ακουμπημένα για γρήγορο στοπ",
         },
         {
             "env_desc": "outdoor asphalt half-court at golden hour with chain net softly clinking",
-            "props_desc": "worn basketball, portable speaker, chalked score tally, water jug",
+            "props_desc": "worn basketball, unbranded portable speaker, chalked score tally, water jug",
             "problem_desc": "pickup-game feet at the top of the key between possessions, dusty court shoes",
             "env_desc_el": "εξωτερικό asfalt half-court στην χρυσή ώρα με αλυσίδα δίχτυ που κουδουνίζει απαλά",
-            "props_desc_el": "φθαρμένη μπάλα μπάσκετ, φορητό ηχείο, σκορ με κιμωλία, μπιτόνι νερού",
+            "props_desc_el": "φθαρμένη μπάλα μπάσκετ, φορητό ηχείο χωρίς λογότυπο, σκορ με κιμωλία, μπιτόνι νερού",
             "problem_desc_el": "πόδια pickup αγώνα στην κορυφή της ρακέτας ανάμεσα σε κατοχές, σκονισμένα παπούτσια γηπέδου",
         },
     ],
@@ -1690,10 +1758,10 @@ SCENE_PACKS = {
         },
         {
             "env_desc": "Mediterranean coastal promenade at soft morning light with pale sea haze and weathered boardwalk planks",
-            "props_desc": "sunglasses case, woven straw tote, cold sparkling water, disposable camera",
+            "props_desc": "sunglasses case, woven straw tote, unlabeled sparkling water bottle, unbranded disposable camera",
             "problem_desc": "ONE person paused mid-stroll leaning lightly on the railing, BOTH shoes on their own feet as the hero against weathered wood and soft sea bokeh — leisurely walk pause, not running",
             "env_desc_el": "μεσογειακό παραθαλάσσιο πεζοδρόμιο σε απαλό πρωινό φως με χλωμή θαλασσινή ομίχλη και φθαρμένες σανίδες boardwalk",
-            "props_desc_el": "θήκη γυαλιών ηλίου, πλεκτή ψάθινη τσάντα, κρύο ανθρακούχο νερό, κάμερα μιας χρήσης",
+            "props_desc_el": "θήκη γυαλιών ηλίου, πλεκτή ψάθινη τσάντα, κρύο ανθρακούχο νερό χωρίς ετικέτα, κάμερα μιας χρήσης χωρίς λογότυπο",
             "problem_desc_el": "ΕΝΑ άτομο σταματημένο στη μέση της βόλτας ακουμπημένο απαλά στο κάγκελο, ΚΑΙ ΤΑ ΔΥΟ παπούτσια στα δικά του πόδια ως ήρωας πάνω σε φθαρμένο ξύλο και απαλό θαλασσινό bokeh — παύση χαλαρής βόλτας, όχι τρέξιμο",
         },
         {
@@ -2671,10 +2739,9 @@ def apply_history_entry(entry: dict):
     st.session_state["props_desc_en"] = _p_en
     st.session_state["problem_desc_en"] = _pr_en
     st.session_state["watermark_val"] = (entry.get("watermark") or "").strip()
-    tag = entry.get("selected_tag") or AUTHENTICITY_TAGS[0]
-    badge = entry.get("selected_badge") or CATEGORY_BADGES[0]
-    st.session_state["selected_tag_val"] = tag if tag in AUTHENTICITY_TAGS else AUTHENTICITY_TAGS[0]
-    st.session_state["selected_badge_val"] = badge if badge in CATEGORY_BADGES else CATEGORY_BADGES[0]
+    # Legacy tag/badge values (REVIEWED ★★★★★, OFFICIAL ... SELECTION, ...) map to none.
+    st.session_state["selected_tag_val"] = BADGE_NONE
+    st.session_state["selected_badge_val"] = normalize_badge(entry.get("selected_badge"))
     formats = ["Single Layout Ad (1 Εικόνα)", "Carousel Pack (multi-slide)"]
     fmt = entry.get("ad_format") or formats[0]
     st.session_state["ad_format_val"] = fmt if fmt in formats else formats[0]
@@ -3045,7 +3112,7 @@ def _parse_content_export_txt(text: str) -> dict | None:
             {
                 "title": (title_m.group(1).strip() if title_m else ""),
                 "body": (body_m.group(1).strip() if body_m else ""),
-                "image_prompt": prompt,
+                "image_prompt": finalize_image_prompt(prompt) if prompt else prompt,
             }
         )
 
@@ -3327,6 +3394,8 @@ if "uploader_key" not in st.session_state: st.session_state["uploader_key"] = 0
 if "watermark_val" not in st.session_state: st.session_state["watermark_val"] = ""
 if "selected_tag_val" not in st.session_state: st.session_state["selected_tag_val"] = AUTHENTICITY_TAGS[0]
 if "selected_badge_val" not in st.session_state: st.session_state["selected_badge_val"] = CATEGORY_BADGES[0]
+st.session_state["selected_badge_val"] = normalize_badge(st.session_state.get("selected_badge_val"))
+st.session_state["selected_tag_val"] = BADGE_NONE
 if "ad_format_val" not in st.session_state: st.session_state["ad_format_val"] = "Single Layout Ad (1 Εικόνα)"
 if "slide_count_val" not in st.session_state: st.session_state["slide_count_val"] = 3
 if "aspect_ratio_val" not in st.session_state: st.session_state["aspect_ratio_val"] = "1:1 (Square)"
@@ -3901,15 +3970,16 @@ st.session_state["watermark_val"] = custom_watermark
 key_materials = st.text_area(t("specs_label", lang), value=st.session_state["specs_val"], placeholder=t("specs_placeholder", lang), height=80)
 st.session_state["specs_val"] = key_materials
 
-col_tag, col_badge = st.columns(2)
-with col_tag:
-    _tag_idx = AUTHENTICITY_TAGS.index(st.session_state["selected_tag_val"]) if st.session_state["selected_tag_val"] in AUTHENTICITY_TAGS else 0
-    selected_tag = st.selectbox(t("tag_label", lang), AUTHENTICITY_TAGS, index=_tag_idx)
-    st.session_state["selected_tag_val"] = selected_tag
-with col_badge:
-    _badge_idx = CATEGORY_BADGES.index(st.session_state["selected_badge_val"]) if st.session_state["selected_badge_val"] in CATEGORY_BADGES else 0
-    selected_badge = st.selectbox(t("badge_label", lang), CATEGORY_BADGES, index=_badge_idx)
-    st.session_state["selected_badge_val"] = selected_badge
+# Max ONE badge per image, only '100% AUTHENTIC', off by default (no star/review badges).
+_show_authentic = st.checkbox(
+    t("authentic_badge_label", lang),
+    value=normalize_badge(st.session_state.get("selected_badge_val")) == AUTHENTIC_BADGE,
+    help=t("authentic_badge_help", lang),
+)
+selected_badge = AUTHENTIC_BADGE if _show_authentic else BADGE_NONE
+selected_tag = BADGE_NONE
+st.session_state["selected_badge_val"] = selected_badge
+st.session_state["selected_tag_val"] = selected_tag
 
 st.markdown(t("scene_section", lang))
 st.caption(t("scene_help", lang))
